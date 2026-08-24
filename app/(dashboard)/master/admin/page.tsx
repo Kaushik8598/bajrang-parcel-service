@@ -20,20 +20,20 @@ interface Admin {
 
 // ─── Static mock data ─────────────────────────────────────────────────────────
 const MOCK_ADMINS: Admin[] = [
-  { id: 1, admin_name: "Ujjaval Parmar",  email_id: "ujjaval@bajrang.com", mobile_no: "9876543210", is_active: false },
-  { id: 2, admin_name: "Ashok Mehta",     email_id: "ashok@bajrang.com",   mobile_no: "9876543211", is_active: true  },
-  { id: 3, admin_name: "Bhavesh Solanki", email_id: "bhavesh@bajrang.com", mobile_no: "9876543212", is_active: true  },
-  { id: 4, admin_name: "Chirag Patel",    email_id: "chirag@bajrang.com",  mobile_no: "9876543213", is_active: true  },
-  { id: 5, admin_name: "Dipak Desai",     email_id: "dipak@bajrang.com",   mobile_no: "9876543214", is_active: false },
+  { id: 1, admin_name: "Ujjaval Parmar", email_id: "ujjaval@bajrang.com", mobile_no: "9876543210", is_active: false },
+  { id: 2, admin_name: "Ashok Mehta", email_id: "ashok@bajrang.com", mobile_no: "9876543211", is_active: true },
+  { id: 3, admin_name: "Bhavesh Solanki", email_id: "bhavesh@bajrang.com", mobile_no: "9876543212", is_active: true },
+  { id: 4, admin_name: "Chirag Patel", email_id: "chirag@bajrang.com", mobile_no: "9876543213", is_active: true },
+  { id: 5, admin_name: "Dipak Desai", email_id: "dipak@bajrang.com", mobile_no: "9876543214", is_active: false },
 ];
 
 // ─── Permissions (simulate full admin permissions) ────────────────────────────
 const PERMISSIONS: TablePermissions = {
-  canExcel:  true,
-  canPDF:    true,
-  canPrint:  true,
-  canAdd:    true,
-  canEdit:   true,
+  canExcel: true,
+  canPDF: true,
+  canPrint: true,
+  canAdd: true,
+  canEdit: true,
   canDelete: true,
   canStatus: true,
 };
@@ -76,8 +76,8 @@ export default function ManageAdminPage() {
   // ─── Column definitions ──────────────────────────────────────────────────────
   const columns: ColumnDef<Admin>[] = [
     { key: "admin_name", label: "Admin Name", sortable: true },
-    { key: "email_id",   label: "Email Id",   sortable: true },
-    { key: "mobile_no",  label: "Mobile No",  sortable: true },
+    { key: "email_id", label: "Email Id", sortable: true },
+    { key: "mobile_no", label: "Mobile No", sortable: true },
     {
       key: "is_active",
       label: "Status",
