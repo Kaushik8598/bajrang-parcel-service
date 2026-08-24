@@ -93,9 +93,9 @@ export default function ManageAdminPage() {
     {
       key: "action",
       label: "Action",
-      width: "w-44",
+      width: "w-28",
       render: (_, row) => (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center">
           {PERMISSIONS.canEdit && (
             <Button
               type="button"
@@ -105,18 +105,6 @@ export default function ManageAdminPage() {
             >
               <Pencil className="w-3 h-3 mr-1" />
               Edit
-            </Button>
-          )}
-          {PERMISSIONS.canDelete && (
-            <Button
-              type="button"
-              size="sm"
-              variant="destructive"
-              onClick={() => handleDeleteClick(row)}
-              className="h-7 px-2.5 text-xs bg-[#e74c3c] hover:bg-[#c0392b] text-white shadow-xs transition-colors"
-            >
-              <Trash2 className="w-3 h-3 mr-1" />
-              Remove
             </Button>
           )}
         </div>

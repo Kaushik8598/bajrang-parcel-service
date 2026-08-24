@@ -379,7 +379,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
       setFormErrors({});
       window.scrollTo({ top: 0, behavior: "smooth" });
       setTimeout(() => {
-        router.push("/transaction/booking");
+        router.push("/reports/booking");
       }, 1200);
     },
     onError: (err: Error) => {
@@ -441,7 +441,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
 
         <Button
           type="button"
-          onClick={() => router.push("/transaction/booking")}
+          onClick={() => router.push("/reports/booking")}
           className="bg-[#2980b9] hover:bg-[#2471a3] text-white h-7 px-3 text-xs font-semibold shadow-xs transition-colors"
         >
           <ArrowLeft className="w-3 h-3 mr-1" />
@@ -1204,7 +1204,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
           <Button
             type="button"
             variant="outline"
-            onClick={() => router.push("/transaction/booking")}
+            onClick={() => router.push("/reports/booking")}
             className="h-8 px-5 text-xs text-slate-600 border-slate-200 hover:bg-slate-50"
           >
             Cancel
