@@ -31,6 +31,34 @@ export default function LoginPage() {
     },
   });
 
+  // ── Demo login (development only — no API needed) ──────────────────────────
+  const handleDemoLogin = () => {
+    saveAuthData({
+      token: "demo-token-123",
+      user: { id: 1, name: "Admin", email: "admin@bajrang.com", mobile: "9876543210", role: "admin" },
+      permissions: [
+        { module: "manage_admin", can_view: true, can_add: true, can_edit: true, can_delete: true, can_export: true, can_status: true },
+        { module: "manage_branch", can_view: true, can_add: true, can_edit: true, can_delete: true, can_export: true, can_status: true },
+        { module: "manage_branch_user", can_view: true, can_add: true, can_edit: true, can_delete: true, can_export: true, can_status: true },
+        { module: "manage_customer", can_view: true, can_add: true, can_edit: true, can_delete: true, can_export: true, can_status: true },
+        { module: "manage_truck", can_view: true, can_add: true, can_edit: true, can_delete: true, can_export: true, can_status: true },
+        { module: "manage_driver", can_view: true, can_add: true, can_edit: true, can_delete: true, can_export: true, can_status: true },
+        { module: "admin_wise_payment", can_view: true, can_add: false, can_edit: false, can_delete: false, can_export: true, can_status: false },
+        { module: "booking", can_view: true, can_add: true, can_edit: true, can_delete: false, can_export: true, can_status: true },
+        { module: "delivery", can_view: true, can_add: true, can_edit: true, can_delete: false, can_export: true, can_status: true },
+        { module: "memo", can_view: true, can_add: true, can_edit: true, can_delete: true, can_export: true, can_status: true },
+        { module: "booking_report", can_view: true, can_add: false, can_edit: false, can_delete: false, can_export: true, can_status: false },
+        { module: "delivery_report", can_view: true, can_add: false, can_edit: false, can_delete: false, can_export: true, can_status: false },
+        { module: "manage_user_rights", can_view: true, can_add: true, can_edit: true, can_delete: true, can_export: false, can_status: true },
+        { module: "website_settings", can_view: true, can_add: true, can_edit: true, can_delete: false, can_export: false, can_status: false },
+      ],
+      menu: [],
+      balance: 3905,
+      notifications: 214535,
+    });
+    router.push("/dashboard");
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -160,6 +188,20 @@ export default function LoginPage() {
               >
                 Forgot Password?
               </a>
+            </div>
+
+            {/* Demo login — remove in production */}
+            <div className="mt-5 pt-4 border-t border-dashed border-slate-200">
+              <p className="text-center text-slate-400 text-[10px] mb-2 uppercase tracking-wider">Development Only</p>
+              <Button
+                id="demo-login-btn"
+                type="button"
+                variant="outline"
+                className="w-full h-9 text-xs text-slate-500 border-slate-200 hover:bg-slate-50"
+                onClick={handleDemoLogin}
+              >
+                🚀 Demo Login (API vinā)
+              </Button>
             </div>
           </div>
         </div>
