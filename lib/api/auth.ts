@@ -63,11 +63,22 @@ export async function getUserBalance(): Promise<number> {
       method: "GET",
     });
     if (response?.success && response.data && typeof response.data.balance === "number") {
-      return response.data.balance;
+      const liveBalance = response.data.balance;
+      const stored = getStoredUser();
+      if (stored) {
+        stored.balance = liveBalance;
+        Cookies.set(AUTH_USER_KEY, JSON.stringify(stored), { expires: 7, path: "/", sameSite: "lax" });
+        if (typeof window !== "undefined") {
+          localStorage.setItem(AUTH_USER_KEY, JSON.stringify(stored));
+        }
+      }
+      return liveBalance;
     }
-    return 0;
+    const stored = getStoredUser();
+    return typeof stored?.balance === "number" ? stored.balance : 0;
   } catch {
-    return 0;
+    const stored = getStoredUser();
+    return typeof stored?.balance === "number" ? stored.balance : 0;
   }
 }
 

@@ -1,16 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
-import { getUserBalance } from "@/lib/api/auth";
+import { getUserBalance, getStoredUser } from "@/lib/api/auth";
 
 export const USER_BALANCE_QUERY_KEY = ["user-balance"] as const;
 
 /**
  * Reusable React Query hook to get live user balance.
- * Returns balance data if present, otherwise strictly 0.
+ * Seeding from logged-in user profile (from Login API response),
+ * and updating with the latest balance as soon as /user/balance API resolves.
  */
 export function useUserBalance() {
   const query = useQuery({
     queryKey: USER_BALANCE_QUERY_KEY,
     queryFn: getUserBalance,
+    initialData: () => {
+      const stored = getStoredUser();
+      return typeof stored?.balance === "number" ? stored.balance : 0;
+    },
   });
 
   return {
@@ -21,4 +26,3 @@ export function useUserBalance() {
     refetch: query.refetch,
   };
 }
-

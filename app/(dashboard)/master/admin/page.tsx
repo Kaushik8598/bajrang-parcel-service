@@ -6,86 +6,96 @@ import DataTable from "@/components/DataTable/DataTable";
 import StatusBadge from "@/components/DataTable/StatusBadge";
 import DeleteConfirmDialog from "@/components/DataTable/DeleteConfirmDialog";
 import { Button } from "@/components/ui/button";
-import type { ColumnDef, TablePermissions } from "@/lib/types/common";
+import { useAdmins, useUpdateUserStatus, useModulePermissions } from "@/lib/hooks";
+import { showToast } from "@/lib/toast";
+import type { ColumnDef } from "@/lib/types/common";
+import type { AdminUser } from "@/lib/api/admin";
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
-interface Admin {
-  id: number;
-  admin_name: string;
-  email_id: string;
-  mobile_no: string;
-  is_active: boolean;
-  [key: string]: unknown;
-}
-
-// ─── Static mock data ─────────────────────────────────────────────────────────
-const MOCK_ADMINS: Admin[] = [
-  { id: 1, admin_name: "Ujjaval Parmar", email_id: "ujjaval@bajrang.com", mobile_no: "9876543210", is_active: false },
-  { id: 2, admin_name: "Ashok Mehta", email_id: "ashok@bajrang.com", mobile_no: "9876543211", is_active: true },
-  { id: 3, admin_name: "Bhavesh Solanki", email_id: "bhavesh@bajrang.com", mobile_no: "9876543212", is_active: true },
-  { id: 4, admin_name: "Chirag Patel", email_id: "chirag@bajrang.com", mobile_no: "9876543213", is_active: true },
-  { id: 5, admin_name: "Dipak Desai", email_id: "dipak@bajrang.com", mobile_no: "9876543214", is_active: false },
-];
-
-// ─── Permissions (simulate full admin permissions) ────────────────────────────
-const PERMISSIONS: TablePermissions = {
-  canExcel: true,
-  canPDF: true,
-  canPrint: true,
-  canAdd: true,
-  canEdit: true,
-  canDelete: true,
-  canStatus: true,
-};
-
-// ─── Page Component ───────────────────────────────────────────────────────────
 export default function ManageAdminPage() {
-  const [data, setData] = useState<Admin[]>(MOCK_ADMINS);
+  const permissions = useModulePermissions("admin");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [search, setSearch] = useState("");
+
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [adminToDelete, setAdminToDelete] = useState<Admin | null>(null);
+  const [adminToDelete, setAdminToDelete] = useState<AdminUser | null>(null);
+
+  const { data: response, isLoading } = useAdmins({ page, limit, search });
+  const statusMutation = useUpdateUserStatus();
+
+  const adminUsers: AdminUser[] = response?.data?.users || [];
+  const paginationMeta = response?.pagination || {
+    total: adminUsers.length,
+    page: 1,
+    limit: 10,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+  };
 
   const handleAdd = () => {
-    alert("Open Add Admin dialog/form here");
+    showToast("info", "Add Admin clicked", "Admin creation form modal can be opened here.");
   };
 
-  const handleEdit = (row: Admin) => {
-    alert(`Edit Admin: ${row.admin_name}`);
+  const handleEdit = (row: AdminUser) => {
+    showToast("info", `Editing Admin: ${row.name}`, `Email: ${row.email}`);
   };
 
-  const handleDeleteClick = (row: Admin) => {
+  const handleDeleteClick = (row: AdminUser) => {
     setAdminToDelete(row);
     setDeleteDialogOpen(true);
   };
 
   const handleConfirmDelete = () => {
     if (adminToDelete) {
-      setData((prev) => prev.filter((a) => a.id !== adminToDelete.id));
-      setDeleteDialogOpen(false);
-      setAdminToDelete(null);
+      statusMutation.mutate(
+        { userId: adminToDelete._id, status: "suspended" },
+        {
+          onSuccess: (res) => {
+            showToast("success", res.message || `Admin "${adminToDelete.name}" deleted successfully.`);
+            setDeleteDialogOpen(false);
+            setAdminToDelete(null);
+          },
+          onError: (err) => {
+            showToast("error", err.message || "Failed to delete admin.");
+          },
+        }
+      );
     }
   };
 
-  const handleStatusToggle = (row: Admin) => {
-    setData((prev) =>
-      prev.map((a) =>
-        a.id === row.id ? { ...a, is_active: !a.is_active } : a
-      )
+  const handleStatusToggle = (row: AdminUser) => {
+    const nextStatus = row.status === "active" ? "inactive" : "active";
+    statusMutation.mutate(
+      { userId: row._id, status: nextStatus },
+      {
+        onSuccess: (res) => {
+          showToast(
+            "success",
+            res.message ||
+              `Admin "${row.name}" status updated to ${nextStatus === "active" ? "Active" : "Inactive"}`
+          );
+        },
+        onError: (err) => {
+          showToast("error", err.message || "Failed to update status.");
+        },
+      }
     );
   };
 
   // ─── Column definitions ──────────────────────────────────────────────────────
-  const columns: ColumnDef<Admin>[] = [
-    { key: "admin_name", label: "Admin Name", sortable: true },
-    { key: "email_id", label: "Email Id", sortable: true },
-    { key: "mobile_no", label: "Mobile No", sortable: true },
+  const columns: ColumnDef<AdminUser>[] = [
+    { key: "name", label: "Admin Name", sortable: true },
+    { key: "email", label: "Email Id", sortable: true },
+    { key: "mobile", label: "Mobile No", sortable: true, width: "w-36" },
     {
-      key: "is_active",
+      key: "status",
       label: "Status",
       width: "w-28",
       render: (val, row) => (
         <StatusBadge
-          status={row.is_active}
-          canToggle={PERMISSIONS.canStatus}
+          status={row.status === "active"}
+          canToggle={permissions.canStatus && !statusMutation.isPending}
           onToggle={() => handleStatusToggle(row)}
         />
       ),
@@ -93,10 +103,10 @@ export default function ManageAdminPage() {
     {
       key: "action",
       label: "Action",
-      width: "w-28",
+      width: "w-44",
       render: (_, row) => (
-        <div className="flex items-center">
-          {PERMISSIONS.canEdit && (
+        <div className="flex items-center gap-1.5">
+          {permissions.canEdit && (
             <Button
               type="button"
               size="sm"
@@ -107,6 +117,19 @@ export default function ManageAdminPage() {
               Edit
             </Button>
           )}
+          {permissions.canDelete && (
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={statusMutation.isPending}
+              onClick={() => handleDeleteClick(row)}
+              className="h-7 px-2.5 text-xs bg-[#e74c3c] hover:bg-[#c0392b] text-white shadow-xs transition-colors"
+            >
+              <Trash2 className="w-3 h-3 mr-1" />
+              Delete
+            </Button>
+          )}
         </div>
       ),
     },
@@ -114,13 +137,23 @@ export default function ManageAdminPage() {
 
   return (
     <>
-      <DataTable<Admin>
+      <DataTable<AdminUser>
         title="Manage Admin"
         columns={columns}
-        data={data}
-        permissions={PERMISSIONS}
+        data={adminUsers}
+        isLoading={isLoading}
+        permissions={permissions}
         onAdd={handleAdd}
-        clientSide
+        pagination={{
+          page,
+          pageSize: limit,
+          total: paginationMeta.total,
+          onPageChange: (newPage) => setPage(newPage),
+          onPageSizeChange: (newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          },
+        }}
       />
 
       {/* Delete Confirmation Dialog */}
@@ -129,10 +162,10 @@ export default function ManageAdminPage() {
         onOpenChange={setDeleteDialogOpen}
         onConfirm={handleConfirmDelete}
         title="Delete Admin"
-        itemName={adminToDelete?.admin_name}
+        itemName={adminToDelete?.name}
         description={
           adminToDelete
-            ? `Are you sure you want to remove "${adminToDelete.admin_name}"? This action cannot be undone.`
+            ? `Are you sure you want to remove admin "${adminToDelete.name}"? This action will suspend the account.`
             : undefined
         }
       />
