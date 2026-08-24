@@ -39,11 +39,11 @@ export const FormInput = forwardRef<HTMLInputElement, FormInputProps>(
     const errorMessage = typeof error === "string" ? error : undefined;
 
     return (
-      <div className={cn("space-y-1.5 w-full", containerClassName)}>
+      <div className={cn("space-y-1 w-full", containerClassName)}>
         {label && (
           <Label
             htmlFor={inputId}
-            className="text-xs font-semibold text-slate-700 flex items-center gap-0.5"
+            className="text-[11px] font-semibold text-slate-700 flex items-center gap-0.5 leading-none"
           >
             {label}
             {required && <span className="text-red-500 font-bold">*</span>}
@@ -52,7 +52,7 @@ export const FormInput = forwardRef<HTMLInputElement, FormInputProps>(
 
         <div className="relative flex items-center">
           {startIcon && (
-            <div className="absolute left-2.5 z-10 text-slate-400 pointer-events-none flex items-center justify-center">
+            <div className="absolute left-2 z-10 text-slate-400 pointer-events-none flex items-center justify-center">
               {startIcon}
             </div>
           )}
@@ -62,9 +62,9 @@ export const FormInput = forwardRef<HTMLInputElement, FormInputProps>(
             ref={ref}
             aria-invalid={hasError}
             className={cn(
-              "h-9 bg-white text-xs border-slate-200 focus-visible:border-[#3498db] focus-visible:ring-[#3498db]/20",
-              startIcon && "pl-8",
-              endIcon && "pr-8",
+              "h-8 bg-white text-xs px-2.5 border-slate-200 focus-visible:border-[#3498db] focus-visible:ring-[#3498db]/20",
+              startIcon && "pl-7",
+              endIcon && "pr-7",
               uppercase && "uppercase",
               hasError && "border-red-400 focus-visible:border-red-500 focus-visible:ring-red-400/20",
               className
@@ -73,20 +73,20 @@ export const FormInput = forwardRef<HTMLInputElement, FormInputProps>(
           />
 
           {endIcon && (
-            <div className="absolute right-2.5 z-10 text-slate-400 pointer-events-none flex items-center justify-center">
+            <div className="absolute right-2 z-10 text-slate-400 pointer-events-none flex items-center justify-center">
               {endIcon}
             </div>
           )}
         </div>
 
         {hasError && errorMessage && (
-          <p className="text-[11px] text-red-500 font-medium leading-tight">
+          <p className="text-[10px] text-red-500 font-medium leading-tight">
             {errorMessage}
           </p>
         )}
 
         {!hasError && helperText && (
-          <p className="text-[11px] text-slate-400 leading-tight">
+          <p className="text-[10px] text-slate-400 leading-tight">
             {helperText}
           </p>
         )}
@@ -125,11 +125,11 @@ export const FormTextarea = forwardRef<HTMLTextAreaElement, FormTextareaProps>(
     const errorMessage = typeof error === "string" ? error : undefined;
 
     return (
-      <div className={cn("space-y-1.5 w-full", containerClassName)}>
+      <div className={cn("space-y-1 w-full", containerClassName)}>
         {label && (
           <Label
             htmlFor={inputId}
-            className="text-xs font-semibold text-slate-700 flex items-center gap-0.5"
+            className="text-[11px] font-semibold text-slate-700 flex items-center gap-0.5 leading-none"
           >
             {label}
             {required && <span className="text-red-500 font-bold">*</span>}
@@ -142,7 +142,7 @@ export const FormTextarea = forwardRef<HTMLTextAreaElement, FormTextareaProps>(
           rows={rows}
           aria-invalid={hasError}
           className={cn(
-            "bg-white text-xs border-slate-200 focus-visible:border-[#3498db] focus-visible:ring-[#3498db]/20 resize-none",
+            "bg-white text-xs p-2 min-h-[52px] border-slate-200 focus-visible:border-[#3498db] focus-visible:ring-[#3498db]/20 resize-none",
             hasError && "border-red-400 focus-visible:border-red-500 focus-visible:ring-red-400/20",
             className
           )}
@@ -150,13 +150,13 @@ export const FormTextarea = forwardRef<HTMLTextAreaElement, FormTextareaProps>(
         />
 
         {hasError && errorMessage && (
-          <p className="text-[11px] text-red-500 font-medium leading-tight">
+          <p className="text-[10px] text-red-500 font-medium leading-tight">
             {errorMessage}
           </p>
         )}
 
         {!hasError && helperText && (
-          <p className="text-[11px] text-slate-400 leading-tight">
+          <p className="text-[10px] text-slate-400 leading-tight">
             {helperText}
           </p>
         )}

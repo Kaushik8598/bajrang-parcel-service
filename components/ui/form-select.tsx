@@ -50,9 +50,9 @@ export function FormSelect({
   });
 
   return (
-    <div className={cn("space-y-1.5 w-full", containerClassName)}>
+    <div className={cn("space-y-1 w-full", containerClassName)}>
       {label && (
-        <Label className="text-xs font-semibold text-slate-700 flex items-center gap-0.5">
+        <Label className="text-[11px] font-semibold text-slate-700 flex items-center gap-0.5 leading-none">
           {label}
           {required && <span className="text-red-500 font-bold">*</span>}
         </Label>
@@ -70,13 +70,13 @@ export function FormSelect({
       />
 
       {hasError && errorMessage && (
-        <p className="text-[11px] text-red-500 font-medium leading-tight">
+        <p className="text-[10px] text-red-500 font-medium leading-tight">
           {errorMessage}
         </p>
       )}
 
       {!hasError && helperText && (
-        <p className="text-[11px] text-slate-400 leading-tight">
+        <p className="text-[10px] text-slate-400 leading-tight">
           {helperText}
         </p>
       )}

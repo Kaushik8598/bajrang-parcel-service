@@ -87,7 +87,7 @@ export default function SearchableSelect({
         disabled={disabled}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
         className={cn(
-          "w-full h-9 px-3 flex items-center justify-between rounded-md border bg-white text-xs text-left transition-all outline-none",
+          "w-full h-8 px-2.5 flex items-center justify-between rounded-md border bg-white text-xs text-left transition-all outline-none",
           error
             ? "border-red-400 focus:ring-1 focus:ring-red-400"
             : "border-slate-200 hover:border-slate-300 focus:border-[#3498db] focus:ring-2 focus:ring-[#3498db]/20",
