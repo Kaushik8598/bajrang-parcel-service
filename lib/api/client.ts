@@ -1,9 +1,13 @@
 import axios, { AxiosError, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from "axios";
+import Cookies from "js-cookie";
 
 // Base API configuration (Connecting to Node.js backend)
 export const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
 export const AUTH_TOKEN_KEY = "bps_token";
+export const AUTH_USER_KEY = "bps_user";
+export const AUTH_PERMISSIONS_KEY = "bps_permissions";
+export const AUTH_ROLE_KEY = "bps_role";
 
 // Create Axios Instance
 export const apiClient = axios.create({
@@ -19,11 +23,12 @@ export const apiClient = axios.create({
 // Automatically attaches Bearer Token to outgoing requests
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    if (typeof window !== "undefined") {
-      const token = localStorage.getItem(AUTH_TOKEN_KEY);
-      if (token && config.headers) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
+    const token =
+      Cookies.get(AUTH_TOKEN_KEY) ||
+      (typeof window !== "undefined" ? localStorage.getItem(AUTH_TOKEN_KEY) : null);
+
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
@@ -61,11 +66,20 @@ apiClient.interceptors.response.use(
       } else if (status === 401) {
         errorMessage = "Unauthorized. Please login again.";
         // Auto logout on 401
+        Cookies.remove(AUTH_TOKEN_KEY, { path: "/" });
+        Cookies.remove(AUTH_USER_KEY, { path: "/" });
+        Cookies.remove(AUTH_PERMISSIONS_KEY, { path: "/" });
+        Cookies.remove(AUTH_ROLE_KEY, { path: "/" });
+
         if (typeof window !== "undefined") {
-          localStorage.removeItem("bps_token");
-          localStorage.removeItem("bps_user");
-          localStorage.removeItem("bps_permissions");
-          localStorage.removeItem("bps_menu");
+          try {
+            localStorage.removeItem(AUTH_TOKEN_KEY);
+            localStorage.removeItem(AUTH_USER_KEY);
+            localStorage.removeItem(AUTH_PERMISSIONS_KEY);
+            localStorage.removeItem(AUTH_ROLE_KEY);
+          } catch {
+            // Ignore
+          }
           if (!window.location.pathname.includes("/login")) {
             window.location.href = "/login";
           }

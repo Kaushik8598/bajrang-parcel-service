@@ -1,16 +1,6 @@
 export interface LoginRequest {
-  username: string;
+  email: string;
   password: string;
-}
-
-export interface Permission {
-  module: string;         // e.g. "manage_admin", "manage_branch"
-  can_view: boolean;
-  can_add: boolean;
-  can_edit: boolean;
-  can_delete: boolean;
-  can_export: boolean;    // Excel / PDF / Print
-  can_status: boolean;    // Toggle active/block
 }
 
 export interface MenuItem {
@@ -19,27 +9,109 @@ export interface MenuItem {
   path?: string;
   icon?: string;
   children?: MenuItem[];
-  permission_module?: string; // maps to Permission.module
+  permission_module?: string;
+}
+
+export interface ModuleActionPermissions {
+  view?: boolean;
+  add?: boolean;
+  edit?: boolean;
+  delete?: boolean;
+  export?: boolean;
+  manage?: boolean;
+}
+
+export interface UserPermissions {
+  admin?: ModuleActionPermissions;
+  branch?: ModuleActionPermissions;
+  staff?: ModuleActionPermissions;
+  driver?: ModuleActionPermissions;
+  truck?: ModuleActionPermissions;
+  customer?: ModuleActionPermissions;
+  manageRights?: ModuleActionPermissions;
+  manageTracking?: ModuleActionPermissions;
+  booking?: ModuleActionPermissions;
+  loadParcel?: ModuleActionPermissions;
+  unloadParcel?: ModuleActionPermissions;
+  delivery?: ModuleActionPermissions;
+  memo?: ModuleActionPermissions;
+  expense?: ModuleActionPermissions;
+  publicBooking?: ModuleActionPermissions;
+  cancelBooking?: ModuleActionPermissions;
+  backToHubBooking?: ModuleActionPermissions;
+  discountBooking?: ModuleActionPermissions;
+  pendingDelivery?: ModuleActionPermissions;
+  profile?: ModuleActionPermissions;
+  marketing?: ModuleActionPermissions;
+  [key: string]: ModuleActionPermissions | undefined;
+}
+
+export interface PaymentPreferences {
+  bookWithBill?: boolean;
+  bookWithoutBill?: boolean;
+  allowPaidBooking?: boolean;
+  allowToPayBooking?: boolean;
+  allowGPayBooking?: boolean;
+  allowCreditBooking?: boolean;
+  allowNotPayBooking?: boolean;
+  draftOnlyBooking?: boolean;
+  creditLimit?: number;
+  creditLimitUtilize?: number;
+  creditLimitPending?: number;
+  hamaliCost?: number;
+  biltyCharge?: number;
 }
 
 export interface User {
-  id: number;
+  _id?: string;
+  id?: number | string;
   name: string;
   email: string;
   mobile: string;
-  role: string;           // "admin" | "branch_user" | etc.
-  avatar?: string;
+  role: string; // "superAdmin" | "admin" | "branchUser" | etc.
+  status?: string;
+  profileImage?: string;
+  profilePhoto?: string;
+  passportSizePhoto?: string;
+  balance?: number;
+  branchInfo?: unknown;
+  staffProfile?: unknown;
+  driverInfo?: unknown;
+  truckInfo?: unknown;
+  createdBy?: unknown;
+  lastLogin?: string;
+  aadharCard?: {
+    number?: string;
+    image?: string;
+    imageBack?: string;
+    expiryDate?: string | null;
+  };
+  panCard?: {
+    number?: string;
+    image?: string;
+    imageBack?: string;
+    expiryDate?: string | null;
+  };
+  bankDetails?: {
+    accountNumber?: string;
+    ifscCode?: string;
+    bankName?: string;
+    accountHolderName?: string;
+    passbookImage?: string;
+  };
+  paymentPreferences?: PaymentPreferences;
+  permissions?: UserPermissions;
+  createdAt?: string;
+  updatedAt?: string;
+  __v?: number;
 }
 
-export interface AuthResponse {
-  token: string;
+export interface AuthResponseData {
   user: User;
-  permissions: Permission[];
-  menu: MenuItem[];
-  balance?: number;
-  notifications?: number;
+  token: string;
 }
 
 export interface ForgotPasswordRequest {
-  mobile: string;
+  email?: string;
+  mobile?: string;
 }

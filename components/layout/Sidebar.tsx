@@ -29,8 +29,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { getStoredUser, getStoredPermissions, getStoredMenu } from "@/lib/api/auth";
-import type { MenuItem, Permission, User } from "@/lib/types/auth";
+import { getStoredUser, getStoredPermissions } from "@/lib/api/auth";
+import type { MenuItem, User, UserPermissions } from "@/lib/types/auth";
 
 // ─── Width constants ──────────────────────────────────────────────────────────
 export const SIDEBAR_EXPANDED_W = 256;
@@ -61,13 +61,13 @@ const DEFAULT_MENU: MenuItem[] = [
     label: "Master",
     icon: "master",
     children: [
-      { id: "manage-admin", label: "Manage Admin", path: "/master/admin", permission_module: "manage_admin" },
-      { id: "admin-wise-payment", label: "Admin wise payment", path: "/master/admin-payment", permission_module: "admin_wise_payment" },
-      { id: "manage-branch", label: "Manage Branch", path: "/master/branch", permission_module: "manage_branch" },
-      { id: "manage-branch-user", label: "Manage Branch User", path: "/master/branch-user", permission_module: "manage_branch_user" },
-      { id: "manage-customer", label: "Manage Customer", path: "/master/customer", permission_module: "manage_customer" },
-      { id: "manage-truck", label: "Manage Truck", path: "/master/truck", permission_module: "manage_truck" },
-      { id: "manage-driver", label: "Manage Driver", path: "/master/driver", permission_module: "manage_driver" },
+      { id: "manage-admin", label: "Manage Admin", path: "/master/admin", permission_module: "admin" },
+      { id: "admin-wise-payment", label: "Admin wise payment", path: "/master/admin-payment", permission_module: "admin" },
+      { id: "manage-branch", label: "Manage Branch", path: "/master/branch", permission_module: "branch" },
+      { id: "manage-branch-user", label: "Manage Branch User", path: "/master/branch-user", permission_module: "staff" },
+      { id: "manage-customer", label: "Manage Customer", path: "/master/customer", permission_module: "customer" },
+      { id: "manage-truck", label: "Manage Truck", path: "/master/truck", permission_module: "truck" },
+      { id: "manage-driver", label: "Manage Driver", path: "/master/driver", permission_module: "driver" },
     ],
   },
   {
@@ -85,12 +85,12 @@ const DEFAULT_MENU: MenuItem[] = [
     label: "Reports",
     icon: "reports",
     children: [
-      { id: "booking-report", label: "Booking Report", path: "/reports/booking", permission_module: "booking_report" },
-      { id: "delivery-report", label: "Delivery Report", path: "/reports/delivery", permission_module: "delivery_report" },
+      { id: "booking-report", label: "Booking Report", path: "/reports/booking", permission_module: "booking" },
+      { id: "delivery-report", label: "Delivery Report", path: "/reports/delivery", permission_module: "delivery" },
     ],
   },
-  { id: "manage-user-rights", label: "Manage User Rights", path: "/user-rights", icon: "manage-user-rights", permission_module: "manage_user_rights" },
-  { id: "website-settings", label: "Website Settings", path: "/website-settings", icon: "website-settings", permission_module: "website_settings" },
+  { id: "manage-user-rights", label: "Manage User Rights", path: "/user-rights", icon: "manage-user-rights", permission_module: "manageRights" },
+  { id: "website-settings", label: "Website Settings", path: "/website-settings", icon: "website-settings", permission_module: "profile" },
 ];
 
 // ─── Props ─────────────────────────────────────────────────────────────────────
@@ -101,22 +101,29 @@ interface SidebarProps {
 }
 
 // ─── Permission check ─────────────────────────────────────────────────────────
-function isMenuVisible(item: MenuItem, permissions: Permission[]): boolean {
+function isMenuVisible(item: MenuItem, user: User | null, permissions: UserPermissions | null): boolean {
   if (!item.permission_module) return true;
-  const perm = permissions.find((p) => p.module === item.permission_module);
-  return perm ? perm.can_view : true;
+  if (user?.role === "superAdmin" || user?.role === "admin") return true;
+  if (!permissions) return true;
+  const modPerm = permissions[item.permission_module as keyof UserPermissions];
+  if (typeof modPerm === "object" && modPerm !== null) {
+    return modPerm.view ?? true;
+  }
+  return true;
 }
 
 // ─── SidebarItem ──────────────────────────────────────────────────────────────
 function SidebarItem({
   item,
+  user,
   permissions,
   depth = 0,
   isCollapsed,
   onExpand,
 }: {
   item: MenuItem;
-  permissions: Permission[];
+  user: User | null;
+  permissions: UserPermissions | null;
   depth?: number;
   isCollapsed: boolean;
   onExpand: () => void;
@@ -131,7 +138,7 @@ function SidebarItem({
     item.path
       ? pathname === item.path || pathname.startsWith(item.path + "/")
       : false;
-  const hasActiveChild = item.children?.some((c) =>
+  const hasActiveChild = item.children?.some((c: MenuItem) =>
     c.path ? pathname === c.path || pathname.startsWith(c.path + "/") : false
   );
 
@@ -139,7 +146,7 @@ function SidebarItem({
     if (hasActiveChild) setExpanded(true);
   }, [hasActiveChild]);
 
-  if (!isMenuVisible(item, permissions)) return null;
+  if (!isMenuVisible(item, user, permissions)) return null;
 
   // ── COLLAPSED mode (icon only, depth=0 only shown) ──────────────────────────
   if (isCollapsed) {
@@ -170,26 +177,24 @@ function SidebarItem({
         </TooltipTrigger>
         <TooltipContent side="right" className="text-xs font-medium">
           {item.label}
-          {/* {hasChildren && <span className="ml-1 text-slate-400">(click to expand)</span>} */}
         </TooltipContent>
       </Tooltip>
     );
   }
 
-  // ── EXPANDED mode ────────────────────────────────────────────────────────────
+  // ── EXPANDED mode: Has Children ─────────────────────────────────────────────
   if (hasChildren) {
-    const visibleChildren = item.children!.filter((c) =>
-      isMenuVisible(c, permissions)
-    );
+    const visibleChildren = item.children?.filter((c: MenuItem) => isMenuVisible(c, user, permissions)) || [];
     if (visibleChildren.length === 0) return null;
 
     return (
-      <div>
+      <div className="space-y-0.5">
         <button
-          id={`sidebar-menu-${item.id}`}
-          onClick={() => setExpanded((v) => !v)}
+          type="button"
+          id={`sidebar-toggle-${item.id}`}
+          onClick={() => setExpanded((prev) => !prev)}
           className={cn(
-            "w-full flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium rounded-lg transition-all duration-150",
+            "w-full flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium rounded-lg transition-all duration-150 cursor-pointer",
             "text-white/80 hover:bg-white/10 hover:text-white",
             (expanded || hasActiveChild) && "bg-white/10 text-white"
           )}
@@ -211,10 +216,11 @@ function SidebarItem({
           )}
         >
           <div className="ml-5 border-l border-white/10 pl-2 py-0.5 space-y-0.5">
-            {visibleChildren.map((child) => (
+            {visibleChildren.map((child: MenuItem) => (
               <SidebarItem
                 key={child.id}
                 item={child}
+                user={user}
                 permissions={permissions}
                 depth={depth + 1}
                 isCollapsed={false}
@@ -256,7 +262,7 @@ function SidebarItem({
 // ─── Main Sidebar ─────────────────────────────────────────────────────────────
 export default function Sidebar({ isOpen, onClose, onExpand }: SidebarProps) {
   const [user, setUser] = useState<User | null>(null);
-  const [permissions, setPermissions] = useState<Permission[]>([]);
+  const [permissions, setPermissions] = useState<UserPermissions | null>(null);
   const [menu, setMenu] = useState<MenuItem[]>(DEFAULT_MENU);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -270,10 +276,13 @@ export default function Sidebar({ isOpen, onClose, onExpand }: SidebarProps) {
   useEffect(() => {
     const storedUser = getStoredUser();
     const storedPerms = getStoredPermissions();
-    const storedMenu = getStoredMenu();
-    if (storedUser) setUser(storedUser);
-    if (storedPerms?.length) setPermissions(storedPerms);
-    if (storedMenu?.length) setMenu(storedMenu);
+    if (storedUser) {
+      setUser(storedUser);
+      if (storedUser.permissions) {
+        setPermissions(storedUser.permissions);
+      }
+    }
+    if (storedPerms) setPermissions(storedPerms);
   }, []);
 
   const isDesktop = !isMobile;
@@ -378,6 +387,7 @@ export default function Sidebar({ isOpen, onClose, onExpand }: SidebarProps) {
               <SidebarItem
                 key={item.id}
                 item={item}
+                user={user}
                 permissions={permissions}
                 isCollapsed={isCollapsed}
                 onExpand={onExpand}

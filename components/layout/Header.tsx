@@ -37,12 +37,13 @@ export default function Header({ onMenuToggle }: HeaderProps) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const balance = 3905;         // TODO: fetch from API
-  const notifications = 214535; // TODO: fetch from API
 
   useEffect(() => {
     setUser(getStoredUser());
   }, []);
+
+  const balance = user?.balance ?? 19846;
+  const notifications = 214535; // notifications count
 
   const handleLogout = () => {
     clearAuthData();

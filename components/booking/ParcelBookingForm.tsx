@@ -36,6 +36,7 @@ import {
   MOCK_DRIVERS,
 } from "@/lib/api/booking";
 import { formatCurrency } from "@/lib/utils";
+import { showToast } from "@/lib/toast";
 import type {
   ParcelBookingFormData,
   PackageItem,
@@ -370,19 +371,21 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
       return createParcelBooking({ ...data, net_cost: calculatedNetCost });
     },
     onSuccess: (result) => {
-      setSuccessMessage(
-        isEdit
-          ? `Parcel Booking "${result.docket_no || initialBooking?.docket_no}" updated successfully!`
-          : `Parcel Booking created successfully! Docket No: ${result.docket_no || "BPS-" + Date.now().toString().slice(-6)}`
-      );
+      const msg = isEdit
+        ? `Parcel Booking "${result.docket_no || initialBooking?.docket_no}" updated successfully!`
+        : `Parcel Booking created successfully! Docket No: ${result.docket_no || "BPS-" + Date.now().toString().slice(-6)}`;
+      setSuccessMessage(msg);
+      showToast("success", msg);
       setFormErrors({});
       window.scrollTo({ top: 0, behavior: "smooth" });
       setTimeout(() => {
         router.push("/transaction/booking");
-      }, 1500);
+      }, 1200);
     },
     onError: (err: Error) => {
-      setFormErrors({ form: err.message || "Failed to process parcel booking." });
+      const errMsg = err.message || "Failed to process parcel booking.";
+      setFormErrors({ form: errMsg });
+      showToast("error", errMsg);
       window.scrollTo({ top: 0, behavior: "smooth" });
     },
   });
@@ -390,6 +393,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) {
+      showToast("warning", "Please fill all required fields correctly.");
       window.scrollTo({ top: 100, behavior: "smooth" });
       return;
     }

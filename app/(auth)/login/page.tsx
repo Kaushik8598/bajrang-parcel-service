@@ -9,61 +9,35 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { login, saveAuthData } from "@/lib/api/auth";
-import type { LoginRequest } from "@/lib/types/auth";
+import { showToast } from "@/lib/toast";
+import type { LoginRequest, AuthResponseData } from "@/lib/types/auth";
 
 export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState<LoginRequest>({
-    username: "",
+    email: "",
     password: "",
   });
-  const [error, setError] = useState<string | null>(null);
 
   const loginMutation = useMutation({
-    mutationFn: login,
-    onSuccess: (data) => {
+    mutationFn: (credentials: LoginRequest) => login(credentials),
+    onSuccess: (data: AuthResponseData) => {
       saveAuthData(data);
+      showToast("success", "Login successful!", `Welcome back, ${data.user.name || "Admin"}`);
       router.push("/dashboard");
     },
     onError: (err: Error) => {
-      setError(err.message || "Invalid credentials. Please try again.");
+      const errMsg = err.message || "Invalid credentials. Please try again.";
+      showToast("error", errMsg);
     },
   });
 
-  // ── Demo login (development only — no API needed) ──────────────────────────
-  const handleDemoLogin = () => {
-    saveAuthData({
-      token: "demo-token-123",
-      user: { id: 1, name: "Admin", email: "admin@bajrang.com", mobile: "9876543210", role: "admin" },
-      permissions: [
-        { module: "manage_admin", can_view: true, can_add: true, can_edit: true, can_delete: true, can_export: true, can_status: true },
-        { module: "manage_branch", can_view: true, can_add: true, can_edit: true, can_delete: true, can_export: true, can_status: true },
-        { module: "manage_branch_user", can_view: true, can_add: true, can_edit: true, can_delete: true, can_export: true, can_status: true },
-        { module: "manage_customer", can_view: true, can_add: true, can_edit: true, can_delete: true, can_export: true, can_status: true },
-        { module: "manage_truck", can_view: true, can_add: true, can_edit: true, can_delete: true, can_export: true, can_status: true },
-        { module: "manage_driver", can_view: true, can_add: true, can_edit: true, can_delete: true, can_export: true, can_status: true },
-        { module: "admin_wise_payment", can_view: true, can_add: false, can_edit: false, can_delete: false, can_export: true, can_status: false },
-        { module: "booking", can_view: true, can_add: true, can_edit: true, can_delete: false, can_export: true, can_status: true },
-        { module: "delivery", can_view: true, can_add: true, can_edit: true, can_delete: false, can_export: true, can_status: true },
-        { module: "memo", can_view: true, can_add: true, can_edit: true, can_delete: true, can_export: true, can_status: true },
-        { module: "booking_report", can_view: true, can_add: false, can_edit: false, can_delete: false, can_export: true, can_status: false },
-        { module: "delivery_report", can_view: true, can_add: false, can_edit: false, can_delete: false, can_export: true, can_status: false },
-        { module: "manage_user_rights", can_view: true, can_add: true, can_edit: true, can_delete: true, can_export: false, can_status: true },
-        { module: "website_settings", can_view: true, can_add: true, can_edit: true, can_delete: false, can_export: false, can_status: false },
-      ],
-      menu: [],
-      balance: 3905,
-      notifications: 214535,
-    });
-    router.push("/dashboard");
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    if (!formData.username || !formData.password) {
-      setError("Please enter username and password.");
+    if (!formData.email.trim() || !formData.password) {
+      const msg = "Please enter username/mobile/email and password.";
+      showToast("warning", msg);
       return;
     }
     loginMutation.mutate(formData);
@@ -105,24 +79,24 @@ export default function LoginPage() {
 
             <form id="login-form" onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="username" className="text-slate-600 text-xs font-medium uppercase tracking-wide">
-                  Username / Mobile
+                <Label htmlFor="email" className="text-black text-xs font-bold uppercase tracking-wide">
+                  Username / Mobile / Email
                 </Label>
                 <Input
-                  id="username"
+                  id="email"
                   type="text"
-                  placeholder="Enter username or mobile"
+                  placeholder="Enter username, mobile or email"
                   autoComplete="username"
-                  value={formData.username}
+                  value={formData.email}
                   onChange={(e) =>
-                    setFormData((p) => ({ ...p, username: e.target.value }))
+                    setFormData((p) => ({ ...p, email: e.target.value }))
                   }
-                  className="h-10 border-slate-200 focus:border-[#3498db] focus:ring-[#3498db]/20 transition-colors"
+                  className="h-10 border border-black focus-visible:border-black focus-visible:ring-black/20 transition-colors"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="password" className="text-slate-600 text-xs font-medium uppercase tracking-wide">
+                <Label htmlFor="password" className="text-black text-xs font-bold uppercase tracking-wide">
                   Password
                 </Label>
                 <div className="relative">
@@ -135,7 +109,7 @@ export default function LoginPage() {
                     onChange={(e) =>
                       setFormData((p) => ({ ...p, password: e.target.value }))
                     }
-                    className="h-10 pr-10 border-slate-200 focus:border-[#3498db] focus:ring-[#3498db]/20 transition-colors"
+                    className="h-10 pr-10 border border-black focus-visible:border-black focus-visible:ring-black/20 transition-colors"
                   />
                   <button
                     type="button"
@@ -153,20 +127,10 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              {/* Error message */}
-              {error && (
-                <div
-                  role="alert"
-                  className="text-[#e74c3c] text-xs bg-red-50 border border-red-100 rounded-md px-3 py-2"
-                >
-                  {error}
-                </div>
-              )}
-
               <Button
                 id="login-btn"
                 type="submit"
-                className="w-full h-10 bg-[#2980b9] hover:bg-[#2471a3] text-white font-medium transition-all duration-200 mt-2 shadow-md shadow-blue-200/50"
+                className="w-full h-10 bg-[#2980b9] hover:bg-[#2471a3] text-white font-semibold transition-all duration-200 mt-2 shadow-md shadow-blue-200/50"
                 disabled={loginMutation.isPending}
               >
                 {loginMutation.isPending ? (
@@ -184,24 +148,10 @@ export default function LoginPage() {
               <a
                 href="/forgot-password"
                 id="forgot-password-link"
-                className="text-[#3498db] text-sm hover:text-[#2471a3] hover:underline transition-colors"
+                className="text-[#3498db] text-xs font-semibold hover:text-[#2471a3] hover:underline transition-colors"
               >
                 Forgot Password?
               </a>
-            </div>
-
-            {/* Demo login — remove in production */}
-            <div className="mt-5 pt-4 border-t border-dashed border-slate-200">
-              <p className="text-center text-slate-400 text-[10px] mb-2 uppercase tracking-wider">Development Only</p>
-              <Button
-                id="demo-login-btn"
-                type="button"
-                variant="outline"
-                className="w-full h-9 text-xs text-slate-500 border-slate-200 hover:bg-slate-50"
-                onClick={handleDemoLogin}
-              >
-                🚀 Demo Login (API vinā)
-              </Button>
             </div>
           </div>
         </div>
