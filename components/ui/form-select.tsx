@@ -52,7 +52,7 @@ export function FormSelect({
   return (
     <div className={cn("space-y-1 w-full", containerClassName)}>
       {label && (
-        <Label className="text-[11px] font-semibold text-slate-700 flex items-center gap-0.5 leading-none">
+        <Label className="text-[11px] font-bold text-black flex items-center gap-0.5 leading-none">
           {label}
           {required && <span className="text-red-500 font-bold">*</span>}
         </Label>

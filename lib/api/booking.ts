@@ -1,3 +1,4 @@
+import moment from "moment";
 import { request } from "./client";
 import type { ApiResponse } from "../types/common";
 import type { Branch, Driver, ParcelBookingFormData, ParcelBookingRecord } from "../types/booking";
@@ -253,7 +254,7 @@ export async function createParcelBooking(
       id: Date.now(),
       tracking_no: `VALT-${Math.floor(100000 + Math.random() * 900000)}`,
       docket_no: `VAR-${Date.now().toString().slice(-9)}`,
-      booking_date: new Date().toLocaleString("en-GB").replace(/\//g, "-"),
+      booking_date: moment().format("DD-MM-YYYY HH:mm:ss"),
       from_branch_id: data.from_branch_id,
       to_branch_id: data.to_branch_id,
       bill_no: data.bill_no,

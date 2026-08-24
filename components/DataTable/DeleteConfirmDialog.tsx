@@ -53,11 +53,11 @@ export default function DeleteConfirmDialog({
 
           <div className="space-y-1.5 flex-1 min-w-0">
             <DialogHeader className="p-0">
-              <DialogTitle className="text-base font-bold text-slate-900 leading-tight">
+              <DialogTitle className="text-base font-bold text-black leading-tight">
                 {title}
               </DialogTitle>
             </DialogHeader>
-            <DialogDescription className="text-xs text-slate-600 leading-relaxed">
+            <DialogDescription className="text-xs text-black leading-relaxed">
               {description || defaultDescription}
             </DialogDescription>
           </div>
@@ -70,7 +70,7 @@ export default function DeleteConfirmDialog({
             size="sm"
             onClick={() => onOpenChange(false)}
             disabled={isLoading}
-            className="h-8 px-3.5 text-xs text-slate-700 border-slate-200 hover:bg-slate-50"
+            className="h-8 px-3.5 text-xs text-black border-slate-200 hover:bg-slate-50 font-medium"
           >
             {cancelText}
           </Button>

@@ -248,7 +248,7 @@ export default function DataTable<T extends Record<string, unknown>>({
             <thead>
               <tr className="bg-slate-50/90 border-b border-slate-200">
                 {/* Sr No */}
-                <th className="text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider whitespace-nowrap w-16">
+                <th className="w-16 px-4 py-3 text-left font-bold text-black text-xs uppercase tracking-wider whitespace-nowrap">
                   Sr No
                 </th>
 
@@ -257,9 +257,9 @@ export default function DataTable<T extends Record<string, unknown>>({
                   <th
                     key={String(col.key)}
                     className={cn(
-                      "text-left px-4 py-3 font-semibold text-slate-600 text-xs uppercase tracking-wider whitespace-nowrap group",
+                      "text-left px-4 py-3 font-bold text-black text-xs uppercase tracking-wider whitespace-nowrap group",
                       col.width,
-                      col.sortable && "cursor-pointer select-none hover:text-slate-900"
+                      col.sortable && "cursor-pointer select-none hover:text-slate-800"
                     )}
                     onClick={() => col.sortable && handleSort(String(col.key))}
                   >
@@ -314,11 +314,11 @@ export default function DataTable<T extends Record<string, unknown>>({
                       className="hover:bg-slate-50/70 transition-colors"
                     >
                       {/* Sr No */}
-                      <td className="px-4 py-3 text-slate-500 text-xs font-medium">{srNo}</td>
+                      <td className="px-4 py-3 text-black text-xs font-semibold">{srNo}</td>
 
                       {/* Dynamically Render All Column Cells */}
                       {columns.map((col) => (
-                        <td key={String(col.key)} className="px-4 py-3 text-slate-700 text-sm">
+                        <td key={String(col.key)} className="px-4 py-3 text-black text-xs">
                           {col.render
                             ? col.render(row[col.key as string], row)
                             : String(row[col.key as string] ?? "—")}

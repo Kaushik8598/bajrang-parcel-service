@@ -22,6 +22,7 @@ import {
   MOCK_BOOKINGS,
   MOCK_BRANCHES,
 } from "@/lib/api/booking";
+import { formatDateTime, formatDate, getCurrentDate, moment } from "@/lib/utils";
 import type { ColumnDef, TablePermissions } from "@/lib/types/common";
 import type { ParcelBookingRecord } from "@/lib/types/booking";
 
@@ -33,6 +34,8 @@ function printBiltyReceipt(booking: ParcelBookingRecord) {
   const totalQty = booking.total_qty || 1;
   const netCost = booking.net_cost || booking.topay_amount || booking.paid_amount || 0;
   const isToPay = booking.payment_method === "To Pay";
+  const formattedBookingDate = formatDateTime(booking.booking_date, "DD-MM-YYYY hh:mm A");
+  const printedAt = moment().format("DD-MM-YYYY hh:mm A");
 
   const html = `<!DOCTYPE html>
 <html>
@@ -68,12 +71,12 @@ function printBiltyReceipt(booking: ParcelBookingRecord) {
   <div class="bilty-card">
     <div class="header">
       <div class="title">BAJRANG PARCEL SERVICE</div>
-      <div class="subtitle">Fast & Reliable Daily Transport & Logistics Service</div>
+      <div class="subtitle">Fast & Reliable Daily Transport & Logistics Service • Printed: ${printedAt}</div>
     </div>
 
     <div class="meta-grid">
       <div>
-        <div><strong>Date/Time:</strong> ${booking.booking_date}</div>
+        <div><strong>Date/Time:</strong> ${formattedBookingDate}</div>
         <div><strong>Tracking No:</strong> ${booking.tracking_no || "—"}</div>
         <div><strong>Bill / LR No:</strong> ${booking.bill_no || "—"}</div>
       </div>
@@ -163,8 +166,8 @@ export default function ManageParcelBookingPage() {
 
   // ─── Local State & Filters ──────────────────────────────────────────────────
   const [data, setData] = useState<ParcelBookingRecord[]>(MOCK_BOOKINGS);
-  const [fromDate, setFromDate] = useState("2026-08-24");
-  const [toDate, setToDate] = useState("");
+  const [fromDate, setFromDate] = useState(() => moment().format("YYYY-MM-DD"));
+  const [toDate, setToDate] = useState(() => moment().format("YYYY-MM-DD"));
   const [selectedFromBranch, setSelectedFromBranch] = useState("all");
   const [selectedToBranch, setSelectedToBranch] = useState("all");
 
@@ -222,8 +225,8 @@ export default function ManageParcelBookingPage() {
   };
 
   const handleResetFilter = () => {
-    setFromDate("2026-08-24");
-    setToDate("");
+    setFromDate(moment().format("YYYY-MM-DD"));
+    setToDate(moment().format("YYYY-MM-DD"));
     setSelectedFromBranch("all");
     setSelectedToBranch("all");
     setData(MOCK_BOOKINGS);
@@ -260,7 +263,7 @@ export default function ManageParcelBookingPage() {
       label: "Tracking No",
       sortable: true,
       render: (val) => (
-        <span className="font-semibold text-slate-800 text-xs tracking-tight">
+        <span className="text-black text-xs tracking-tight">
           {String(val || "—")}
         </span>
       ),
@@ -270,7 +273,7 @@ export default function ManageParcelBookingPage() {
       label: "Docket No",
       sortable: true,
       render: (val) => (
-        <span className="font-semibold text-slate-900 text-xs">
+        <span className="text-black text-xs">
           {String(val || "—")}
         </span>
       ),
@@ -281,14 +284,14 @@ export default function ManageParcelBookingPage() {
       sortable: true,
       width: "w-14",
       render: (val) => (
-        <span className="font-medium text-slate-700 text-xs">{String(val || 1)}</span>
+        <span className="text-black text-xs">{String(val || 1)}</span>
       ),
     },
     {
       key: "from_branch_name",
       label: "From Branch",
       render: (val, row) => (
-        <span className="text-xs text-slate-700 font-medium">
+        <span className="text-xs text-black">
           {String(val || row.from_branch_id || "—")}
         </span>
       ),
@@ -297,7 +300,7 @@ export default function ManageParcelBookingPage() {
       key: "to_branch_name",
       label: "To Branch",
       render: (val, row) => (
-        <span className="text-xs text-slate-700 font-medium">
+        <span className="text-xs text-black">
           {String(val || row.to_branch_id || "—")}
         </span>
       ),
@@ -307,7 +310,7 @@ export default function ManageParcelBookingPage() {
       label: "Sender",
       render: (_, row) => (
         <div className="text-xs space-y-0.5 max-w-[140px]">
-          <p className="font-bold text-slate-800 uppercase leading-tight truncate">
+          <p className="text-black uppercase leading-tight truncate">
             {row.sender?.name || "—"}
           </p>
           <p className="text-[11px] text-slate-500 font-mono">
@@ -321,7 +324,7 @@ export default function ManageParcelBookingPage() {
       label: "Receiver",
       render: (_, row) => (
         <div className="text-xs space-y-0.5 max-w-[150px]">
-          <p className="font-bold text-slate-800 uppercase leading-tight truncate">
+          <p className="text-black uppercase leading-tight truncate">
             {row.receiver?.name || "—"}
           </p>
           <p className="text-[11px] text-slate-500 font-mono">
@@ -337,7 +340,7 @@ export default function ManageParcelBookingPage() {
       render: (val, row) => {
         const amt = val ?? (row.payment_method === "To Pay" ? row.net_cost : null);
         return amt ? (
-          <span className="font-semibold text-slate-800 text-xs">
+          <span className="text-black text-xs">
             {Number(amt).toFixed(2)}
           </span>
         ) : (
@@ -352,7 +355,7 @@ export default function ManageParcelBookingPage() {
       render: (val, row) => {
         const amt = val ?? (row.payment_method === "Paid" ? row.net_cost : null);
         return amt ? (
-          <span className="font-semibold text-slate-800 text-xs">
+          <span className="text-black text-xs">
             {Number(amt).toFixed(2)}
           </span>
         ) : (
@@ -364,7 +367,7 @@ export default function ManageParcelBookingPage() {
       key: "booking_type",
       label: "Type",
       render: (val) => (
-        <span className="text-xs text-slate-600 font-medium">
+        <span className="text-xs text-black">
           {String(val || "Branch User")}
         </span>
       ),
@@ -373,7 +376,7 @@ export default function ManageParcelBookingPage() {
       key: "booked_by",
       label: "Book By",
       render: (val) => (
-        <span className="text-xs font-semibold text-slate-700 uppercase">
+        <span className="text-xs text-black uppercase">
           {String(val || "DEEPAKBHAI")}
         </span>
       ),
@@ -383,8 +386,8 @@ export default function ManageParcelBookingPage() {
       label: "DateTime",
       sortable: true,
       render: (val) => (
-        <span className="text-[11px] text-slate-600 whitespace-nowrap">
-          {String(val || "—")}
+        <span className="text-[11px] text-black whitespace-nowrap">
+          {formatDateTime(String(val || ""))}
         </span>
       ),
     },
@@ -460,12 +463,12 @@ export default function ManageParcelBookingPage() {
     <div className="space-y-5 pb-12">
       {/* ─── Top Filter Card (Manage Parcel Booking Report) ────────────────── */}
       <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs p-5 md:p-6 space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <h1 className="text-xl font-bold text-[#2c3e50] tracking-tight">
+        <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100">
+          <h1 className="text-xl font-bold text-black tracking-tight">
             Manage Parcel Booking Report
           </h1>
 
-          <Button
+          {/* <Button
             type="button"
             onClick={handleAddBooking}
             size="sm"
@@ -473,7 +476,7 @@ export default function ManageParcelBookingPage() {
           >
             <Plus className="w-3.5 h-3.5 mr-1.5" />
             Add Parcel Booking
-          </Button>
+          </Button> */}
         </div>
 
         {/* Filter Form Controls */}

@@ -181,8 +181,8 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
           name: initialBooking.sender?.name || "",
           show_details: Boolean(
             initialBooking.sender?.address ||
-              initialBooking.sender?.city ||
-              initialBooking.sender?.pincode
+            initialBooking.sender?.city ||
+            initialBooking.sender?.pincode
           ),
           address: initialBooking.sender?.address || "",
           city: initialBooking.sender?.city || "",
@@ -194,8 +194,8 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
           name: initialBooking.receiver?.name || "",
           show_details: Boolean(
             initialBooking.receiver?.address ||
-              initialBooking.receiver?.city ||
-              initialBooking.receiver?.pincode
+            initialBooking.receiver?.city ||
+            initialBooking.receiver?.pincode
           ),
           address: initialBooking.receiver?.address || "",
           city: initialBooking.receiver?.city || "",
@@ -205,15 +205,15 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
           initialBooking.packages && initialBooking.packages.length > 0
             ? initialBooking.packages
             : [
-                {
-                  id: "pkg-1",
-                  qty: initialBooking.total_qty || 1,
-                  material: "General Goods",
-                  packing: "Carton",
-                  payment_type: "Direct",
-                  price: (initialBooking.net_cost || 200) - 20,
-                },
-              ],
+              {
+                id: "pkg-1",
+                qty: initialBooking.total_qty || 1,
+                material: "General Goods",
+                packing: "Carton",
+                payment_type: "Direct",
+                price: (initialBooking.net_cost || 200) - 20,
+              },
+            ],
         payment_method: initialBooking.payment_method || "To Pay",
         bilty_charge: initialBooking.bilty_charge ?? 20,
         net_cost: initialBooking.net_cost || 20,
@@ -310,6 +310,14 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
       updated[index] = { ...updated[index], [field]: val };
       return { ...prev, packages: updated };
     });
+    // Auto clear error when value is entered
+    setFormErrors((prev) => {
+      const key = `pkg_${field}_${index}`;
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   };
 
   // ─── Field Validation ──────────────────────────────────────────────────────
@@ -398,11 +406,11 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
   }
 
   return (
-    <div className="w-full space-y-2.5 pb-6">
+    <div className="w-full space-y-1 pb-3">
       {/* ─── Top Header Bar ──────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-lg border border-slate-200/80 shadow-xs px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white rounded border border-slate-200/80 shadow-2xs px-3 py-2 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-base sm:text-lg font-bold text-[#2c3e50] tracking-tight">
+          <h1 className="text-base sm:text-lg font-bold text-black tracking-tight">
             {isEdit ? "Edit Parcel Booking" : "Add Parcel Booking"}
           </h1>
 
@@ -439,14 +447,14 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
 
       {/* ─── Alerts ──────────────────────────────────────────────────────────── */}
       {successMessage && (
-        <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-green-800 text-xs flex items-center gap-2 animate-in fade-in">
+        <div className="p-2 rounded bg-green-50 border border-green-200 text-green-800 text-xs flex items-center gap-2 animate-in fade-in">
           <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
           <span className="font-semibold">{successMessage}</span>
         </div>
       )}
 
       {formErrors.form && (
-        <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-center justify-between gap-2 animate-in fade-in">
+        <div className="p-2 rounded bg-red-50 border border-red-200 text-red-700 text-xs flex items-center justify-between gap-2 animate-in fade-in">
           <span>{formErrors.form}</span>
           <button
             onClick={() => setFormErrors((p) => ({ ...p, form: "" }))}
@@ -457,17 +465,17 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-2.5">
+      <form onSubmit={handleSubmit} className="space-y-1">
         {/* ─── 1. Destination & Transport Section ────────────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
           {/* Destination Card */}
-          <div className="bg-white rounded-lg border border-slate-200/80 shadow-xs p-3 space-y-2.5">
-            <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-100">
+          <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-2 sm:p-2.5 space-y-1">
+            <div className="flex items-center gap-1.5 pb-1 border-b border-slate-100">
               <MapPin className="w-3.5 h-3.5 text-[#2980b9]" />
-              <h2 className="text-xs font-bold text-[#2c3e50] uppercase tracking-wider">Destination</h2>
+              <h2 className="text-xs font-bold text-black uppercase tracking-wider">Destination</h2>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               <FormSelect
                 label="Select From Branch"
                 required
@@ -503,13 +511,13 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
           </div>
 
           {/* Transport Card */}
-          <div className="bg-white rounded-lg border border-slate-200/80 shadow-xs p-3 space-y-2.5">
-            <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-100">
+          <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-2 sm:p-2.5 space-y-1">
+            <div className="flex items-center gap-1.5 pb-1 border-b border-slate-100">
               <Truck className="w-3.5 h-3.5 text-[#2980b9]" />
-              <h2 className="text-xs font-bold text-[#2c3e50] uppercase tracking-wider">Transport</h2>
+              <h2 className="text-xs font-bold text-black uppercase tracking-wider">Transport</h2>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               <FormInput
                 label="Bill No"
                 placeholder="Bill No / LR No"
@@ -532,13 +540,13 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
         </div>
 
         {/* ─── 2. Sender & Receiver Section ──────────────────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
           {/* Sender Details */}
-          <div className="bg-white rounded-lg border border-slate-200/80 shadow-xs p-3 space-y-2">
-            <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+          <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-2 sm:p-2.5 space-y-1">
+            <div className="flex items-center justify-between pb-1 border-b border-slate-100">
               <div className="flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5 text-[#2980b9]" />
-                <h2 className="text-xs font-bold text-[#2c3e50] uppercase tracking-wider">Sender</h2>
+                <h2 className="text-xs font-bold text-black uppercase tracking-wider">Sender</h2>
               </div>
 
               {!formData.sender.show_details ? (
@@ -683,11 +691,11 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
           </div>
 
           {/* Receiver Details */}
-          <div className="bg-white rounded-lg border border-slate-200/80 shadow-xs p-3 space-y-2">
-            <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+          <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-2 sm:p-2.5 space-y-1">
+            <div className="flex items-center justify-between pb-1 border-b border-slate-100">
               <div className="flex items-center gap-1.5">
                 <UserCheck className="w-3.5 h-3.5 text-[#2980b9]" />
-                <h2 className="text-xs font-bold text-[#2c3e50] uppercase tracking-wider">Receiver</h2>
+                <h2 className="text-xs font-bold text-black uppercase tracking-wider">Receiver</h2>
               </div>
 
               {!formData.receiver.show_details ? (
@@ -713,7 +721,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
             </div>
 
             {/* Receiver Primary Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
               <FormInput
                 label="Contact No"
                 required
@@ -764,7 +772,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
 
             {/* Receiver Collapsible Address Block */}
             {formData.receiver.show_details && (
-              <div className="relative p-2 rounded-md bg-slate-50 border border-slate-200/70 space-y-2 animate-in fade-in-50 duration-150">
+              <div className="relative p-2 rounded bg-slate-50 border border-slate-200/70 space-y-1.5 animate-in fade-in-50 duration-150">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
                     Receiver Address Details
@@ -784,7 +792,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                       }))
                     }
                     className="p-0.5 rounded text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
-                    title="Remove address details"
+                    title="Hide address details"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -792,7 +800,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
 
                 <FormInput
                   label="Address"
-                  placeholder="Enter street / area address"
+                  placeholder="Address Line"
                   value={formData.receiver.address || ""}
                   onChange={(e) =>
                     setFormData((p) => ({
@@ -802,10 +810,10 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                   }
                 />
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                   <FormInput
                     label="City"
-                    placeholder="City Name"
+                    placeholder="City"
                     value={formData.receiver.city || ""}
                     onChange={(e) =>
                       setFormData((p) => ({
@@ -833,32 +841,22 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
         </div>
 
         {/* ─── 3. Package Items Section ──────────────────────────────────────── */}
-        <div className="bg-white rounded-lg border border-slate-200/80 shadow-xs p-3 space-y-2">
-          <div className="flex items-center justify-between pb-1.5 border-b border-slate-100">
+        <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-2 sm:p-2.5 space-y-1">
+          <div className="flex items-center justify-between pb-1 border-b border-slate-100">
             <div className="flex items-center gap-1.5">
               <Package className="w-3.5 h-3.5 text-[#2980b9]" />
-              <h2 className="text-xs font-bold text-[#2c3e50] uppercase tracking-wider">Package Details</h2>
+              <h2 className="text-xs font-bold text-black uppercase tracking-wider">Package Details</h2>
             </div>
-
-            <Button
-              type="button"
-              size="sm"
-              onClick={addPackageRow}
-              className="h-6 px-2 text-[10px] font-semibold bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-none"
-            >
-              <Plus className="w-2.5 h-2.5 mr-0.5" />
-              Add Row
-            </Button>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1">
             {formData.packages.map((pkg, idx) => (
               <div
                 key={pkg.id}
-                className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-12 gap-2 items-start p-2.5 rounded-md bg-slate-50/70 border border-slate-200/60 transition-colors"
+                className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-12 gap-1.5 items-start p-2 rounded bg-slate-50/70 border border-slate-200/60 transition-colors"
               >
-                {/* Qty */}
-                <div className="lg:col-span-2">
+                {/* Qty (span 1) */}
+                <div className="lg:col-span-1">
                   <FormInput
                     label="Qty"
                     required
@@ -877,8 +875,8 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                   />
                 </div>
 
-                {/* Material */}
-                <div className="lg:col-span-3">
+                {/* Material (span 2) */}
+                <div className="lg:col-span-2">
                   <FormInput
                     label="Material"
                     placeholder="e.g. Cotton Box"
@@ -887,7 +885,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                   />
                 </div>
 
-                {/* Packing */}
+                {/* Packing (span 2) */}
                 <div className="lg:col-span-2">
                   <FormInput
                     label="Packing"
@@ -897,7 +895,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                   />
                 </div>
 
-                {/* Payment Type */}
+                {/* Payment Type (span 2) */}
                 <div className="lg:col-span-2">
                   <FormSelect
                     label="Payment Type"
@@ -911,7 +909,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                   />
                 </div>
 
-                {/* Price */}
+                {/* Price (span 2) */}
                 <div className="lg:col-span-2">
                   <FormInput
                     label="Price (₹)"
@@ -931,20 +929,46 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                   />
                 </div>
 
-                {/* Action buttons */}
-                <div className="lg:col-span-1 flex items-center justify-end sm:justify-center gap-1 pt-1 lg:pt-4">
-                  {formData.packages.length > 1 && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => removePackageRow(idx)}
-                      className="h-8 w-7 p-0 bg-[#e74c3c] hover:bg-[#c0392b] text-white shadow-none"
-                      title="Remove row"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  )}
+                {/* Total (span 2) */}
+                <div className="lg:col-span-2">
+                  <FormInput
+                    label="Total (₹)"
+                    type="text"
+                    value={(Number(pkg.qty) || 1) * (Number(pkg.price) || 0)}
+                    disabled
+                    readOnly
+                  />
+                </div>
+
+                {/* Action buttons (span 1 - Plus only on last row, Remove on all if length > 1) */}
+                <div className="lg:col-span-1 space-y-1">
+                  <span className="text-[11px] font-bold invisible select-none leading-none block">&nbsp;</span>
+                  <div className="flex items-center justify-end sm:justify-center gap-1 h-8">
+                    {idx === formData.packages.length - 1 && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={addPackageRow}
+                        className="h-8 w-7 p-0 bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-none"
+                        title="Add row"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+
+                    {formData.packages.length > 1 && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => removePackageRow(idx)}
+                        className="h-8 w-7 p-0 bg-[#e74c3c] hover:bg-[#c0392b] text-white shadow-none"
+                        title="Remove row"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -952,10 +976,10 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
         </div>
 
         {/* ─── 4. Payment & Additional Details Section ───────────────────────── */}
-        <div className="bg-white rounded-lg border border-slate-200/80 shadow-xs p-3 space-y-2.5">
-          <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-100">
+        <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-2 sm:p-2.5 space-y-1">
+          <div className="flex items-center gap-1.5 pb-1 border-b border-slate-100">
             <CreditCard className="w-3.5 h-3.5 text-[#2980b9]" />
-            <h2 className="text-xs font-bold text-[#2c3e50] uppercase tracking-wider">Payment &amp; Additional Details</h2>
+            <h2 className="text-xs font-bold text-black uppercase tracking-wider">Payment &amp; Additional Details</h2>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
@@ -984,17 +1008,18 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
               }
             />
 
-            {/* Net Cost (Calculated) */}
-            <div className="space-y-1">
-              <Label className="text-[11px] font-semibold text-slate-700 leading-none">Net Cost (₹):</Label>
-              <div className="h-8 px-2.5 flex items-center rounded-md bg-slate-100 border border-slate-200 text-xs font-bold text-[#2c3e50]">
-                {formatCurrency(calculatedNetCost)}
-              </div>
-            </div>
+            {/* Net Cost (Disabled Input Field) */}
+            <FormInput
+              label="Net Cost (₹)"
+              type="text"
+              value={calculatedNetCost}
+              disabled
+              readOnly
+            />
 
             {/* Sender Id Proof */}
             <div className="space-y-1">
-              <Label className="text-[11px] font-semibold text-slate-700 leading-none">Sender Id Proof:</Label>
+              <Label className="text-[11px] font-bold text-black leading-none">Sender Id Proof:</Label>
               <div className="relative">
                 <input
                   type="file"
@@ -1007,21 +1032,21 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 />
                 <label
                   htmlFor="sender-id-proof"
-                  className="h-8 px-2.5 flex items-center justify-between border border-slate-200 rounded-md text-xs text-slate-600 bg-white hover:bg-slate-50 cursor-pointer transition-colors"
+                  className="h-8 px-2.5 flex items-center justify-between border border-black rounded text-xs text-black bg-white hover:bg-slate-50 cursor-pointer transition-colors"
                 >
                   <span className="truncate max-w-[140px]">
                     {formData.sender_id_proof
                       ? formData.sender_id_proof.name
                       : "Choose file..."}
                   </span>
-                  <Upload className="w-3 h-3 text-slate-400 flex-shrink-0 ml-1" />
+                  <Upload className="w-3 h-3 text-slate-500 flex-shrink-0 ml-1" />
                 </label>
               </div>
             </div>
           </div>
 
           {/* Remarks and Cancel Reason */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
             <FormTextarea
               label="Remark"
               placeholder="Optional remarks or notes..."
@@ -1038,7 +1063,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
           </div>
 
           {/* Driver Details Toggle */}
-          <div className="pt-1 border-t border-slate-100">
+          <div className="pt-0.5 border-t border-slate-100">
             {!formData.show_driver_details ? (
               <Button
                 type="button"
@@ -1053,11 +1078,11 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 Add Driver Details
               </Button>
             ) : (
-              <div className="p-2.5 rounded-md bg-slate-50 border border-slate-200/70 space-y-2 animate-in fade-in-50 duration-150">
+              <div className="p-2 rounded bg-slate-50 border border-slate-200/70 space-y-1.5 animate-in fade-in-50 duration-150">
                 <div className="flex items-center justify-between pb-1 border-b border-slate-200/60">
                   <div className="flex items-center gap-1.5">
                     <UserCog className="w-3.5 h-3.5 text-[#2980b9]" />
-                    <h3 className="text-[11px] font-bold text-[#2c3e50] uppercase tracking-wider">
+                    <h3 className="text-[11px] font-bold text-black uppercase tracking-wider">
                       Driver &amp; Vehicle Information
                     </h3>
                   </div>
@@ -1084,7 +1109,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 </div>
 
                 {/* Searchable Driver Select Dropdown */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                   <FormSelect
                     label="Select Driver"
                     options={driverOptions}
@@ -1096,7 +1121,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 </div>
 
                 {/* Auto-populated & Editable Driver Details */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-0.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 pt-0.5">
                   <FormInput
                     label="Driver Name"
                     placeholder="Driver Name"
@@ -1153,7 +1178,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
         </div>
 
         {/* ─── Form Actions Footer ───────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+        <div className="flex flex-wrap items-center justify-center gap-2 pt-1.5">
           <Button
             type="submit"
             disabled={formMutation.isPending}

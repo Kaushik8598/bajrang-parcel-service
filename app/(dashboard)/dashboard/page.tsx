@@ -65,10 +65,10 @@ function StatCard({
           <Icon className="w-7 h-7 text-[#2c3e50]" strokeWidth={1.5} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-2xl font-bold text-[#1a252f] leading-tight truncate">
+          <p className="text-2xl font-black text-black leading-tight truncate">
             {displayValue}
           </p>
-          <p className="text-sm font-medium text-[#34495e] mt-0.5 leading-snug">
+          <p className="text-sm font-bold text-black mt-0.5 leading-snug">
             {label}
           </p>
         </div>
@@ -102,8 +102,8 @@ export default function DashboardPage() {
     <div>
       {/* Page heading */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#2c3e50]">Dashboard</h1>
-        <p className="text-slate-500 text-sm mt-0.5">
+        <h1 className="text-2xl font-bold text-black">Dashboard</h1>
+        <p className="text-black font-medium text-sm mt-0.5">
           Overview of your parcel service operations
         </p>
       </div>

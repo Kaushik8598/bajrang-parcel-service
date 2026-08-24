@@ -60,7 +60,7 @@ export default function TableToolbar({
     <div className="space-y-4">
       {/* Top row: Title + Add button */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-1 border-b border-slate-100">
-        <h2 className="text-xl font-bold text-[#2c3e50] tracking-tight">{title}</h2>
+        <h2 className="text-xl font-bold text-black tracking-tight">{title}</h2>
         {permissions.canAdd && onAdd && (
           <Button
             id="table-add-btn"
@@ -84,7 +84,7 @@ export default function TableToolbar({
               variant="outline"
               size="sm"
               onClick={onExcel}
-              className="h-8 px-3 text-xs border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-green-700 hover:border-green-300 transition-colors shadow-none"
+              className="h-8 px-3 text-xs border-slate-200 text-black hover:bg-slate-50 hover:text-green-700 hover:border-green-300 transition-colors shadow-none font-medium"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5 text-green-600" />
               Excel
@@ -96,7 +96,7 @@ export default function TableToolbar({
               variant="outline"
               size="sm"
               onClick={onPDF}
-              className="h-8 px-3 text-xs border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-red-700 hover:border-red-300 transition-colors shadow-none"
+              className="h-8 px-3 text-xs border-slate-200 text-black hover:bg-slate-50 hover:text-red-700 hover:border-red-300 transition-colors shadow-none font-medium"
             >
               <FileText className="w-3.5 h-3.5 mr-1.5 text-red-600" />
               PDF
@@ -108,15 +108,15 @@ export default function TableToolbar({
               variant="outline"
               size="sm"
               onClick={onPrint}
-              className="h-8 px-3 text-xs border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors shadow-none"
+              className="h-8 px-3 text-xs border-slate-200 text-black hover:bg-slate-50 transition-colors shadow-none font-medium"
             >
-              <Printer className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
+              <Printer className="w-3.5 h-3.5 mr-1.5 text-slate-700" />
               Print
             </Button>
           )}
 
           {/* Page size selector with 'All' option */}
-          <div className="flex items-center gap-1.5 ml-1 text-xs text-slate-600">
+          <div className="flex items-center gap-1.5 ml-1 text-xs text-black font-medium">
             <span>Show</span>
             <Select
               value={currentSelectValue}
@@ -124,13 +124,13 @@ export default function TableToolbar({
             >
               <SelectTrigger
                 id="table-page-size"
-                className="h-8 min-w-[70px] text-xs bg-white border-slate-200"
+                className="h-8 min-w-[70px] text-xs bg-white text-black border border-black"
               >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {PAGE_SIZE_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                  <SelectItem key={opt.value} value={opt.value} className="text-xs text-black">
                     {opt.label}
                   </SelectItem>
                 ))}
@@ -142,7 +142,7 @@ export default function TableToolbar({
 
         {/* Right: Search box */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500 font-medium">Search:</span>
+          <span className="text-xs text-black font-semibold">Search:</span>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <Input
@@ -150,7 +150,7 @@ export default function TableToolbar({
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder="Search..."
-              className="h-8 pl-8 pr-3 text-xs w-48 sm:w-56 bg-white border-slate-200 focus:border-[#3498db] transition-colors"
+              className="h-8 pl-8 pr-3 text-xs text-black w-48 sm:w-56 bg-white border border-black focus:border-black transition-colors"
             />
           </div>
         </div>

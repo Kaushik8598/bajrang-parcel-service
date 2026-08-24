@@ -41,7 +41,7 @@ export default function TablePagination({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
       {/* Info text */}
-      <p className="text-xs text-slate-500 font-medium">
+      <p className="text-xs text-black font-semibold">
         Showing {from} to {to} of {total.toLocaleString("en-IN")} entries
       </p>
 
@@ -53,7 +53,7 @@ export default function TablePagination({
           size="sm"
           onClick={() => onPageChange(page - 1)}
           disabled={page === 1 || isAll}
-          className="h-8 px-2.5 text-xs text-slate-600 border-slate-200 hover:bg-slate-50 disabled:opacity-40"
+          className="h-8 px-2.5 text-xs text-black border-slate-200 hover:bg-slate-50 disabled:opacity-40 font-medium"
         >
           <ChevronLeft className="w-3.5 h-3.5 mr-0.5" />
           Previous
@@ -73,8 +73,8 @@ export default function TablePagination({
               onClick={() => onPageChange(p as number)}
               disabled={isAll}
               className={cn(
-                "h-8 w-8 p-0 text-xs border-slate-200 text-slate-700",
-                p === page && "bg-[#2980b9] hover:bg-[#2471a3] text-white border-[#2980b9] font-semibold"
+                "h-8 w-8 p-0 text-xs border-slate-200 text-black font-medium",
+                p === page && "bg-[#2980b9] hover:bg-[#2471a3] text-white border-[#2980b9] font-bold"
               )}
             >
               {p}
@@ -88,7 +88,7 @@ export default function TablePagination({
           size="sm"
           onClick={() => onPageChange(page + 1)}
           disabled={page === totalPages || isAll}
-          className="h-8 px-2.5 text-xs text-slate-600 border-slate-200 hover:bg-slate-50 disabled:opacity-40"
+          className="h-8 px-2.5 text-xs text-black border-slate-200 hover:bg-slate-50 disabled:opacity-40 font-medium"
         >
           Next
           <ChevronRight className="w-3.5 h-3.5 ml-0.5" />

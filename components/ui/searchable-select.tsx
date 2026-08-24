@@ -87,15 +87,15 @@ export default function SearchableSelect({
         disabled={disabled}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
         className={cn(
-          "w-full h-8 px-2.5 flex items-center justify-between rounded-md border bg-white text-xs text-left transition-all outline-none",
+          "w-full h-8 px-2.5 flex items-center justify-between rounded border border-black bg-white text-xs text-left transition-all outline-none",
           error
-            ? "border-red-400 focus:ring-1 focus:ring-red-400"
-            : "border-slate-200 hover:border-slate-300 focus:border-[#3498db] focus:ring-2 focus:ring-[#3498db]/20",
+            ? "border-red-500 focus:ring-1 focus:ring-red-500"
+            : "border-black hover:border-black focus:border-black focus:ring-2 focus:ring-black/20",
           disabled && "opacity-50 cursor-not-allowed bg-slate-50",
-          isOpen && "border-[#3498db] ring-2 ring-[#3498db]/20"
+          isOpen && "border-black ring-2 ring-black/20"
         )}
       >
-        <span className={cn("truncate", !selectedOption && "text-slate-400")}>
+        <span className={cn("truncate", selectedOption ? "text-black font-medium" : "text-slate-400")}>
           {selectedOption ? selectedOption.label : placeholder}
         </span>
 
@@ -103,7 +103,7 @@ export default function SearchableSelect({
           {value && !disabled && (
             <span
               onClick={handleClear}
-              className="p-0.5 hover:text-slate-600 rounded transition-colors"
+              className="p-0.5 hover:text-slate-700 rounded transition-colors"
               title="Clear selection"
             >
               <X className="w-3.5 h-3.5" />
@@ -115,9 +115,9 @@ export default function SearchableSelect({
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg text-xs animate-in fade-in-0 zoom-in-95 duration-100 overflow-hidden">
+        <div className="absolute z-50 mt-1 w-full rounded border border-black bg-white shadow-lg text-xs animate-in fade-in-0 zoom-in-95 duration-100 overflow-hidden">
           {/* Search Input */}
-          <div className="p-2 border-b border-slate-100 bg-slate-50/70">
+          <div className="p-2 border-b border-slate-200 bg-slate-50/70">
             <div className="relative flex items-center">
               <Search className="absolute left-2.5 w-3.5 h-3.5 text-slate-400" />
               <input
@@ -126,7 +126,7 @@ export default function SearchableSelect({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={searchPlaceholder}
-                className="w-full h-7 pl-8 pr-2.5 bg-white border border-slate-200 rounded text-xs outline-none focus:border-[#3498db] transition-colors"
+                className="w-full h-7 pl-8 pr-2.5 bg-white border border-black rounded text-xs text-black outline-none focus:border-black transition-colors"
               />
             </div>
           </div>
@@ -146,17 +146,17 @@ export default function SearchableSelect({
                     type="button"
                     onClick={() => handleSelect(opt.value)}
                     className={cn(
-                      "w-full px-3 py-2 flex items-center justify-between text-left hover:bg-blue-50 transition-colors",
-                      isSelected && "bg-blue-50/80 font-semibold text-[#2980b9]"
+                      "w-full px-3 py-2 flex items-center justify-between text-left hover:bg-slate-100 transition-colors",
+                      isSelected && "bg-slate-100 font-semibold"
                     )}
                   >
                     <div>
-                      <div className="text-slate-800 font-medium">{opt.label}</div>
+                      <div className="text-black font-medium">{opt.label}</div>
                       {opt.subLabel && (
-                        <div className="text-[10px] text-slate-400">{opt.subLabel}</div>
+                        <div className="text-[10px] text-slate-500">{opt.subLabel}</div>
                       )}
                     </div>
-                    {isSelected && <Check className="w-3.5 h-3.5 text-[#2980b9] flex-shrink-0 ml-2" />}
+                    {isSelected && <Check className="w-3.5 h-3.5 text-black flex-shrink-0 ml-2" />}
                   </button>
                 );
               })
