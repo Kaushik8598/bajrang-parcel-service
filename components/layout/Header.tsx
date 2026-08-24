@@ -24,8 +24,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, getInitials } from "@/lib/utils";
 import { getStoredUser, clearAuthData } from "@/lib/api/auth";
+import { useUserBalance } from "@/lib/hooks";
 import type { User } from "@/lib/types/auth";
 import Link from "next/link";
 
@@ -37,12 +39,12 @@ export default function Header({ onMenuToggle }: HeaderProps) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const { balance, isLoading } = useUserBalance();
 
   useEffect(() => {
     setUser(getStoredUser());
   }, []);
 
-  const balance = user?.balance ?? 19846;
   const notifications = 214535; // notifications count
 
   const handleLogout = () => {
@@ -98,10 +100,14 @@ export default function Header({ onMenuToggle }: HeaderProps) {
         {/* ─── Right Section: Amount & Actions (shadcn Buttons) ──────────────── */}
         <div className="order-2 sm:order-3 flex items-center gap-2 sm:gap-4 ml-auto sm:ml-0">
           {/* Amount / Balance — Positioned Right, Extra Large Font, Always Visible */}
-          <div className="flex flex-col items-end justify-center select-none pr-1">
-            <span className="text-lg sm:text-xl md:text-2xl font-black text-black tracking-tight leading-none whitespace-nowrap">
-              {formatCurrency(balance)}
-            </span>
+          <div className="flex flex-col items-end justify-center select-none pr-1 min-w-[100px]">
+            {isLoading ? (
+              <Skeleton className="h-6 sm:h-7 w-24 sm:w-28 bg-slate-200 rounded animate-pulse" />
+            ) : (
+              <span className="text-lg sm:text-xl md:text-2xl font-black text-black tracking-tight leading-none whitespace-nowrap">
+                {formatCurrency(balance)}
+              </span>
+            )}
           </div>
 
           {/* Vertical Divider */}

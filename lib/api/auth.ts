@@ -49,6 +49,28 @@ export async function logout(): Promise<void> {
   }
 }
 
+export interface UserBalanceResponse {
+  balance: number;
+}
+
+/**
+ * Get current user balance via GET /user/balance
+ * Response: { success: true, data: { balance: 19846 } }
+ */
+export async function getUserBalance(): Promise<number> {
+  try {
+    const response = await request<ApiResponse<UserBalanceResponse>>("/user/balance", {
+      method: "GET",
+    });
+    if (response?.success && response.data && typeof response.data.balance === "number") {
+      return response.data.balance;
+    }
+    return 0;
+  } catch {
+    return 0;
+  }
+}
+
 // ─── Helpers: Cookie & Storage Management ─────────────────────────────────────
 
 /**
