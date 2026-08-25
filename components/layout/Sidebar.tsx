@@ -43,7 +43,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   "manage-admin": UserCog,
   "admin-wise-payment": CreditCard,
   "manage-branch": GitBranch,
-  "manage-branch-user": Users,
+  "manage-staff": Users,
   "manage-customer": UserCheck,
   "manage-truck": Truck,
   "manage-driver": Package,
@@ -63,7 +63,7 @@ const DEFAULT_MENU: MenuItem[] = [
     children: [
       { id: "manage-admin", label: "Manage Admin", path: "/master/admin", permission_module: "admin" },
       { id: "manage-branch", label: "Manage Branch", path: "/master/branch", permission_module: "branch" },
-      { id: "manage-branch-user", label: "Manage Branch User", path: "/master/branch-user", permission_module: "staff" },
+      { id: "manage-staff", label: "Manage Staff", path: "/master/staff", permission_module: "staff" },
       { id: "manage-customer", label: "Manage Customer", path: "/master/customer", permission_module: "customer" },
       { id: "manage-truck", label: "Manage Truck", path: "/master/truck", permission_module: "truck" },
       { id: "manage-driver", label: "Manage Driver", path: "/master/driver", permission_module: "driver" },

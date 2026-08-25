@@ -5,7 +5,7 @@ export { updateUserStatus, type UserStatusType };
 
 /**
  * Universal React Query mutation hook for status toggle and user deletion across all modules:
- * (Admin, Branch, Branch User, Customer, Driver, etc.)
+ * (Admin, Branch, Staff, Customer, Driver, Truck, etc.)
  */
 export function useUpdateUserStatus(targetQueryKey?: QueryKey) {
   const queryClient = useQueryClient();
@@ -19,17 +19,16 @@ export function useUpdateUserStatus(targetQueryKey?: QueryKey) {
       status: UserStatusType;
     }) => updateUserStatus(userId, status),
     onSuccess: () => {
-      // Invalidate specific target query key if provided
+      // Invalidate target query key once, or fallback to active list queries
       if (targetQueryKey) {
         queryClient.invalidateQueries({ queryKey: targetQueryKey });
+      } else {
+        queryClient.invalidateQueries({
+          predicate: (query) =>
+            typeof query.queryKey[0] === "string" &&
+            (query.queryKey[0].endsWith("-list") || query.queryKey[0].includes("list")),
+        });
       }
-
-      // Invalidate all active master list queries
-      queryClient.invalidateQueries({
-        predicate: (query) =>
-          typeof query.queryKey[0] === "string" &&
-          (query.queryKey[0].endsWith("-list") || query.queryKey[0].includes("list")),
-      });
     },
   });
 }
