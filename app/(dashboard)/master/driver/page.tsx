@@ -1,132 +1,201 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2, User } from "lucide-react";
 import DataTable from "@/components/DataTable/DataTable";
 import StatusBadge from "@/components/DataTable/StatusBadge";
+import DeleteConfirmDialog from "@/components/DataTable/DeleteConfirmDialog";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { showToast } from "@/lib/toast";
-import type { ColumnDef, TablePermissions } from "@/lib/types/common";
-
-// ─── Types ─────────────────────────────────────────────────────────────────────
-export interface Driver {
-  id: number | string;
-  driver_name: string;
-  truck_no: string;
-  mobile_no: string;
-  city: string;
-  address: string;
-  is_active: boolean;
-  [key: string]: unknown;
-}
-
-// ─── Mock Data ─────────────────────────────────────────────────────────────────
-const MOCK_DRIVERS: Driver[] = [
-  {
-    id: 1,
-    driver_name: "Ramesh Prajapati",
-    truck_no: "GJ-05-BX-1024",
-    mobile_no: "9824011111",
-    city: "Surat",
-    address: "Varachha Main Road, Surat, Gujarat",
-    is_active: true,
-  },
-  {
-    id: 2,
-    driver_name: "Suresh Chauhan",
-    truck_no: "GJ-01-CZ-3389",
-    mobile_no: "9824022222",
-    city: "Ahmedabad",
-    address: "C.T.M Cross Road, Ahmedabad, Gujarat",
-    is_active: true,
-  },
-  {
-    id: 3,
-    driver_name: "Dinesh Parmar",
-    truck_no: "GJ-06-AK-7721",
-    mobile_no: "9824033333",
-    city: "Vadodara",
-    address: "Gorwa BIDC, Vadodara, Gujarat",
-    is_active: true,
-  },
-  {
-    id: 4,
-    driver_name: "Ketan Baraiya",
-    truck_no: "GJ-03-ER-4490",
-    mobile_no: "9824044444",
-    city: "Rajkot",
-    address: "Gondal Road, Rajkot, Gujarat",
-    is_active: false,
-  },
-  {
-    id: 5,
-    driver_name: "Gopal Vala",
-    truck_no: "GJ-10-DF-9912",
-    mobile_no: "9824055555",
-    city: "Bhavnagar",
-    address: "Kalanala, Bhavnagar, Gujarat",
-    is_active: true,
-  },
-];
-
-// ─── Table Permissions ─────────────────────────────────────────────────────────
-const PERMISSIONS: TablePermissions = {
-  canExcel: true,
-  canPDF: true,
-  canPrint: true,
-  canAdd: true,
-  canEdit: true,
-  canDelete: false,
-  canStatus: true,
-};
+import { getInitials } from "@/lib/utils";
+import {
+  useDrivers,
+  useUpdateUserStatus,
+  useModulePermissions,
+} from "@/lib/hooks";
+import type { DriverUser } from "@/lib/api/driver";
+import type { ColumnDef } from "@/lib/types/common";
 
 export default function ManageDriverPage() {
-  const [data, setData] = useState<Driver[]>(MOCK_DRIVERS);
+  const permissions = useModulePermissions("driver");
 
+  // Table pagination & search state
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [search, setSearch] = useState("");
+
+  // Data fetching hook
+  const { data: apiResponse, isLoading } = useDrivers({ page, limit, search });
+
+  const statusMutation = useUpdateUserStatus();
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+
+  // Extract driver users and pagination metadata
+  const driverUsers: DriverUser[] = apiResponse?.data?.users || [];
+  const paginationMeta = apiResponse?.pagination || {
+    total: driverUsers.length,
+    page,
+    limit,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+  };
+
+  // Delete dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [driverToDelete, setDriverToDelete] = useState<DriverUser | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Handle Add Driver
   const handleAdd = () => {
-    showToast("info", "Add Driver clicked", "Driver registration form modal can be opened here.");
+    showToast("info", "Add Driver", "Driver registration form modal will be opened here.");
   };
 
-  const handleEdit = (row: Driver) => {
-    showToast("info", `Editing Driver: ${row.driver_name}`, `Truck: ${row.truck_no}`);
+  // Handle Edit Driver
+  const handleEdit = (row: DriverUser) => {
+    showToast("info", `Edit Driver: ${row.name}`, `City: ${row.driverInfo?.city || "-"}`);
   };
 
-  const handleStatusToggle = (row: Driver) => {
-    setData((prev) =>
-      prev.map((d) =>
-        d.id === row.id ? { ...d, is_active: !d.is_active } : d
-      )
+  // Handle Status Toggle (active <-> inactive)
+  const handleStatusToggle = (row: DriverUser) => {
+    const nextStatus = row.status === "active" ? "inactive" : "active";
+    setUpdatingStatusId(row._id);
+
+    statusMutation.mutate(
+      { userId: row._id, status: nextStatus },
+      {
+        onSuccess: (res) => {
+          showToast(
+            "success",
+            res.message ||
+            `Driver "${row.name}" status updated to ${nextStatus === "active" ? "Active" : "Inactive"}`
+          );
+        },
+        onError: (err) => {
+          showToast("error", err.message || "Failed to update status.");
+        },
+        onSettled: () => {
+          setUpdatingStatusId(null);
+        },
+      }
     );
-    showToast(
-      "success",
-      `Driver "${row.driver_name}" status updated to ${!row.is_active ? "Active" : "Inactive"}`
+  };
+
+  // Handle Delete Click
+  const handleDeleteClick = (row: DriverUser) => {
+    setDriverToDelete(row);
+    setDeleteDialogOpen(true);
+  };
+
+  // Confirm Delete (Suspends user)
+  const handleConfirmDelete = () => {
+    if (!driverToDelete) return;
+    setIsDeleting(true);
+
+    statusMutation.mutate(
+      { userId: driverToDelete._id, status: "suspended" },
+      {
+        onSuccess: (res) => {
+          showToast(
+            "success",
+            res.message || `Driver "${driverToDelete.name}" deleted successfully.`
+          );
+          setDeleteDialogOpen(false);
+          setDriverToDelete(null);
+        },
+        onError: (err) => {
+          showToast("error", err.message || "Failed to delete driver.");
+        },
+        onSettled: () => {
+          setIsDeleting(false);
+        },
+      }
     );
   };
 
-  // ─── Columns ─────────────────────────────────────────────────────────────────
-  const columns: ColumnDef<Driver>[] = [
-    { key: "driver_name", label: "Driver Name", sortable: true },
+  // ─── Table Columns ─────────────────────────────────────────────────────────
+  const columns: ColumnDef<DriverUser>[] = [
     {
-      key: "truck_no",
-      label: "Truck No",
+      key: "name",
+      label: "Driver Name",
       sortable: true,
-      render: (val) => (
-        <span className="font-semibold tracking-wide text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-          {String(val)}
+      sortValue: (row) => row.name || "",
+      render: (_, row) => (
+        <div className="flex items-center gap-2">
+          <Avatar className="w-8 h-8 rounded-full border border-slate-200 bg-slate-50">
+            <AvatarFallback className="bg-[#2980b9] text-white text-xs font-bold rounded-full">
+              {getInitials(row.name) || <User className="w-3.5 h-3.5" />}
+            </AvatarFallback>
+          </Avatar>
+          <span className="font-semibold text-slate-900">{row.name}</span>
+        </div>
+      ),
+    },
+    {
+      key: "mobile",
+      label: "Mobile No",
+      sortable: true,
+      width: "w-32",
+      sortValue: (row) => row.mobile || "",
+    },
+    {
+      key: "mobile2",
+      label: "Alternate Mobile",
+      sortable: true,
+      width: "w-36",
+      sortValue: (row) => row.driverInfo?.mobile2 || "",
+      render: (_, row) => (
+        <span className="text-slate-700">{row.driverInfo?.mobile2 || "-"}</span>
+      ),
+    },
+    {
+      key: "city",
+      label: "City",
+      sortable: true,
+      width: "w-28",
+      sortValue: (row) => row.driverInfo?.city || "",
+      render: (_, row) => (
+        <span className="font-medium text-slate-800">{row.driverInfo?.city || "-"}</span>
+      ),
+    },
+    {
+      key: "driving_license",
+      label: "Driving License",
+      sortable: true,
+      width: "w-36",
+      sortValue: (row) => row.driverInfo?.drivingLicense?.number || "",
+      render: (_, row) => {
+        const dl = row.driverInfo?.drivingLicense?.number;
+        return (
+          <span className="font-mono text-sm font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">
+            {dl || "-"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "address",
+      label: "Address",
+      sortable: false,
+      render: (_, row) => (
+        <span className="text-slate-600 line-clamp-1">
+          {row.driverInfo?.address || "-"}
         </span>
       ),
     },
-    { key: "mobile_no", label: "Mobile No", sortable: true, width: "w-32" },
-    { key: "city", label: "City", sortable: true, width: "w-28" },
-    { key: "address", label: "Address", sortable: false },
     {
-      key: "is_active",
+      key: "status",
       label: "Status",
       width: "w-28",
-      render: (val, row) => (
+      sortable: true,
+      sortValue: (row) => (row.status === "active" ? 1 : 0),
+      render: (_, row) => (
         <StatusBadge
-          status={row.is_active}
-          canToggle={PERMISSIONS.canStatus}
+          inactiveText="Inactive"
+          status={row.status === "active"}
+          canToggle={permissions.canStatus && updatingStatusId !== row._id}
+          isLoading={updatingStatusId === row._id}
           onToggle={() => handleStatusToggle(row)}
         />
       ),
@@ -134,10 +203,10 @@ export default function ManageDriverPage() {
     {
       key: "action",
       label: "Action",
-      width: "w-28",
+      width: "w-40",
       render: (_, row) => (
-        <div className="flex items-center">
-          {PERMISSIONS.canEdit && (
+        <div className="flex items-center gap-1.5">
+          {permissions.canEdit && (
             <Button
               type="button"
               size="sm"
@@ -148,19 +217,65 @@ export default function ManageDriverPage() {
               Edit
             </Button>
           )}
+          {permissions.canDelete && (
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={isDeleting && driverToDelete?._id === row._id}
+              onClick={() => handleDeleteClick(row)}
+              className="h-7 px-2.5 text-xs bg-[#e74c3c] hover:bg-[#c0392b] text-white shadow-xs transition-colors"
+            >
+              <Trash2 className="w-3 h-3 mr-1" />
+              Delete
+            </Button>
+          )}
         </div>
       ),
     },
   ];
 
   return (
-    <DataTable<Driver>
-      title="Manage Driver"
-      columns={columns}
-      data={data}
-      permissions={PERMISSIONS}
-      onAdd={handleAdd}
-      clientSide
-    />
+    <>
+      <DataTable<DriverUser>
+        title="Manage Driver"
+        columns={columns}
+        data={driverUsers}
+        isLoading={isLoading}
+        permissions={permissions}
+        onAdd={handleAdd}
+        onSearch={(query) => {
+          setSearch(query);
+          setPage(1);
+        }}
+        searchValue={search}
+        clientSide={false}
+        pagination={{
+          page,
+          pageSize: limit,
+          total: paginationMeta.total,
+          onPageChange: (newPage) => setPage(newPage),
+          onPageSizeChange: (newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          },
+        }}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleConfirmDelete}
+        isLoading={isDeleting}
+        title="Delete Driver"
+        itemName={driverToDelete?.name}
+        description={
+          driverToDelete
+            ? `Are you sure you want to delete driver "${driverToDelete.name}"? This action will suspend the account.`
+            : undefined
+        }
+      />
+    </>
   );
 }

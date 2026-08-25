@@ -4,6 +4,7 @@ export * from "./useAdmins";
 export * from "./useBranches";
 export * from "./useStaff";
 export * from "./useTrucks";
+export * from "./useDrivers";
 export * from "./useModulePermissions";
 export * from "./useDebounce";
 export * from "./useUpload";
