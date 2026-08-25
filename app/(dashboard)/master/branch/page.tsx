@@ -307,6 +307,7 @@ export default function ManageBranchPage() {
         open={formModalOpen}
         onOpenChange={setFormModalOpen}
         mode={formMode}
+        editId={selectedBranch?._id}
         editData={selectedBranch}
         isLoading={isFormSubmitting}
         onSubmit={handleFormSubmit}

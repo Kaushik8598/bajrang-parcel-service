@@ -6,6 +6,7 @@ import {
   GetBranchesParams,
   BranchPayload,
 } from "@/lib/api/branch";
+import { USER_SINGLE_QUERY_KEY } from "./useUserById";
 
 export const BRANCHES_QUERY_KEY = ["branches-list"] as const;
 
@@ -31,6 +32,8 @@ export function useCreateBranch() {
   return useMutation({
     mutationFn: (payload: BranchPayload) => createBranch(payload),
     onSuccess: () => {
+      // Clean single user cache without triggering background refetch
+      queryClient.removeQueries({ queryKey: USER_SINGLE_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: BRANCHES_QUERY_KEY });
     },
   });
@@ -46,6 +49,8 @@ export function useUpdateBranch() {
     mutationFn: ({ userId, payload }: { userId: string; payload: BranchPayload }) =>
       updateBranch(userId, payload),
     onSuccess: () => {
+      // Clean single user cache without triggering background refetch
+      queryClient.removeQueries({ queryKey: USER_SINGLE_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: BRANCHES_QUERY_KEY });
     },
   });

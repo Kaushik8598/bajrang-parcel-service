@@ -80,25 +80,18 @@ export async function createAdmin(
 }
 
 /**
- * Update Admin via PUT /user/admin/:id or PUT /user/admin
+ * Update Admin via PUT /user/admin/:id
  * Payload: { name, email, mobile, password, status }
  */
 export async function updateAdmin(
   userId: string,
   payload: AdminPayload
 ): Promise<{ success: boolean; message?: string; data?: AdminUser }> {
-  try {
-    return await request<{ success: boolean; message?: string; data?: AdminUser }>(
-      `/user/admin/${userId}`,
-      {
-        method: "PUT",
-        body: payload,
-      }
-    );
-  } catch {
-    return await request<{ success: boolean; message?: string; data?: AdminUser }>("/user/admin", {
+  return await request<{ success: boolean; message?: string; data?: AdminUser }>(
+    `/user/admin/${userId}`,
+    {
       method: "PUT",
-      body: { ...payload, _id: userId, id: userId },
-    });
-  }
+      body: payload,
+    }
+  );
 }

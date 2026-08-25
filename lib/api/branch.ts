@@ -14,24 +14,26 @@ export interface AttendanceLocation {
   distance?: number | string;
 }
 
-export interface DocumentItem {
+export interface RentAgreementDoc {
   number?: string;
-  fileName?: string;
-  fileUrl?: string;
+  image?: string;
+}
+
+export interface PhotoDoc {
+  image?: string;
+}
+
+export interface CardDoc {
+  number?: string;
+  image?: string;
+}
+
+export interface BankDetailsDoc {
   accountNumber?: string;
   ifscCode?: string;
   bankName?: string;
-  accountHolder?: string;
-  [key: string]: unknown;
-}
-
-export interface BranchDocuments {
-  rentAgreement?: DocumentItem;
-  aadharCard?: DocumentItem;
-  panCard?: DocumentItem;
-  bankDetails?: DocumentItem;
-  passportPhoto?: DocumentItem;
-  profilePhoto?: DocumentItem;
+  accountHolderName?: string;
+  passbookImage?: string;
 }
 
 export interface BranchInfo {
@@ -57,8 +59,22 @@ export interface BranchInfo {
   rentDueDate?: string;
   ownerDetail?: OwnerDetail;
   attendanceLocation?: AttendanceLocation;
-  documents?: BranchDocuments;
+  rentAgreement?: RentAgreementDoc;
   [key: string]: unknown;
+}
+
+export interface BranchPayload {
+  name: string;
+  email: string;
+  mobile: string;
+  password?: string;
+  status?: string;
+  profilePhoto?: PhotoDoc;
+  passportSizePhoto?: PhotoDoc;
+  aadharCard?: CardDoc;
+  panCard?: CardDoc;
+  bankDetails?: BankDetailsDoc;
+  branchInfo: BranchInfo;
 }
 
 export interface BranchUser {
@@ -68,6 +84,11 @@ export interface BranchUser {
   mobile?: string;
   role: string;
   status: "active" | "inactive" | string;
+  profilePhoto?: PhotoDoc;
+  passportSizePhoto?: PhotoDoc;
+  aadharCard?: CardDoc;
+  panCard?: CardDoc;
+  bankDetails?: BankDetailsDoc;
   branchInfo?: BranchInfo;
   [key: string]: unknown;
 }
@@ -98,15 +119,6 @@ export interface GetBranchesParams {
   search?: string;
 }
 
-export interface BranchPayload {
-  name: string;
-  email: string;
-  mobile: string;
-  password?: string;
-  status?: string;
-  branchInfo: BranchInfo;
-}
-
 /**
  * Fetch Branches list via GET /user/role/branch?page=1&limit=10&search=test
  */
@@ -130,43 +142,29 @@ export async function getBranches(params: GetBranchesParams = {}): Promise<Branc
 }
 
 /**
- * Create Branch via POST /user/branch (or /user/role/branch)
+ * Create Branch via POST /user/branch
  */
 export async function createBranch(
   payload: BranchPayload
 ): Promise<{ success: boolean; message?: string; data?: BranchUser }> {
-  try {
-    return await request<{ success: boolean; message?: string; data?: BranchUser }>("/user/branch", {
-      method: "POST",
-      body: payload,
-    });
-  } catch {
-    return await request<{ success: boolean; message?: string; data?: BranchUser }>("/user/role/branch", {
-      method: "POST",
-      body: payload,
-    });
-  }
+  return await request<{ success: boolean; message?: string; data?: BranchUser }>("/user/branch", {
+    method: "POST",
+    body: payload,
+  });
 }
 
 /**
- * Update Branch via PUT /user/branch/:id or PUT /user/branch
+ * Update Branch via PUT /user/branch/:id
  */
 export async function updateBranch(
   userId: string,
   payload: BranchPayload
 ): Promise<{ success: boolean; message?: string; data?: BranchUser }> {
-  try {
-    return await request<{ success: boolean; message?: string; data?: BranchUser }>(
-      `/user/branch/${userId}`,
-      {
-        method: "PUT",
-        body: payload,
-      }
-    );
-  } catch {
-    return await request<{ success: boolean; message?: string; data?: BranchUser }>("/user/branch", {
+  return await request<{ success: boolean; message?: string; data?: BranchUser }>(
+    `/user/branch/${userId}`,
+    {
       method: "PUT",
-      body: { ...payload, _id: userId, id: userId },
-    });
-  }
+      body: payload,
+    }
+  );
 }

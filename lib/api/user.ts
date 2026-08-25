@@ -22,3 +22,30 @@ export async function updateUserStatus(
 
   return response;
 }
+
+export interface UserDetailResponseData<T = unknown> {
+  user?: T;
+  [key: string]: unknown;
+}
+
+export interface UserDetailApiResponse<T = unknown> {
+  success: boolean;
+  message?: string;
+  data: UserDetailResponseData<T> | T;
+}
+
+/**
+ * Fetch single user by ID via GET /user/:id
+ */
+export async function getUserById<T = unknown>(
+  userId: string
+): Promise<UserDetailApiResponse<T>> {
+  const response = await request<UserDetailApiResponse<T>>(
+    `/user/${userId}`,
+    {
+      method: "GET",
+    }
+  );
+
+  return response;
+}

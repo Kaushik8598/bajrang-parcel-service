@@ -44,7 +44,7 @@ export function FormCard({
   return (
     <div
       className={cn(
-        "bg-white rounded border border-slate-200/80 shadow-2xs overflow-hidden",
+        "bg-white rounded border border-slate-200/80 shadow-2xs",
         className
       )}
     >
@@ -52,7 +52,7 @@ export function FormCard({
         <div
           onClick={collapsible ? () => setIsOpen((prev) => !prev) : undefined}
           className={cn(
-            "flex items-center justify-between p-2 sm:p-2.5 pb-1.5 border-b border-slate-100",
+            "flex items-center justify-between p-2 sm:p-2.5 pb-1.5 border-b border-slate-100 rounded-t",
             collapsible && "cursor-pointer select-none hover:bg-slate-50/70 transition-colors",
             headerClassName
           )}

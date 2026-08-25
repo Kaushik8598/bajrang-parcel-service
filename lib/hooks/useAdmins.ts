@@ -6,6 +6,7 @@ import {
   GetAdminsParams,
   AdminPayload,
 } from "@/lib/api/admin";
+import { USER_SINGLE_QUERY_KEY } from "./useUserById";
 
 export const ADMINS_QUERY_KEY = ["admins-list"] as const;
 
@@ -31,6 +32,7 @@ export function useCreateAdmin() {
   return useMutation({
     mutationFn: (payload: AdminPayload) => createAdmin(payload),
     onSuccess: () => {
+      queryClient.removeQueries({ queryKey: USER_SINGLE_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ADMINS_QUERY_KEY });
     },
   });
@@ -46,6 +48,7 @@ export function useUpdateAdmin() {
     mutationFn: ({ userId, payload }: { userId: string; payload: AdminPayload }) =>
       updateAdmin(userId, payload),
     onSuccess: () => {
+      queryClient.removeQueries({ queryKey: USER_SINGLE_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ADMINS_QUERY_KEY });
     },
   });
