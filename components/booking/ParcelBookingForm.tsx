@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { FormInput, FormTextarea } from "@/components/ui/form-input";
 import { FormSelect } from "@/components/ui/form-select";
+import { FormCard } from "@/components/ui/form-card";
 import type { SearchableSelectOption } from "@/components/ui/searchable-select";
 import {
   getBranches,
@@ -473,12 +474,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
         {/* ─── 1. Destination & Transport Section ────────────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
           {/* Destination Card */}
-          <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-2 sm:p-2.5 space-y-1">
-            <div className="flex items-center gap-1.5 pb-1 border-b border-slate-100">
-              <MapPin className="w-3.5 h-3.5 text-[#2980b9]" />
-              <h2 className="text-xs font-bold text-black uppercase tracking-wider">Destination</h2>
-            </div>
-
+          <FormCard title="Destination" icon={MapPin}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               <FormSelect
                 label="Select From Branch"
@@ -512,15 +508,10 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 error={formErrors.to_branch_id}
               />
             </div>
-          </div>
+          </FormCard>
 
           {/* Transport Card */}
-          <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-2 sm:p-2.5 space-y-1">
-            <div className="flex items-center gap-1.5 pb-1 border-b border-slate-100">
-              <Truck className="w-3.5 h-3.5 text-[#2980b9]" />
-              <h2 className="text-xs font-bold text-black uppercase tracking-wider">Transport</h2>
-            </div>
-
+          <FormCard title="Transport" icon={Truck}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               <FormInput
                 label="Bill No"
@@ -540,20 +531,17 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 searchPlaceholder="Search goods value..."
               />
             </div>
-          </div>
+          </FormCard>
         </div>
 
         {/* ─── 2. Sender & Receiver Section ──────────────────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
           {/* Sender Details */}
-          <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-2 sm:p-2.5 space-y-1">
-            <div className="flex items-center justify-between pb-1 border-b border-slate-100">
-              <div className="flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-[#2980b9]" />
-                <h2 className="text-xs font-bold text-black uppercase tracking-wider">Sender</h2>
-              </div>
-
-              {!formData.sender.show_details ? (
+          <FormCard
+            title="Sender"
+            icon={User}
+            action={
+              !formData.sender.show_details ? (
                 <Button
                   type="button"
                   size="sm"
@@ -572,9 +560,9 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 <span className="text-[9px] text-green-700 font-semibold bg-green-50 px-1.5 py-0.5 rounded">
                   Address Details Active
                 </span>
-              )}
-            </div>
-
+              )
+            }
+          >
             {/* Sender Primary Row */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <FormInput
@@ -692,17 +680,14 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 </div>
               </div>
             )}
-          </div>
+          </FormCard>
 
           {/* Receiver Details */}
-          <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-2 sm:p-2.5 space-y-1">
-            <div className="flex items-center justify-between pb-1 border-b border-slate-100">
-              <div className="flex items-center gap-1.5">
-                <UserCheck className="w-3.5 h-3.5 text-[#2980b9]" />
-                <h2 className="text-xs font-bold text-black uppercase tracking-wider">Receiver</h2>
-              </div>
-
-              {!formData.receiver.show_details ? (
+          <FormCard
+            title="Receiver"
+            icon={UserCheck}
+            action={
+              !formData.receiver.show_details ? (
                 <Button
                   type="button"
                   size="sm"
@@ -721,9 +706,9 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 <span className="text-[9px] text-green-700 font-semibold bg-green-50 px-1.5 py-0.5 rounded">
                   Address Details Active
                 </span>
-              )}
-            </div>
-
+              )
+            }
+          >
             {/* Receiver Primary Row */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
               <FormInput
@@ -841,18 +826,11 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 </div>
               </div>
             )}
-          </div>
+          </FormCard>
         </div>
 
         {/* ─── 3. Package Items Section ──────────────────────────────────────── */}
-        <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-2 sm:p-2.5 space-y-1">
-          <div className="flex items-center justify-between pb-1 border-b border-slate-100">
-            <div className="flex items-center gap-1.5">
-              <Package className="w-3.5 h-3.5 text-[#2980b9]" />
-              <h2 className="text-xs font-bold text-black uppercase tracking-wider">Package Details</h2>
-            </div>
-          </div>
-
+        <FormCard title="Package Details" icon={Package}>
           <div className="space-y-1">
             {formData.packages.map((pkg, idx) => (
               <div
@@ -977,14 +955,10 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
               </div>
             ))}
           </div>
-        </div>
+        </FormCard>
 
         {/* ─── 4. Payment & Additional Details Section ───────────────────────── */}
-        <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-2 sm:p-2.5 space-y-1">
-          <div className="flex items-center gap-1.5 pb-1 border-b border-slate-100">
-            <CreditCard className="w-3.5 h-3.5 text-[#2980b9]" />
-            <h2 className="text-xs font-bold text-black uppercase tracking-wider">Payment &amp; Additional Details</h2>
-          </div>
+        <FormCard title="Payment & Additional Details" icon={CreditCard}>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
             {/* Payment Method */}
@@ -1179,7 +1153,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
               </div>
             )}
           </div>
-        </div>
+        </FormCard>
 
         {/* ─── Form Actions Footer ───────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center justify-center gap-2 pt-1.5">

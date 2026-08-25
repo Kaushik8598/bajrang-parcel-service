@@ -5,21 +5,29 @@ import { Pencil, Trash2 } from "lucide-react";
 import DataTable from "@/components/DataTable/DataTable";
 import StatusBadge from "@/components/DataTable/StatusBadge";
 import DeleteConfirmDialog from "@/components/DataTable/DeleteConfirmDialog";
+import BranchFormModal from "@/components/modals/BranchFormModal";
 import { Button } from "@/components/ui/button";
 import {
   useBranches,
+  useCreateBranch,
+  useUpdateBranch,
   useUpdateUserStatus,
   useModulePermissions,
 } from "@/lib/hooks";
 import { showToast } from "@/lib/toast";
 import type { ColumnDef } from "@/lib/types/common";
-import type { BranchUser } from "@/lib/api/branch";
+import type { BranchUser, BranchPayload } from "@/lib/api/branch";
 
 export default function ManageBranchPage() {
   const permissions = useModulePermissions("branch");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [search, setSearch] = useState("");
+
+  // ─── Modal State ─────────────────────────────────────────────────────────────
+  const [formModalOpen, setFormModalOpen] = useState(false);
+  const [formMode, setFormMode] = useState<"add" | "edit">("add");
+  const [selectedBranch, setSelectedBranch] = useState<BranchUser | null>(null);
 
   // ─── Loading States ──────────────────────────────────────────────────────────
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
@@ -30,7 +38,11 @@ export default function ManageBranchPage() {
   const [branchToDelete, setBranchToDelete] = useState<BranchUser | null>(null);
 
   const { data: response, isLoading } = useBranches({ page, limit, search });
+  const createBranchMutation = useCreateBranch();
+  const updateBranchMutation = useUpdateBranch();
   const statusMutation = useUpdateUserStatus();
+
+  const isFormSubmitting = createBranchMutation.isPending || updateBranchMutation.isPending;
 
   const branchUsers: BranchUser[] = response?.data?.users || [];
   const paginationMeta = response?.pagination || {
@@ -44,11 +56,48 @@ export default function ManageBranchPage() {
 
   // ─── Handlers ─────────────────────────────────────────────────────────────────
   const handleAdd = () => {
-    showToast("info", "Add Branch clicked", "Branch creation form modal can be opened here.");
+    setFormMode("add");
+    setSelectedBranch(null);
+    setFormModalOpen(true);
   };
 
   const handleEdit = (row: BranchUser) => {
-    showToast("info", `Editing ${row.branchInfo?.branchName || row.name}`, `Email: ${row.email}`);
+    setFormMode("edit");
+    setSelectedBranch(row);
+    setFormModalOpen(true);
+  };
+
+  const handleFormSubmit = async (payload: BranchPayload) => {
+    if (formMode === "add") {
+      createBranchMutation.mutate(payload, {
+        onSuccess: (res) => {
+          showToast(
+            "success",
+            res.message || `Branch "${payload.branchInfo.branchName}" created successfully.`
+          );
+          setFormModalOpen(false);
+        },
+        onError: (err) => {
+          showToast("error", err.message || "Failed to create branch.");
+        },
+      });
+    } else if (selectedBranch) {
+      updateBranchMutation.mutate(
+        { userId: selectedBranch._id, payload },
+        {
+          onSuccess: (res) => {
+            showToast(
+              "success",
+              res.message || `Branch "${payload.branchInfo.branchName}" updated successfully.`
+            );
+            setFormModalOpen(false);
+          },
+          onError: (err) => {
+            showToast("error", err.message || "Failed to update branch.");
+          },
+        }
+      );
+    }
   };
 
   const handleDeleteClick = (row: BranchUser) => {
@@ -251,6 +300,16 @@ export default function ManageBranchPage() {
             setPage(1);
           },
         }}
+      />
+
+      {/* Add / Edit Branch Form Modal */}
+      <BranchFormModal
+        open={formModalOpen}
+        onOpenChange={setFormModalOpen}
+        mode={formMode}
+        editData={selectedBranch}
+        isLoading={isFormSubmitting}
+        onSubmit={handleFormSubmit}
       />
 
       {/* Delete Confirmation Dialog */}

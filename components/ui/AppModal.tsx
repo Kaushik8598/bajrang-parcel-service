@@ -30,6 +30,7 @@ export interface AppModalProps {
 /**
  * Universal Reusable Modal Component
  * Prevents accidental close when clicking outside by default.
+ * Provides clean fixed header/footer with smooth scrollable body.
  */
 export default function AppModal({
   open,
@@ -62,13 +63,13 @@ export default function AppModal({
       <DialogContent
         showCloseButton={false}
         className={cn(
-          "w-full bg-white rounded-xl shadow-2xl p-0 border border-slate-200 overflow-visible gap-2",
+          "w-full bg-white rounded-xl shadow-2xl p-0 border border-slate-200 gap-2 overflow-hidden flex flex-col max-h-[90vh]",
           maxWidth,
           className
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-300 bg-white rounded-t-xl">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-300 bg-white rounded-t-xl shrink-0">
           <DialogHeader className="p-0 space-y-0.5">
             <DialogTitle className="text-xl font-bold text-black tracking-tight">
               {title}
@@ -92,10 +93,10 @@ export default function AppModal({
           )}
         </div>
 
-        {/* Content Body */}
+        {/* Content Body with smooth scroll */}
         <div
           className={cn(
-            "px-4 py-3 max-h-[calc(85vh-130px)] overflow-y-visible",
+            "px-4 py-3 overflow-y-auto flex-1 overscroll-contain space-y-3",
             bodyClassName
           )}
         >
@@ -106,7 +107,7 @@ export default function AppModal({
         {footer && (
           <div
             className={cn(
-              "flex items-center justify-end gap-2.5 px-4 py-2 border-t border-slate-300 bg-slate-50/80 rounded-b-xl",
+              "flex items-center justify-end gap-2.5 px-4 py-2 border-t border-slate-300 bg-slate-50/90 rounded-b-xl shrink-0",
               footerClassName
             )}
           >
