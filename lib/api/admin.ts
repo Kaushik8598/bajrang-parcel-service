@@ -36,6 +36,14 @@ export interface GetAdminsParams {
   search?: string;
 }
 
+export interface AdminPayload {
+  name: string;
+  email: string;
+  mobile: string;
+  status: string;
+  password?: string;
+}
+
 /**
  * Fetch Admins list via GET /user/role/admin?page=1&limit=10
  */
@@ -56,6 +64,43 @@ export async function getAdmins(params: GetAdminsParams = {}): Promise<AdminList
   });
 
   return response;
+}
+
+/**
+ * Create Admin via POST /user/admin
+ * Payload: { name, email, mobile, password, status }
+ */
+export async function createAdmin(
+  payload: AdminPayload
+): Promise<{ success: boolean; message?: string; data?: AdminUser }> {
+  return await request<{ success: boolean; message?: string; data?: AdminUser }>("/user/admin", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+/**
+ * Update Admin via PUT /user/admin/:id or PUT /user/admin
+ * Payload: { name, email, mobile, password, status }
+ */
+export async function updateAdmin(
+  userId: string,
+  payload: AdminPayload
+): Promise<{ success: boolean; message?: string; data?: AdminUser }> {
+  try {
+    return await request<{ success: boolean; message?: string; data?: AdminUser }>(
+      `/user/admin/${userId}`,
+      {
+        method: "PUT",
+        body: payload,
+      }
+    );
+  } catch {
+    return await request<{ success: boolean; message?: string; data?: AdminUser }>("/user/admin", {
+      method: "PUT",
+      body: { ...payload, _id: userId, id: userId },
+    });
+  }
 }
 
 /**
