@@ -162,7 +162,7 @@ export default function ManageBranchPage() {
       sortable: true,
       sortValue: (row) => row.branchInfo?.branchName || row.name || "",
       render: (_, row) => (
-        <span className="font-semibold text-slate-900">
+        <span>
           {row.branchInfo?.branchName || row.name}
         </span>
       ),
@@ -174,7 +174,7 @@ export default function ManageBranchPage() {
       width: "w-28",
       sortValue: (row) => row.branchInfo?.branchCode || "",
       render: (_, row) => (
-        <span className="font-mono text-xs text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+        <span className="font-mono text-sm text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
           {row.branchInfo?.branchCode || "-"}
         </span>
       ),
@@ -213,6 +213,7 @@ export default function ManageBranchPage() {
       key: "address",
       label: "Address",
       sortable: false,
+      width: "min-w-[260px] max-w-[360px]",
       render: (_, row) => {
         const parts = [
           row.branchInfo?.address1,
@@ -221,7 +222,14 @@ export default function ManageBranchPage() {
           row.branchInfo?.state,
           row.branchInfo?.pincode,
         ].filter(Boolean);
-        return parts.length > 0 ? parts.join(", ") : "-";
+        return (
+          <span
+            className="block whitespace-normal break-words leading-relaxed text-sm"
+            title={parts.join(", ")}
+          >
+            {parts.length > 0 ? parts.join(", ") : "-"}
+          </span>
+        );
       },
     },
     {

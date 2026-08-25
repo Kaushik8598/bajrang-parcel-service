@@ -19,6 +19,7 @@ import {
   Navigation,
   Info,
   ExternalLink,
+  SlidersHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
@@ -54,6 +55,11 @@ const STATUS_OPTIONS = [
 ];
 
 const PUBLIC_BOOKING_OPTIONS = [
+  { value: "true", label: "Yes" },
+  { value: "false", label: "No" },
+];
+
+const BOOLEAN_OPTIONS = [
   { value: "true", label: "Yes" },
   { value: "false", label: "No" },
 ];
@@ -200,6 +206,31 @@ function getInitialState(mode: "add" | "edit", user?: BranchUser | null) {
 
     profilePhotoName: "",
     profilePhotoUrl: profileUrl,
+
+    // Booking Preferences (Root level)
+    draftOnlyBooking: String(user?.bookingPreferences?.draftOnlyBooking ?? "false"),
+    bookWithBill: String(user?.bookingPreferences?.bookWithBill ?? "true"),
+    bookWithoutBill: String(user?.bookingPreferences?.bookWithoutBill ?? "true"),
+    allowPaidBooking: String(user?.bookingPreferences?.allowPaidBooking ?? "true"),
+    allowToPayBooking: String(user?.bookingPreferences?.allowToPayBooking ?? "true"),
+    allowGPayBooking: String(user?.bookingPreferences?.allowGPayBooking ?? "true"),
+    allowNotPayBooking: String(user?.bookingPreferences?.allowNotPayBooking ?? "false"),
+    allowCreditBooking: String(user?.bookingPreferences?.allowCreditBooking ?? "false"),
+    creditLimit:
+      user?.bookingPreferences?.creditLimit !== undefined &&
+        user?.bookingPreferences?.creditLimit !== null
+        ? String(user.bookingPreferences.creditLimit)
+        : "0",
+    hamaliCost:
+      user?.bookingPreferences?.hamaliCost !== undefined &&
+        user?.bookingPreferences?.hamaliCost !== null
+        ? String(user.bookingPreferences.hamaliCost)
+        : "0",
+    biltyCharge:
+      user?.bookingPreferences?.biltyCharge !== undefined &&
+        user?.bookingPreferences?.biltyCharge !== null
+        ? String(user.bookingPreferences.biltyCharge)
+        : "20",
   };
 }
 
@@ -404,6 +435,19 @@ export default function BranchFormModal({
         bankName: form.bankName.trim(),
         accountHolderName: form.bankAccountHolder.trim(),
         passbookImage: form.passbookFileUrl,
+      },
+      bookingPreferences: {
+        draftOnlyBooking: form.draftOnlyBooking === "true",
+        bookWithBill: form.bookWithBill === "true",
+        bookWithoutBill: form.bookWithoutBill === "true",
+        allowPaidBooking: form.allowPaidBooking === "true",
+        allowToPayBooking: form.allowToPayBooking === "true",
+        allowGPayBooking: form.allowGPayBooking === "true",
+        allowNotPayBooking: form.allowNotPayBooking === "true",
+        allowCreditBooking: form.allowCreditBooking === "true",
+        creditLimit: form.creditLimit ? Number(form.creditLimit) : 0,
+        hamaliCost: form.hamaliCost ? Number(form.hamaliCost) : 0,
+        biltyCharge: form.biltyCharge ? Number(form.biltyCharge) : 0,
       },
       branchInfo: {
         branchType: form.branchType,
@@ -1138,6 +1182,111 @@ export default function BranchFormModal({
                   }
                 />
               </div>
+            </div>
+          </FormCard>
+
+          {/* ─── SECTION 7: BOOKING PREFERENCES ─── */}
+          <FormCard title="Booking Preferences" icon={SlidersHorizontal} collapsible
+            defaultOpen={false}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+              <FormSelect
+                label="Draft Only Booking"
+                id="draftOnlyBooking"
+                options={BOOLEAN_OPTIONS}
+                value={form.draftOnlyBooking}
+                clearable={false}
+                onChange={(val) => update("draftOnlyBooking", val)}
+              />
+
+              <FormSelect
+                label="Book With Bill"
+                id="bookWithBill"
+                options={BOOLEAN_OPTIONS}
+                value={form.bookWithBill}
+                clearable={false}
+                onChange={(val) => update("bookWithBill", val)}
+              />
+
+              <FormSelect
+                label="Book Without Bill"
+                id="bookWithoutBill"
+                options={BOOLEAN_OPTIONS}
+                value={form.bookWithoutBill}
+                clearable={false}
+                onChange={(val) => update("bookWithoutBill", val)}
+              />
+
+              <FormSelect
+                label="Allow Paid Booking"
+                id="allowPaidBooking"
+                options={BOOLEAN_OPTIONS}
+                value={form.allowPaidBooking}
+                clearable={false}
+                onChange={(val) => update("allowPaidBooking", val)}
+              />
+
+              <FormSelect
+                label="Allow To-Pay Booking"
+                id="allowToPayBooking"
+                options={BOOLEAN_OPTIONS}
+                value={form.allowToPayBooking}
+                clearable={false}
+                onChange={(val) => update("allowToPayBooking", val)}
+              />
+
+              <FormSelect
+                label="Allow GPay Booking"
+                id="allowGPayBooking"
+                options={BOOLEAN_OPTIONS}
+                value={form.allowGPayBooking}
+                clearable={false}
+                onChange={(val) => update("allowGPayBooking", val)}
+              />
+
+              <FormSelect
+                label="Allow Not-Pay Booking"
+                id="allowNotPayBooking"
+                options={BOOLEAN_OPTIONS}
+                value={form.allowNotPayBooking}
+                clearable={false}
+                onChange={(val) => update("allowNotPayBooking", val)}
+              />
+
+              <FormSelect
+                label="Allow Credit Booking"
+                id="allowCreditBooking"
+                options={BOOLEAN_OPTIONS}
+                value={form.allowCreditBooking}
+                clearable={false}
+                onChange={(val) => update("allowCreditBooking", val)}
+              />
+
+              <FormInput
+                label="Credit Limit (₹)"
+                id="creditLimit"
+                type="number"
+                placeholder="0"
+                value={form.creditLimit}
+                onChange={(e) => update("creditLimit", e.target.value)}
+              />
+
+              <FormInput
+                label="Hamali Cost (₹)"
+                id="hamaliCost"
+                type="number"
+                placeholder="0"
+                value={form.hamaliCost}
+                onChange={(e) => update("hamaliCost", e.target.value)}
+              />
+
+              <FormInput
+                label="Bilty Charge (₹)"
+                id="biltyCharge"
+                type="number"
+                placeholder="20"
+                value={form.biltyCharge}
+                onChange={(e) => update("biltyCharge", e.target.value)}
+              />
             </div>
           </FormCard>
         </form>

@@ -68,7 +68,7 @@ export function FormCard({
             {action}
             {collapsible && (
               <div className="flex items-center gap-1 text-xs text-slate-500 font-medium">
-                <span className="text-[11px]">{isOpen ? "Collapse" : "Expand"}</span>
+                {/* <span className="text-[11px]">{isOpen ? "Collapse" : "Expand"}</span> */}
                 <ChevronDown
                   className={cn(
                     "w-3.5 h-3.5 text-slate-500 transition-transform duration-200",

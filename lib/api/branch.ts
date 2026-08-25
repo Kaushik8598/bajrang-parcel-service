@@ -36,6 +36,21 @@ export interface BankDetailsDoc {
   passbookImage?: string;
 }
 
+export interface BookingPreferences {
+  draftOnlyBooking?: boolean;
+  bookWithBill?: boolean;
+  bookWithoutBill?: boolean;
+  allowPaidBooking?: boolean;
+  allowToPayBooking?: boolean;
+  allowGPayBooking?: boolean;
+  allowNotPayBooking?: boolean;
+  allowCreditBooking?: boolean;
+  creditLimit?: number;
+  hamaliCost?: number;
+  biltyCharge?: number;
+  [key: string]: unknown;
+}
+
 export interface BranchInfo {
   branchType?: "company" | "commission";
   branchName?: string;
@@ -74,6 +89,7 @@ export interface BranchPayload {
   aadharCard?: CardDoc;
   panCard?: CardDoc;
   bankDetails?: BankDetailsDoc;
+  bookingPreferences?: BookingPreferences;
   branchInfo: BranchInfo;
 }
 
@@ -89,6 +105,7 @@ export interface BranchUser {
   aadharCard?: CardDoc;
   panCard?: CardDoc;
   bankDetails?: BankDetailsDoc;
+  bookingPreferences?: BookingPreferences;
   branchInfo?: BranchInfo;
   [key: string]: unknown;
 }

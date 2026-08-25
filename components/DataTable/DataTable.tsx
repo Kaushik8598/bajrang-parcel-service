@@ -297,11 +297,11 @@ export default function DataTable<T extends Record<string, unknown>>({
       />
 
       {/* Table Container */}
-      <div className="relative rounded-lg border border-slate-200 overflow-hidden min-h-[160px]">
+      <div className="relative rounded-lg border border-slate-300 overflow-hidden min-h-[160px]">
         {/* Semi-transparent Loading Overlay for smooth data fetching UX */}
         {isLoading && (
           <div className="absolute inset-0 bg-white/75 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center gap-2.5 transition-all animate-in fade-in-0 duration-150">
-            <div className="flex items-center justify-center p-3 rounded-full bg-white shadow-md border border-slate-100">
+            <div className="flex items-center justify-center p-3 rounded-full bg-white shadow-md border border-slate-200">
               <Loader2 className="w-6 h-6 animate-spin text-[#2980b9]" />
             </div>
             <span className="text-xs font-semibold text-slate-700 tracking-wide">
@@ -313,9 +313,9 @@ export default function DataTable<T extends Record<string, unknown>>({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50/90 border-b border-slate-200">
+              <tr className="bg-slate-100/90 border-b border-slate-300">
                 {/* Sr No */}
-                <th className="w-16 px-4 py-3 text-left font-bold text-black text-xs uppercase tracking-wider whitespace-nowrap">
+                <th className="w-14 px-2.5 py-2 text-left font-bold text-black text-sm uppercase tracking-wider whitespace-nowrap border-r border-slate-300">
                   Sr No
                 </th>
 
@@ -324,7 +324,7 @@ export default function DataTable<T extends Record<string, unknown>>({
                   <th
                     key={String(col.key)}
                     className={cn(
-                      "text-left px-4 py-3 font-bold text-black text-xs uppercase tracking-wider whitespace-nowrap group",
+                      "text-left px-2.5 py-2 font-bold text-black text-sm uppercase tracking-wider whitespace-nowrap group border-r border-slate-300 last:border-r-0",
                       col.width,
                       col.sortable && "cursor-pointer select-none hover:text-slate-800"
                     )}
@@ -343,16 +343,16 @@ export default function DataTable<T extends Record<string, unknown>>({
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-100 bg-white">
+            <tbody className="divide-y divide-slate-300 bg-white">
               {isLoading && paginatedRows.length === 0 ? (
                 // Loading skeleton rows on initial fetch
                 Array.from({ length: currentPageSize === -1 || currentPageSize > 5 ? 5 : currentPageSize }).map((_, i) => (
                   <tr key={i} className="hover:bg-slate-50/50">
-                    <td className="px-4 py-3.5">
+                    <td className="px-2.5 py-2 border-r border-slate-300">
                       <Skeleton className="h-4 w-6" />
                     </td>
                     {columns.map((col) => (
-                      <td key={String(col.key)} className="px-4 py-3.5">
+                      <td key={String(col.key)} className="px-2.5 py-2 border-r border-slate-300 last:border-r-0">
                         <Skeleton className="h-4 w-28" />
                       </td>
                     ))}
@@ -381,11 +381,11 @@ export default function DataTable<T extends Record<string, unknown>>({
                       className="hover:bg-slate-50/70 transition-colors"
                     >
                       {/* Sr No */}
-                      <td className="px-4 py-3 text-black text-xs font-semibold">{srNo}</td>
+                      <td className="px-2.5 py-2 text-black text-sm font-semibold border-r border-slate-300">{srNo}</td>
 
                       {/* Dynamically Render All Column Cells */}
                       {columns.map((col) => (
-                        <td key={String(col.key)} className="px-4 py-3 text-black text-xs">
+                        <td key={String(col.key)} className="px-2.5 py-2 text-black text-sm border-r border-slate-300 last:border-r-0">
                           {col.render
                             ? col.render(row[col.key as string], row)
                             : String(row[col.key as string] ?? "—")}
