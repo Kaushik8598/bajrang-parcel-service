@@ -1,5 +1,4 @@
-"use client";
-
+import { useState, useEffect } from "react";
 import { FileSpreadsheet, FileText, Printer, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useDebounce } from "@/lib/hooks";
 import type { TablePermissions } from "@/lib/types/common";
 
 interface TableToolbarProps {
@@ -45,7 +45,21 @@ export default function TableToolbar({
   onPrint,
   onAdd,
 }: TableToolbarProps) {
+  const [localSearch, setLocalSearch] = useState(search);
+  const debouncedSearch = useDebounce(localSearch, 400);
   const currentSelectValue = pageSize === -1 ? "all" : String(pageSize);
+
+  // Sync external search updates (e.g. parent clear/reset)
+  useEffect(() => {
+    setLocalSearch(search);
+  }, [search]);
+
+  // When debounced search value updates, notify parent / trigger API
+  useEffect(() => {
+    if (debouncedSearch !== search) {
+      onSearchChange(debouncedSearch);
+    }
+  }, [debouncedSearch, search, onSearchChange]);
 
   const handleSelectChange = (val: string | null) => {
     if (!val) return;
@@ -147,8 +161,8 @@ export default function TableToolbar({
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <Input
               id="table-search"
-              value={search}
-              onChange={(e) => onSearchChange(e.target.value)}
+              value={localSearch}
+              onChange={(e) => setLocalSearch(e.target.value)}
               placeholder="Search..."
               className="h-8 pl-8 pr-3 text-xs text-black w-48 sm:w-56 bg-white border border-black focus:border-black transition-colors"
             />

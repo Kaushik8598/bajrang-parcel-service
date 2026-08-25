@@ -144,6 +144,12 @@ export default function ManageAdminPage() {
         isLoading={isLoading}
         permissions={permissions}
         onAdd={handleAdd}
+        onSearch={(query) => {
+          setSearch(query);
+          setPage(1);
+        }}
+        searchValue={search}
+        clientSide={false}
         pagination={{
           page,
           pageSize: limit,

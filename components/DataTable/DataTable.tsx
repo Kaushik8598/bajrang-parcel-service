@@ -112,6 +112,9 @@ export interface DataTableProps<T extends Record<string, unknown>> {
   isLoading?: boolean;
   permissions?: TablePermissions;
   onAdd?: () => void;
+  /** Optional server-side search handlers */
+  onSearch?: (v: string) => void;
+  searchValue?: string;
   /** If provided, pagination is controlled externally (server-side) */
   pagination?: {
     page: number;
@@ -137,6 +140,8 @@ export default function DataTable<T extends Record<string, unknown>>({
     canAdd: true,
   },
   onAdd,
+  onSearch,
+  searchValue,
   pagination,
   clientSide = true,
 }: DataTableProps<T>) {
@@ -145,6 +150,8 @@ export default function DataTable<T extends Record<string, unknown>>({
   const [sortDir, setSortDir] = useState<SortDirection>(null);
   const [localPage, setLocalPage] = useState(1);
   const [localPageSize, setLocalPageSize] = useState(pagination?.pageSize ?? 25);
+
+  const activeSearch = searchValue !== undefined ? searchValue : search;
 
   // ── Client-side filter + sort ──
   const processed = useMemo(() => {
@@ -228,10 +235,13 @@ export default function DataTable<T extends Record<string, unknown>>({
       <TableToolbar
         title={title}
         permissions={permissions}
-        search={search}
+        search={activeSearch}
         onSearchChange={(v) => {
           setSearch(v);
-          if (clientSide) setLocalPage(1);
+          if (clientSide) {
+            setLocalPage(1);
+          }
+          onSearch?.(v);
         }}
         pageSize={currentPageSize}
         onPageSizeChange={handlePageSizeChange}
