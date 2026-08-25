@@ -92,7 +92,7 @@ export default function ManageBranchPage() {
           showToast(
             "success",
             res.message ||
-              `Branch "${row.branchInfo?.branchName || row.name}" status updated to ${nextStatus === "active" ? "Active" : "Inactive"}`
+            `Branch "${row.branchInfo?.branchName || row.name}" status updated to ${nextStatus === "active" ? "Active" : "Inactive"}`
           );
         },
         onError: (err) => {
@@ -111,6 +111,7 @@ export default function ManageBranchPage() {
       key: "branch_name",
       label: "Branch Name",
       sortable: true,
+      sortValue: (row) => row.branchInfo?.branchName || row.name || "",
       render: (_, row) => (
         <span className="font-semibold text-slate-900">
           {row.branchInfo?.branchName || row.name}
@@ -122,18 +123,25 @@ export default function ManageBranchPage() {
       label: "Branch Code",
       sortable: true,
       width: "w-28",
+      sortValue: (row) => row.branchInfo?.branchCode || "",
       render: (_, row) => (
         <span className="font-mono text-xs text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
           {row.branchInfo?.branchCode || "-"}
         </span>
       ),
     },
-    { key: "email", label: "Email Id", sortable: true },
+    {
+      key: "email",
+      label: "Email Id",
+      sortable: true,
+      sortValue: (row) => row.email || "",
+    },
     {
       key: "mobile_no_1",
       label: "Mobile No1",
       sortable: true,
       width: "w-32",
+      sortValue: (row) => row.branchInfo?.mobile1 || "",
       render: (_, row) => row.branchInfo?.mobile1 || "-",
     },
     {
@@ -141,6 +149,7 @@ export default function ManageBranchPage() {
       label: "Mobile No2",
       sortable: true,
       width: "w-32",
+      sortValue: (row) => row.branchInfo?.mobile2 || "",
       render: (_, row) => row.branchInfo?.mobile2 || "-",
     },
     {
@@ -148,6 +157,7 @@ export default function ManageBranchPage() {
       label: "City",
       sortable: true,
       width: "w-28",
+      sortValue: (row) => row.branchInfo?.city || "",
       render: (_, row) => row.branchInfo?.city || "-",
     },
     {
@@ -169,8 +179,11 @@ export default function ManageBranchPage() {
       key: "status",
       label: "Status",
       width: "w-28",
+      sortable: true,
+      sortValue: (row) => (row.status === "active" ? 1 : 0),
       render: (val, row) => (
         <StatusBadge
+          inactiveText="Inactive"
           status={row.status === "active"}
           canToggle={permissions.canStatus && updatingStatusId !== row._id}
           isLoading={updatingStatusId === row._id}

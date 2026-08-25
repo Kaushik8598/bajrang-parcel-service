@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { ArrowUp, ArrowDown, ArrowUpDown, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import TableToolbar from "./TableToolbar";
 import TablePagination from "./TablePagination";
@@ -15,7 +15,6 @@ async function exportToExcel<T>(
   title: string
 ) {
   const { utils, writeFile } = await import("xlsx").then((m) => m);
-  // Filter out columns with key "action" or "actions" for export
   const exportableCols = columns.filter(
     (c) => !["action", "actions"].includes(String(c.key).toLowerCase())
   );
@@ -97,6 +96,43 @@ function printTable<T>(columns: ColumnDef<T>[], data: T[], title: string) {
   }
 }
 
+// ─── Universal Sort Value Extractor (Completely Generic) ──────────────────────
+function getSortableValue<T>(row: T, col?: ColumnDef<T>): string | number {
+  if (!col) return "";
+
+  // 1. Custom column-level sort value accessor (best for complex or nested data)
+  if (col.sortValue) {
+    const customVal = col.sortValue(row);
+    if (customVal !== undefined && customVal !== null) {
+      if (typeof customVal === "boolean") return customVal ? 1 : 0;
+      return customVal;
+    }
+  }
+
+  const keyStr = String(col.key);
+
+  // 2. Nested dot path support (e.g. "branchInfo.branchName", "customer.name")
+  if (keyStr.includes(".")) {
+    const nested = keyStr.split(".").reduce<unknown>((acc, part) => {
+      if (acc && typeof acc === "object") return (acc as Record<string, unknown>)[part];
+      return undefined;
+    }, row);
+    if (nested !== undefined && nested !== null) {
+      return typeof nested === "object" ? JSON.stringify(nested) : (nested as string | number);
+    }
+  }
+
+  // 3. Direct property lookup
+  const raw = (row as Record<string, unknown>)[keyStr];
+  if (raw !== undefined && raw !== null) {
+    if (typeof raw === "string" || typeof raw === "number") return raw;
+    if (typeof raw === "boolean") return raw ? 1 : 0;
+    if (typeof raw === "object") return JSON.stringify(raw);
+  }
+
+  return "";
+}
+
 // ─── Sort icon ─────────────────────────────────────────────────────────────────
 function SortIcon({ direction }: { direction: SortDirection }) {
   if (direction === "asc") return <ArrowUp className="w-3.5 h-3.5 text-[#2980b9]" />;
@@ -153,28 +189,31 @@ export default function DataTable<T extends Record<string, unknown>>({
 
   const activeSearch = searchValue !== undefined ? searchValue : search;
 
-  // ── Client-side filter + sort ──
+  // ── Filter & Sort data (completely generic for any table module) ──
   const processed = useMemo(() => {
-    if (!clientSide) return data;
     let rows = [...data];
 
-    // Filter
-    if (search.trim()) {
+    // Filter only in clientSide mode
+    if (clientSide && search.trim()) {
       const q = search.toLowerCase();
       rows = rows.filter((row) =>
         columns.some((col) => {
-          const val = row[col.key as string];
+          const val = getSortableValue(row, col);
           return String(val ?? "").toLowerCase().includes(q);
         })
       );
     }
 
-    // Sort
+    // Sort rows if sortKey & sortDir are active
     if (sortKey && sortDir) {
+      const targetCol = columns.find((c) => String(c.key) === sortKey);
       rows.sort((a, b) => {
-        const av = a[sortKey] ?? "";
-        const bv = b[sortKey] ?? "";
-        const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
+        const av = getSortableValue(a, targetCol);
+        const bv = getSortableValue(b, targetCol);
+        const cmp = String(av).localeCompare(String(bv), undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
         return sortDir === "asc" ? cmp : -cmp;
       });
     }
@@ -182,23 +221,29 @@ export default function DataTable<T extends Record<string, unknown>>({
     return rows;
   }, [data, search, sortKey, sortDir, columns, clientSide]);
 
-  // ── Client-side pagination ──
+  // ── Pagination ──
   const totalRows = clientSide ? processed.length : (pagination?.total ?? data.length);
   const currentPage = clientSide ? localPage : (pagination?.page ?? 1);
   const currentPageSize = clientSide ? localPageSize : (pagination?.pageSize ?? 25);
 
   const paginatedRows = useMemo(() => {
-    if (!clientSide) return data;
+    if (!clientSide) return processed; // Already page-sliced by server, sorted by client
     if (localPageSize === -1) return processed; // Show all rows
     const from = (localPage - 1) * localPageSize;
     return processed.slice(from, from + localPageSize);
-  }, [processed, localPage, localPageSize, clientSide, data]);
+  }, [processed, localPage, localPageSize, clientSide]);
 
   const handleSort = useCallback(
     (key: string) => {
       if (sortKey === key) {
-        setSortDir((d) => (d === "asc" ? "desc" : d === "desc" ? null : "asc"));
-        if (sortDir === "desc") setSortKey(null);
+        if (sortDir === "asc") {
+          setSortDir("desc");
+        } else if (sortDir === "desc") {
+          setSortDir(null);
+          setSortKey(null);
+        } else {
+          setSortDir("asc");
+        }
       } else {
         setSortKey(key);
         setSortDir("asc");
@@ -229,7 +274,7 @@ export default function DataTable<T extends Record<string, unknown>>({
   return (
     <div
       id={`datatable-${title.toLowerCase().replace(/\s+/g, "-")}`}
-      className="bg-white rounded-xl border border-slate-200/80 shadow-xs p-5 md:p-6 space-y-4"
+      className="bg-white rounded-xl border border-slate-200/80 shadow-xs p-5 md:p-6 space-y-4 relative"
     >
       {/* Top Toolbar */}
       <TableToolbar
@@ -252,7 +297,19 @@ export default function DataTable<T extends Record<string, unknown>>({
       />
 
       {/* Table Container */}
-      <div className="rounded-lg border border-slate-200 overflow-hidden">
+      <div className="relative rounded-lg border border-slate-200 overflow-hidden min-h-[160px]">
+        {/* Semi-transparent Loading Overlay for smooth data fetching UX */}
+        {isLoading && (
+          <div className="absolute inset-0 bg-white/75 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center gap-2.5 transition-all animate-in fade-in-0 duration-150">
+            <div className="flex items-center justify-center p-3 rounded-full bg-white shadow-md border border-slate-100">
+              <Loader2 className="w-6 h-6 animate-spin text-[#2980b9]" />
+            </div>
+            <span className="text-xs font-semibold text-slate-700 tracking-wide">
+              Loading data...
+            </span>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -287,8 +344,8 @@ export default function DataTable<T extends Record<string, unknown>>({
             </thead>
 
             <tbody className="divide-y divide-slate-100 bg-white">
-              {isLoading ? (
-                // Loading skeleton rows
+              {isLoading && paginatedRows.length === 0 ? (
+                // Loading skeleton rows on initial fetch
                 Array.from({ length: currentPageSize === -1 || currentPageSize > 5 ? 5 : currentPageSize }).map((_, i) => (
                   <tr key={i} className="hover:bg-slate-50/50">
                     <td className="px-4 py-3.5">
