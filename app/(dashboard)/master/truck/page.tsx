@@ -5,16 +5,19 @@ import { Pencil, Trash2, Truck as TruckIcon } from "lucide-react";
 import DataTable from "@/components/DataTable/DataTable";
 import StatusBadge from "@/components/DataTable/StatusBadge";
 import DeleteConfirmDialog from "@/components/DataTable/DeleteConfirmDialog";
+import TruckFormModal from "@/components/modals/TruckFormModal";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { showToast } from "@/lib/toast";
 import { getInitials } from "@/lib/utils";
 import {
   useTrucks,
+  useCreateTruck,
+  useUpdateTruck,
   useUpdateUserStatus,
   useModulePermissions,
 } from "@/lib/hooks";
-import type { TruckUser } from "@/lib/api/truck";
+import type { TruckUser, TruckPayload } from "@/lib/api/truck";
 import type { ColumnDef } from "@/lib/types/common";
 
 export default function ManageTruckPage() {
@@ -28,8 +31,12 @@ export default function ManageTruckPage() {
   // Data fetching hook
   const { data: apiResponse, isLoading } = useTrucks({ page, limit, search });
 
+  // Mutations
+  const createTruckMutation = useCreateTruck();
+  const updateTruckMutation = useUpdateTruck();
   const statusMutation = useUpdateUserStatus();
-  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+
+  const isFormSubmitting = createTruckMutation.isPending || updateTruckMutation.isPending;
 
   // Extract truck users and pagination metadata
   const truckUsers: TruckUser[] = apiResponse?.data?.users || [];
@@ -42,6 +49,13 @@ export default function ManageTruckPage() {
     hasPrevPage: false,
   };
 
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+
+  // Form Modal state
+  const [formModalOpen, setFormModalOpen] = useState(false);
+  const [formMode, setFormMode] = useState<"add" | "edit">("add");
+  const [selectedTruck, setSelectedTruck] = useState<TruckUser | null>(null);
+
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [truckToDelete, setTruckToDelete] = useState<TruckUser | null>(null);
@@ -49,16 +63,50 @@ export default function ManageTruckPage() {
 
   // Handle Add Truck
   const handleAdd = () => {
-    showToast("info", "Add Truck", "Truck registration form modal will be configured here.");
+    setFormMode("add");
+    setSelectedTruck(null);
+    setFormModalOpen(true);
   };
 
   // Handle Edit Truck
   const handleEdit = (row: TruckUser) => {
-    showToast(
-      "info",
-      `Edit Truck: ${row.truckInfo?.truckNumber || row.name}`,
-      `Owner: ${row.truckInfo?.ownerDetail?.name || row.name}`
-    );
+    setFormMode("edit");
+    setSelectedTruck(row);
+    setFormModalOpen(true);
+  };
+
+  // Handle Form Submit (Add / Edit)
+  const handleFormSubmit = async (payload: TruckPayload) => {
+    if (formMode === "add") {
+      createTruckMutation.mutate(payload, {
+        onSuccess: (res) => {
+          showToast(
+            "success",
+            res.message || `Truck "${payload.truckInfo?.truckNumber || payload.name}" registered successfully.`
+          );
+          setFormModalOpen(false);
+        },
+        onError: (err) => {
+          showToast("error", err.message || "Failed to register truck.");
+        },
+      });
+    } else if (selectedTruck) {
+      updateTruckMutation.mutate(
+        { userId: selectedTruck._id, payload },
+        {
+          onSuccess: (res) => {
+            showToast(
+              "success",
+              res.message || `Truck "${payload.truckInfo?.truckNumber || payload.name}" updated successfully.`
+            );
+            setFormModalOpen(false);
+          },
+          onError: (err) => {
+            showToast("error", err.message || "Failed to update truck.");
+          },
+        }
+      );
+    }
   };
 
   // Handle Status Toggle (active <-> inactive)
@@ -282,6 +330,17 @@ export default function ManageTruckPage() {
             setPage(1);
           },
         }}
+      />
+
+      {/* Add / Edit Truck Modal */}
+      <TruckFormModal
+        open={formModalOpen}
+        onOpenChange={setFormModalOpen}
+        mode={formMode}
+        editId={selectedTruck?._id}
+        editData={selectedTruck}
+        isLoading={isFormSubmitting}
+        onSubmit={handleFormSubmit}
       />
 
       {/* Delete Confirmation Dialog */}

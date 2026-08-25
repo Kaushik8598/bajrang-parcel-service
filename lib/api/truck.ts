@@ -1,8 +1,27 @@
 import { request } from "./client";
 
+export interface PhotoDoc {
+  image?: string;
+}
+
+export interface BankDetailsDoc {
+  accountNumber?: string;
+  ifscCode?: string;
+  bankName?: string;
+  accountHolderName?: string;
+  passbookImage?: string;
+}
+
 export interface TruckDocItem {
   number?: string;
+  image?: string;
   expiryDate?: string;
+  [key: string]: unknown;
+}
+
+export interface WeightCertificateDoc {
+  receiptNumber?: string;
+  weight?: number;
   image?: string;
   [key: string]: unknown;
 }
@@ -13,12 +32,32 @@ export interface TruckDocuments {
   insurance?: TruckDocItem;
   fitness?: TruckDocItem;
   permit?: TruckDocItem;
+  roadTax?: TruckDocItem;
+  weightCertificate?: WeightCertificateDoc;
+  [key: string]: unknown;
+}
+
+export interface AadharDoc {
+  number?: string;
+  image?: string;
+}
+
+export interface PanDoc {
+  number?: string;
+  image?: string;
+}
+
+export interface OwnerDocuments {
+  aadhar?: AadharDoc;
+  pan?: PanDoc;
   [key: string]: unknown;
 }
 
 export interface TruckOwnerDetail {
   name?: string;
-  mobile?: string;
+  mobile1?: string;
+  mobile2?: string;
+  documents?: OwnerDocuments;
   [key: string]: unknown;
 }
 
@@ -35,12 +74,27 @@ export interface TruckDriver {
 }
 
 export interface TruckInfo {
-  ownerDetail?: TruckOwnerDetail;
-  documents?: TruckDocuments;
   truckNumber?: string;
   truckImage?: string;
   driverId?: TruckDriver | string;
+  documents?: TruckDocuments;
+  ownerDetail?: TruckOwnerDetail;
   capacity?: number;
+  [key: string]: unknown;
+}
+
+export interface TruckBookingPreferences {
+  bookWithBill?: boolean;
+  bookWithoutBill?: boolean;
+  allowPaidBooking?: boolean;
+  allowToPayBooking?: boolean;
+  allowGPayBooking?: boolean;
+  allowCreditBooking?: boolean;
+  allowNotPayBooking?: boolean;
+  draftOnlyBooking?: boolean;
+  creditLimit?: number;
+  hamaliCost?: number;
+  biltyCharge?: number;
   [key: string]: unknown;
 }
 
@@ -51,7 +105,11 @@ export interface TruckUser {
   mobile: string;
   role: string;
   status: "active" | "inactive" | string;
+  profilePhoto?: string | PhotoDoc;
+  passportSizePhoto?: string | PhotoDoc;
+  bankDetails?: BankDetailsDoc;
   truckInfo?: TruckInfo;
+  bookingPreferences?: TruckBookingPreferences;
   [key: string]: unknown;
 }
 
@@ -87,8 +145,34 @@ export interface TruckPayload {
   mobile: string;
   password?: string;
   status?: string;
+  profilePhoto?: PhotoDoc;
+  passportSizePhoto?: PhotoDoc;
+  bankDetails?: BankDetailsDoc;
   truckInfo?: TruckInfo;
+  bookingPreferences?: TruckBookingPreferences;
   [key: string]: unknown;
+}
+
+export interface DriverDropdownItem {
+  _id: string;
+  name?: string;
+  mobile?: string;
+  role?: string;
+  driverInfo?: {
+    mobile2?: string;
+    city?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export interface DriverDropdownApiResponse {
+  success: boolean;
+  message?: string;
+  data: {
+    users?: DriverDropdownItem[];
+    [key: string]: unknown;
+  } | DriverDropdownItem[];
 }
 
 /**
@@ -111,6 +195,16 @@ export async function getTrucks(params: GetTrucksParams = {}): Promise<TruckList
   });
 
   return response;
+}
+
+/**
+ * Fetch Driver list for dropdown via GET /user/role/driver?page=1&limit=100
+ */
+export async function getDriverDropdownList(): Promise<DriverDropdownApiResponse> {
+  return await request<DriverDropdownApiResponse>("/user/role/driver", {
+    method: "GET",
+    params: { page: 1, limit: 100 },
+  });
 }
 
 /**
