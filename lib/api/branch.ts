@@ -185,3 +185,39 @@ export async function updateBranch(
     }
   );
 }
+
+export interface BranchDropdownItem {
+  _id: string;
+  name?: string;
+  email?: string;
+  mobile?: string;
+  branchInfo?: {
+    branchName?: string;
+    branchCode?: string;
+    city?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export interface BranchDropdownApiResponse {
+  success: boolean;
+  message?: string;
+  data:
+  | {
+    branches?: BranchDropdownItem[];
+    users?: BranchDropdownItem[];
+    [key: string]: unknown;
+  }
+  | BranchDropdownItem[];
+}
+
+/**
+ * Fetch list of branches for dropdown select via GET /user/branchAndAdminList
+ */
+export async function getBranchDropdownList(): Promise<BranchDropdownApiResponse> {
+  return await request<BranchDropdownApiResponse>("/user/branchAndAdminList", {
+    method: "GET",
+  });
+}
+

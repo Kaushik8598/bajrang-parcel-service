@@ -5,16 +5,19 @@ import { Pencil, Trash2 } from "lucide-react";
 import DataTable from "@/components/DataTable/DataTable";
 import StatusBadge from "@/components/DataTable/StatusBadge";
 import DeleteConfirmDialog from "@/components/DataTable/DeleteConfirmDialog";
+import StaffFormModal from "@/components/modals/StaffFormModal";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { showToast } from "@/lib/toast";
 import { getInitials } from "@/lib/utils";
 import {
   useStaffList,
+  useCreateStaff,
+  useUpdateStaff,
   useUpdateUserStatus,
   useModulePermissions,
 } from "@/lib/hooks";
-import type { StaffUser } from "@/lib/api/staff";
+import type { StaffUser, StaffPayload } from "@/lib/api/staff";
 import type { ColumnDef } from "@/lib/types/common";
 
 export default function ManageStaffPage() {
@@ -28,8 +31,15 @@ export default function ManageStaffPage() {
   // Data fetching hook
   const { data: apiResponse, isLoading } = useStaffList({ page, limit, search });
 
+  // Mutations
+  const createStaffMutation = useCreateStaff();
+  const updateStaffMutation = useUpdateStaff();
+  const statusMutation = useUpdateUserStatus();
+
+  const isFormSubmitting = createStaffMutation.isPending || updateStaffMutation.isPending;
+
   // Extract staff users and pagination metadata
-  const staffUsers = apiResponse?.data?.users || [];
+  const staffUsers: StaffUser[] = apiResponse?.data?.users || [];
   const paginationMeta = apiResponse?.pagination || {
     total: staffUsers.length,
     page,
@@ -39,9 +49,12 @@ export default function ManageStaffPage() {
     hasPrevPage: false,
   };
 
-  // Status toggle mutation
-  const statusMutation = useUpdateUserStatus();
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+
+  // Form Modal state
+  const [formModalOpen, setFormModalOpen] = useState(false);
+  const [formMode, setFormMode] = useState<"add" | "edit">("add");
+  const [selectedStaff, setSelectedStaff] = useState<StaffUser | null>(null);
 
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -50,12 +63,50 @@ export default function ManageStaffPage() {
 
   // Handle Add Staff
   const handleAdd = () => {
-    showToast("info", "Add Staff", "Staff creation form modal can be configured here.");
+    setFormMode("add");
+    setSelectedStaff(null);
+    setFormModalOpen(true);
   };
 
   // Handle Edit Staff
   const handleEdit = (row: StaffUser) => {
-    showToast("info", `Edit Staff: ${row.name}`, `Email: ${row.email}`);
+    setFormMode("edit");
+    setSelectedStaff(row);
+    setFormModalOpen(true);
+  };
+
+  // Handle Form Submit (Add / Edit)
+  const handleFormSubmit = async (payload: StaffPayload) => {
+    if (formMode === "add") {
+      createStaffMutation.mutate(payload, {
+        onSuccess: (res) => {
+          showToast(
+            "success",
+            res.message || `Staff "${payload.name}" created successfully.`
+          );
+          setFormModalOpen(false);
+        },
+        onError: (err) => {
+          showToast("error", err.message || "Failed to create staff.");
+        },
+      });
+    } else if (selectedStaff) {
+      updateStaffMutation.mutate(
+        { userId: selectedStaff._id, payload },
+        {
+          onSuccess: (res) => {
+            showToast(
+              "success",
+              res.message || `Staff "${payload.name}" updated successfully.`
+            );
+            setFormModalOpen(false);
+          },
+          onError: (err) => {
+            showToast("error", err.message || "Failed to update staff.");
+          },
+        }
+      );
+    }
   };
 
   // Handle Status Toggle (active <-> inactive)
@@ -134,9 +185,9 @@ export default function ManageStaffPage() {
       render: (_, row) => {
         const photo = getPhotoUrl(row);
         return (
-          <Avatar className="w-8 h-8 rounded border border-slate-200">
+          <Avatar className="w-8 h-8 rounded-full border border-slate-200">
             <AvatarImage src={photo} alt={row.name} />
-            <AvatarFallback className="bg-[#2980b9] text-white text-xs font-bold rounded">
+            <AvatarFallback className="bg-[#2980b9] text-white text-xs font-bold rounded-full">
               {getInitials(row.name)}
             </AvatarFallback>
           </Avatar>
@@ -280,6 +331,17 @@ export default function ManageStaffPage() {
             setPage(1);
           },
         }}
+      />
+
+      {/* Add / Edit Staff Modal */}
+      <StaffFormModal
+        open={formModalOpen}
+        onOpenChange={setFormModalOpen}
+        mode={formMode}
+        editId={selectedStaff?._id}
+        editData={selectedStaff}
+        isLoading={isFormSubmitting}
+        onSubmit={handleFormSubmit}
       />
 
       {/* Delete Confirmation Dialog */}

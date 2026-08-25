@@ -6,16 +6,26 @@ export interface StaffBranch {
   branchInfo?: {
     branchName?: string;
     branchCode?: string;
+    city?: string;
     [key: string]: unknown;
   };
   [key: string]: unknown;
 }
 
+export interface StaffAttendanceLocation {
+  latitude?: number | string;
+  longitude?: number | string;
+  distance?: number | string;
+}
+
 export interface StaffProfile {
   branchId?: StaffBranch | string;
-  compensationType?: string;
-  joiningDate?: string;
+  compensationType?: "none" | "salary" | "commission" | "both" | string;
   salaryAmount?: number;
+  Bookingcommission?: number;
+  DeliveryCommission?: number;
+  attendanceLocation?: StaffAttendanceLocation;
+  joiningDate?: string;
   [key: string]: unknown;
 }
 
@@ -36,6 +46,21 @@ export interface BankDetailsDoc {
   passbookImage?: string;
 }
 
+export interface StaffBookingPreferences {
+  bookWithBill?: boolean;
+  bookWithoutBill?: boolean;
+  allowPaidBooking?: boolean;
+  allowToPayBooking?: boolean;
+  allowGPayBooking?: boolean;
+  allowCreditBooking?: boolean;
+  allowNotPayBooking?: boolean;
+  draftOnlyBooking?: boolean;
+  creditLimit?: number;
+  hamaliCost?: number;
+  biltyCharge?: number;
+  [key: string]: unknown;
+}
+
 export interface StaffUser {
   _id: string;
   name: string;
@@ -49,6 +74,7 @@ export interface StaffUser {
   panCard?: CardDoc;
   bankDetails?: BankDetailsDoc;
   staffProfile?: StaffProfile;
+  bookingPreferences?: StaffBookingPreferences;
   [key: string]: unknown;
 }
 
@@ -90,6 +116,7 @@ export interface StaffPayload {
   panCard?: CardDoc;
   bankDetails?: BankDetailsDoc;
   staffProfile?: StaffProfile;
+  bookingPreferences?: StaffBookingPreferences;
   [key: string]: unknown;
 }
 

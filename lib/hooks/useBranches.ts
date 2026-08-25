@@ -55,3 +55,17 @@ export function useUpdateBranch() {
     },
   });
 }
+
+export const BRANCH_DROPDOWN_QUERY_KEY = ["branch-dropdown-list"] as const;
+
+/**
+ * Custom React Query hook to fetch branch list for dropdowns via GET /user/branchAndAdminList
+ */
+export function useBranchDropdownList() {
+  return useQuery({
+    queryKey: BRANCH_DROPDOWN_QUERY_KEY,
+    queryFn: () => import("@/lib/api/branch").then((m) => m.getBranchDropdownList()),
+    staleTime: 5 * 60 * 1000, // cache for 5 minutes
+  });
+}
+
