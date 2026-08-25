@@ -1,111 +1,223 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2, Truck as TruckIcon } from "lucide-react";
 import DataTable from "@/components/DataTable/DataTable";
 import StatusBadge from "@/components/DataTable/StatusBadge";
+import DeleteConfirmDialog from "@/components/DataTable/DeleteConfirmDialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { showToast } from "@/lib/toast";
-import type { ColumnDef, TablePermissions } from "@/lib/types/common";
-
-// ─── Types ─────────────────────────────────────────────────────────────────────
-export interface Truck {
-  id: number | string;
-  truck_model_name: string;
-  truck_no: string;
-  is_active: boolean;
-  [key: string]: unknown;
-}
-
-// ─── Mock Data ─────────────────────────────────────────────────────────────────
-const MOCK_TRUCKS: Truck[] = [
-  {
-    id: 1,
-    truck_model_name: "Tata 407 LPT Heavy",
-    truck_no: "GJ-05-BX-1024",
-    is_active: true,
-  },
-  {
-    id: 2,
-    truck_model_name: "Eicher Pro 2049",
-    truck_no: "GJ-01-CZ-3389",
-    is_active: true,
-  },
-  {
-    id: 3,
-    truck_model_name: "Ashok Leyland Dost+",
-    truck_no: "GJ-06-AK-7721",
-    is_active: true,
-  },
-  {
-    id: 4,
-    truck_model_name: "Mahindra Bolero Maxi Truck",
-    truck_no: "GJ-03-ER-4490",
-    is_active: false,
-  },
-  {
-    id: 5,
-    truck_model_name: "BharatBenz 1217R",
-    truck_no: "GJ-10-DF-9912",
-    is_active: true,
-  },
-];
-
-// ─── Table Permissions ─────────────────────────────────────────────────────────
-const PERMISSIONS: TablePermissions = {
-  canExcel: true,
-  canPDF: true,
-  canPrint: true,
-  canAdd: true,
-  canEdit: true,
-  canDelete: false,
-  canStatus: true,
-};
+import { getInitials } from "@/lib/utils";
+import {
+  useTrucks,
+  useUpdateUserStatus,
+  useModulePermissions,
+} from "@/lib/hooks";
+import type { TruckUser } from "@/lib/api/truck";
+import type { ColumnDef } from "@/lib/types/common";
 
 export default function ManageTruckPage() {
-  const [data, setData] = useState<Truck[]>(MOCK_TRUCKS);
+  const permissions = useModulePermissions("truck");
 
+  // Table pagination & search state
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [search, setSearch] = useState("");
+
+  // Data fetching hook
+  const { data: apiResponse, isLoading } = useTrucks({ page, limit, search });
+
+  const statusMutation = useUpdateUserStatus();
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+
+  // Extract truck users and pagination metadata
+  const truckUsers: TruckUser[] = apiResponse?.data?.users || [];
+  const paginationMeta = apiResponse?.pagination || {
+    total: truckUsers.length,
+    page,
+    limit,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+  };
+
+  // Delete dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [truckToDelete, setTruckToDelete] = useState<TruckUser | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Handle Add Truck
   const handleAdd = () => {
-    showToast("info", "Add Truck clicked", "Truck registration form modal can be opened here.");
+    showToast("info", "Add Truck", "Truck registration form modal will be configured here.");
   };
 
-  const handleEdit = (row: Truck) => {
-    showToast("info", `Editing Truck: ${row.truck_no}`, `Model: ${row.truck_model_name}`);
-  };
-
-  const handleStatusToggle = (row: Truck) => {
-    setData((prev) =>
-      prev.map((t) =>
-        t.id === row.id ? { ...t, is_active: !t.is_active } : t
-      )
-    );
+  // Handle Edit Truck
+  const handleEdit = (row: TruckUser) => {
     showToast(
-      "success",
-      `Truck "${row.truck_no}" status updated to ${!row.is_active ? "Active" : "Inactive"}`
+      "info",
+      `Edit Truck: ${row.truckInfo?.truckNumber || row.name}`,
+      `Owner: ${row.truckInfo?.ownerDetail?.name || row.name}`
     );
   };
 
-  // ─── Columns ─────────────────────────────────────────────────────────────────
-  const columns: ColumnDef<Truck>[] = [
-    { key: "truck_model_name", label: "Truck Model Name", sortable: true },
+  // Handle Status Toggle (active <-> inactive)
+  const handleStatusToggle = (row: TruckUser) => {
+    const nextStatus = row.status === "active" ? "inactive" : "active";
+    setUpdatingStatusId(row._id);
+
+    statusMutation.mutate(
+      { userId: row._id, status: nextStatus },
+      {
+        onSuccess: (res) => {
+          showToast(
+            "success",
+            res.message ||
+            `Truck "${row.truckInfo?.truckNumber || row.name}" status updated to ${nextStatus === "active" ? "Active" : "Inactive"}`
+          );
+        },
+        onError: (err) => {
+          showToast("error", err.message || "Failed to update status.");
+        },
+        onSettled: () => {
+          setUpdatingStatusId(null);
+        },
+      }
+    );
+  };
+
+  // Handle Delete Click
+  const handleDeleteClick = (row: TruckUser) => {
+    setTruckToDelete(row);
+    setDeleteDialogOpen(true);
+  };
+
+  // Confirm Delete (Suspends user)
+  const handleConfirmDelete = () => {
+    if (!truckToDelete) return;
+    setIsDeleting(true);
+
+    statusMutation.mutate(
+      { userId: truckToDelete._id, status: "suspended" },
+      {
+        onSuccess: (res) => {
+          showToast(
+            "success",
+            res.message || `Truck "${truckToDelete.truckInfo?.truckNumber || truckToDelete.name}" deleted successfully.`
+          );
+          setDeleteDialogOpen(false);
+          setTruckToDelete(null);
+        },
+        onError: (err) => {
+          showToast("error", err.message || "Failed to delete truck.");
+        },
+        onSettled: () => {
+          setIsDeleting(false);
+        },
+      }
+    );
+  };
+
+  // ─── Table Columns ─────────────────────────────────────────────────────────
+  const columns: ColumnDef<TruckUser>[] = [
     {
-      key: "truck_no",
-      label: "Truck No",
+      key: "truckImage",
+      label: "Photo",
+      sortable: false,
+      width: "w-16",
+      render: (_, row) => {
+        const image = row.truckInfo?.truckImage;
+        const displayName = row.truckInfo?.truckNumber || row.name;
+        return (
+          <Avatar className="w-8 h-8 rounded border border-slate-200 bg-slate-50">
+            <AvatarImage src={image} alt={displayName} />
+            <AvatarFallback className="bg-[#2980b9] text-white text-xs font-bold rounded">
+              {getInitials(displayName) || <TruckIcon className="w-3.5 h-3.5" />}
+            </AvatarFallback>
+          </Avatar>
+        );
+      },
+    },
+    {
+      key: "truck_number",
+      label: "Truck Number",
       sortable: true,
-      render: (val) => (
-        <span className="font-semibold tracking-wide text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-          {String(val)}
+      width: "w-36",
+      sortValue: (row) => row.truckInfo?.truckNumber || row.name || "",
+      render: (_, row) => {
+        const num = row.truckInfo?.truckNumber || row.name;
+        return (
+          <span className="font-mono text-sm font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">
+            {num || "-"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "owner_name",
+      label: "Owner Name",
+      sortable: true,
+      sortValue: (row) => row.truckInfo?.ownerDetail?.name || row.name || "",
+      render: (_, row) => (
+        <span className="font-semibold text-slate-900">
+          {row.truckInfo?.ownerDetail?.name || row.name}
         </span>
       ),
     },
     {
-      key: "is_active",
+      key: "driver_name",
+      label: "Assigned Driver",
+      sortable: true,
+      sortValue: (row) => {
+        const d = row.truckInfo?.driverId;
+        return typeof d === "object" && d ? d.name || "" : "";
+      },
+      render: (_, row) => {
+        const d = row.truckInfo?.driverId;
+        return typeof d === "object" && d ? d.name || "-" : "-";
+      },
+    },
+    {
+      key: "driver_mobile",
+      label: "Driver Mobile",
+      sortable: true,
+      width: "w-32",
+      sortValue: (row) => {
+        const d = row.truckInfo?.driverId;
+        return typeof d === "object" && d ? d.mobile || "" : "";
+      },
+      render: (_, row) => {
+        const d = row.truckInfo?.driverId;
+        return typeof d === "object" && d ? d.mobile || "-" : "-";
+      },
+    },
+    {
+      key: "capacity",
+      label: "Capacity",
+      sortable: true,
+      width: "w-28",
+      sortValue: (row) => row.truckInfo?.capacity || 0,
+      render: (_, row) => {
+        const cap = row.truckInfo?.capacity;
+        return (
+          <span className="text-sm text-slate-800 font-medium">
+            {cap !== undefined && cap !== null ? `${cap} kg` : "-"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "status",
       label: "Status",
       width: "w-28",
-      render: (val, row) => (
+      sortable: true,
+      sortValue: (row) => (row.status === "active" ? 1 : 0),
+      render: (_, row) => (
         <StatusBadge
-          status={row.is_active}
-          canToggle={PERMISSIONS.canStatus}
+          inactiveText="Inactive"
+          status={row.status === "active"}
+          canToggle={permissions.canStatus && updatingStatusId !== row._id}
+          isLoading={updatingStatusId === row._id}
           onToggle={() => handleStatusToggle(row)}
         />
       ),
@@ -113,10 +225,10 @@ export default function ManageTruckPage() {
     {
       key: "action",
       label: "Action",
-      width: "w-28",
+      width: "w-40",
       render: (_, row) => (
-        <div className="flex items-center">
-          {PERMISSIONS.canEdit && (
+        <div className="flex items-center gap-1.5">
+          {permissions.canEdit && (
             <Button
               type="button"
               size="sm"
@@ -127,19 +239,65 @@ export default function ManageTruckPage() {
               Edit
             </Button>
           )}
+          {permissions.canDelete && (
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={isDeleting && truckToDelete?._id === row._id}
+              onClick={() => handleDeleteClick(row)}
+              className="h-7 px-2.5 text-xs bg-[#e74c3c] hover:bg-[#c0392b] text-white shadow-xs transition-colors"
+            >
+              <Trash2 className="w-3 h-3 mr-1" />
+              Delete
+            </Button>
+          )}
         </div>
       ),
     },
   ];
 
   return (
-    <DataTable<Truck>
-      title="Manage Truck"
-      columns={columns}
-      data={data}
-      permissions={PERMISSIONS}
-      onAdd={handleAdd}
-      clientSide
-    />
+    <>
+      <DataTable<TruckUser>
+        title="Manage Truck"
+        columns={columns}
+        data={truckUsers}
+        isLoading={isLoading}
+        permissions={permissions}
+        onAdd={handleAdd}
+        onSearch={(query) => {
+          setSearch(query);
+          setPage(1);
+        }}
+        searchValue={search}
+        clientSide={false}
+        pagination={{
+          page,
+          pageSize: limit,
+          total: paginationMeta.total,
+          onPageChange: (newPage) => setPage(newPage),
+          onPageSizeChange: (newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          },
+        }}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleConfirmDelete}
+        isLoading={isDeleting}
+        title="Delete Truck"
+        itemName={truckToDelete?.truckInfo?.truckNumber || truckToDelete?.name}
+        description={
+          truckToDelete
+            ? `Are you sure you want to delete truck "${truckToDelete.truckInfo?.truckNumber || truckToDelete.name}"? This action will suspend the account.`
+            : undefined
+        }
+      />
+    </>
   );
 }
