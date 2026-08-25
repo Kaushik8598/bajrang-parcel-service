@@ -3,7 +3,6 @@ import {
   getAdmins,
   createAdmin,
   updateAdmin,
-  updateUserStatus,
   GetAdminsParams,
   AdminPayload,
 } from "@/lib/api/admin";
@@ -46,26 +45,6 @@ export function useUpdateAdmin() {
   return useMutation({
     mutationFn: ({ userId, payload }: { userId: string; payload: AdminPayload }) =>
       updateAdmin(userId, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ADMINS_QUERY_KEY });
-    },
-  });
-}
-
-/**
- * Custom React Query mutation hook to update user status or delete user
- */
-export function useUpdateUserStatus() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: ({
-      userId,
-      status,
-    }: {
-      userId: string;
-      status: "active" | "inactive" | "suspended";
-    }) => updateUserStatus(userId, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ADMINS_QUERY_KEY });
     },

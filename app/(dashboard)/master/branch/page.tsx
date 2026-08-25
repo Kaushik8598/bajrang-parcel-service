@@ -1,137 +1,179 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import DataTable from "@/components/DataTable/DataTable";
 import StatusBadge from "@/components/DataTable/StatusBadge";
+import DeleteConfirmDialog from "@/components/DataTable/DeleteConfirmDialog";
 import { Button } from "@/components/ui/button";
+import {
+  useBranches,
+  useUpdateUserStatus,
+  useModulePermissions,
+} from "@/lib/hooks";
 import { showToast } from "@/lib/toast";
-import type { ColumnDef, TablePermissions } from "@/lib/types/common";
-
-// ─── Types ─────────────────────────────────────────────────────────────────────
-export interface Branch {
-  id: number | string;
-  branch_name: string;
-  branch_code: string;
-  email_id: string;
-  mobile_no_1: string;
-  mobile_no_2: string;
-  city: string;
-  address: string;
-  is_active: boolean;
-  [key: string]: unknown;
-}
-
-// ─── Mock Data ─────────────────────────────────────────────────────────────────
-const MOCK_BRANCHES: Branch[] = [
-  {
-    id: 1,
-    branch_name: "Surat Main Branch",
-    branch_code: "SUR-01",
-    email_id: "surat@bajrang.com",
-    mobile_no_1: "9876543201",
-    mobile_no_2: "9876543202",
-    city: "Surat",
-    address: "Ring Road, Surat, Gujarat - 395002",
-    is_active: true,
-  },
-  {
-    id: 2,
-    branch_name: "Ahmedabad Central Hub",
-    branch_code: "AHM-01",
-    email_id: "ahmedabad@bajrang.com",
-    mobile_no_1: "9876543203",
-    mobile_no_2: "9876543204",
-    city: "Ahmedabad",
-    address: "Narol Highway, Ahmedabad, Gujarat - 382405",
-    is_active: true,
-  },
-  {
-    id: 3,
-    branch_name: "Vadodara Logistics Hub",
-    branch_code: "BRD-01",
-    email_id: "vadodara@bajrang.com",
-    mobile_no_1: "9876543205",
-    mobile_no_2: "9876543206",
-    city: "Vadodara",
-    address: "Makarpura GIDC, Vadodara, Gujarat - 390010",
-    is_active: true,
-  },
-  {
-    id: 4,
-    branch_name: "Rajkot Transport Nagar",
-    branch_code: "RJK-01",
-    email_id: "rajkot@bajrang.com",
-    mobile_no_1: "9876543207",
-    mobile_no_2: "9876543208",
-    city: "Rajkot",
-    address: "Aji GIDC, Rajkot, Gujarat - 360003",
-    is_active: false,
-  },
-  {
-    id: 5,
-    branch_name: "Bhavnagar Branch",
-    branch_code: "BHV-01",
-    email_id: "bhavnagar@bajrang.com",
-    mobile_no_1: "9876543209",
-    mobile_no_2: "9876543210",
-    city: "Bhavnagar",
-    address: "Chitra GIDC, Bhavnagar, Gujarat - 364004",
-    is_active: true,
-  },
-];
-
-// ─── Table Permissions ─────────────────────────────────────────────────────────
-const PERMISSIONS: TablePermissions = {
-  canExcel: true,
-  canPDF: true,
-  canPrint: true,
-  canAdd: true,
-  canEdit: true,
-  canDelete: false,
-  canStatus: true,
-};
+import type { ColumnDef } from "@/lib/types/common";
+import type { BranchUser } from "@/lib/api/branch";
 
 export default function ManageBranchPage() {
-  const [data, setData] = useState<Branch[]>(MOCK_BRANCHES);
+  const permissions = useModulePermissions("branch");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [search, setSearch] = useState("");
 
+  // ─── Loading States ──────────────────────────────────────────────────────────
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // ─── Delete State ─────────────────────────────────────────────────────────────
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [branchToDelete, setBranchToDelete] = useState<BranchUser | null>(null);
+
+  const { data: response, isLoading } = useBranches({ page, limit, search });
+  const statusMutation = useUpdateUserStatus();
+
+  const branchUsers: BranchUser[] = response?.data?.users || [];
+  const paginationMeta = response?.pagination || {
+    total: branchUsers.length,
+    page: 1,
+    limit: 10,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
+  };
+
+  // ─── Handlers ─────────────────────────────────────────────────────────────────
   const handleAdd = () => {
     showToast("info", "Add Branch clicked", "Branch creation form modal can be opened here.");
   };
 
-  const handleEdit = (row: Branch) => {
-    showToast("info", `Editing ${row.branch_name}`, `Branch code: ${row.branch_code}`);
+  const handleEdit = (row: BranchUser) => {
+    showToast("info", `Editing ${row.branchInfo?.branchName || row.name}`, `Email: ${row.email}`);
   };
 
-  const handleStatusToggle = (row: Branch) => {
-    setData((prev) =>
-      prev.map((b) =>
-        b.id === row.id ? { ...b, is_active: !b.is_active } : b
-      )
-    );
-    showToast(
-      "success",
-      `Branch "${row.branch_name}" status updated to ${!row.is_active ? "Active" : "Inactive"}`
+  const handleDeleteClick = (row: BranchUser) => {
+    setBranchToDelete(row);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (branchToDelete) {
+      setIsDeleting(true);
+      statusMutation.mutate(
+        { userId: branchToDelete._id, status: "suspended" },
+        {
+          onSuccess: (res) => {
+            showToast(
+              "success",
+              res.message || `Branch "${branchToDelete.branchInfo?.branchName || branchToDelete.name}" deleted successfully.`
+            );
+            setDeleteDialogOpen(false);
+            setBranchToDelete(null);
+          },
+          onError: (err) => {
+            showToast("error", err.message || "Failed to delete branch.");
+          },
+          onSettled: () => {
+            setIsDeleting(false);
+          },
+        }
+      );
+    }
+  };
+
+  const handleStatusToggle = (row: BranchUser) => {
+    const nextStatus = row.status === "active" ? "inactive" : "active";
+    setUpdatingStatusId(row._id);
+
+    statusMutation.mutate(
+      { userId: row._id, status: nextStatus },
+      {
+        onSuccess: (res) => {
+          showToast(
+            "success",
+            res.message ||
+              `Branch "${row.branchInfo?.branchName || row.name}" status updated to ${nextStatus === "active" ? "Active" : "Inactive"}`
+          );
+        },
+        onError: (err) => {
+          showToast("error", err.message || "Failed to update status.");
+        },
+        onSettled: () => {
+          setUpdatingStatusId(null);
+        },
+      }
     );
   };
 
-  // ─── Columns (Sr No is rendered automatically by DataTable) ──────────────────
-  const columns: ColumnDef<Branch>[] = [
-    { key: "branch_name", label: "Branch Name", sortable: true },
-    { key: "branch_code", label: "Branch Code", sortable: true, width: "w-28" },
-    { key: "email_id", label: "Email Id", sortable: true },
-    { key: "mobile_no_1", label: "Mobile No1", sortable: true, width: "w-32" },
-    { key: "mobile_no_2", label: "Mobile No2", sortable: true, width: "w-32" },
-    { key: "city", label: "City", sortable: true, width: "w-28" },
-    { key: "address", label: "Address", sortable: false },
+  // ─── Columns ─────────────────────────────────────────────────────────────────
+  const columns: ColumnDef<BranchUser>[] = [
     {
-      key: "is_active",
+      key: "branch_name",
+      label: "Branch Name",
+      sortable: true,
+      render: (_, row) => (
+        <span className="font-semibold text-slate-900">
+          {row.branchInfo?.branchName || row.name}
+        </span>
+      ),
+    },
+    {
+      key: "branch_code",
+      label: "Branch Code",
+      sortable: true,
+      width: "w-28",
+      render: (_, row) => (
+        <span className="font-mono text-xs text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+          {row.branchInfo?.branchCode || "-"}
+        </span>
+      ),
+    },
+    { key: "email", label: "Email Id", sortable: true },
+    {
+      key: "mobile_no_1",
+      label: "Mobile No1",
+      sortable: true,
+      width: "w-32",
+      render: (_, row) => row.branchInfo?.mobile1 || "-",
+    },
+    {
+      key: "mobile_no_2",
+      label: "Mobile No2",
+      sortable: true,
+      width: "w-32",
+      render: (_, row) => row.branchInfo?.mobile2 || "-",
+    },
+    {
+      key: "city",
+      label: "City",
+      sortable: true,
+      width: "w-28",
+      render: (_, row) => row.branchInfo?.city || "-",
+    },
+    {
+      key: "address",
+      label: "Address",
+      sortable: false,
+      render: (_, row) => {
+        const parts = [
+          row.branchInfo?.address1,
+          row.branchInfo?.address2,
+          row.branchInfo?.city,
+          row.branchInfo?.state,
+          row.branchInfo?.pincode,
+        ].filter(Boolean);
+        return parts.length > 0 ? parts.join(", ") : "-";
+      },
+    },
+    {
+      key: "status",
       label: "Status",
       width: "w-28",
       render: (val, row) => (
         <StatusBadge
-          status={row.is_active}
-          canToggle={PERMISSIONS.canStatus}
+          status={row.status === "active"}
+          canToggle={permissions.canStatus && updatingStatusId !== row._id}
+          isLoading={updatingStatusId === row._id}
           onToggle={() => handleStatusToggle(row)}
         />
       ),
@@ -139,10 +181,10 @@ export default function ManageBranchPage() {
     {
       key: "action",
       label: "Action",
-      width: "w-28",
+      width: "w-44",
       render: (_, row) => (
-        <div className="flex items-center">
-          {PERMISSIONS.canEdit && (
+        <div className="flex items-center gap-1.5">
+          {permissions.canEdit && (
             <Button
               type="button"
               size="sm"
@@ -153,19 +195,65 @@ export default function ManageBranchPage() {
               Edit
             </Button>
           )}
+          {permissions.canDelete && (
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              disabled={isDeleting && branchToDelete?._id === row._id}
+              onClick={() => handleDeleteClick(row)}
+              className="h-7 px-2.5 text-xs bg-[#e74c3c] hover:bg-[#c0392b] text-white shadow-xs transition-colors"
+            >
+              <Trash2 className="w-3 h-3 mr-1" />
+              Delete
+            </Button>
+          )}
         </div>
       ),
     },
   ];
 
   return (
-    <DataTable<Branch>
-      title="Manage Branch"
-      columns={columns}
-      data={data}
-      permissions={PERMISSIONS}
-      onAdd={handleAdd}
-      clientSide
-    />
+    <>
+      <DataTable<BranchUser>
+        title="Manage Branch"
+        columns={columns}
+        data={branchUsers}
+        isLoading={isLoading}
+        permissions={permissions}
+        onAdd={handleAdd}
+        onSearch={(query) => {
+          setSearch(query);
+          setPage(1);
+        }}
+        searchValue={search}
+        clientSide={false}
+        pagination={{
+          page,
+          pageSize: limit,
+          total: paginationMeta.total,
+          onPageChange: (newPage) => setPage(newPage),
+          onPageSizeChange: (newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          },
+        }}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleConfirmDelete}
+        isLoading={isDeleting}
+        title="Delete Branch"
+        itemName={branchToDelete?.branchInfo?.branchName || branchToDelete?.name}
+        description={
+          branchToDelete
+            ? `Are you sure you want to remove branch "${branchToDelete.branchInfo?.branchName || branchToDelete.name}"? This action will suspend the account.`
+            : undefined
+        }
+      />
+    </>
   );
 }
