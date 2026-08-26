@@ -53,6 +53,11 @@ const BOOLEAN_OPTIONS = [
   { value: "false", label: "No" },
 ];
 
+const EMI_DAY_OPTIONS = Array.from({ length: 31 }, (_, i) => ({
+  value: String(i + 1),
+  label: `${i + 1}`,
+}));
+
 // Helper to format ISO date string to YYYY-MM-DD
 function formatDateForInput(dateStr?: string): string {
   if (!dateStr) return "";
@@ -93,8 +98,8 @@ function getInitialState(mode: "add" | "edit", user?: TruckUser | null) {
     typeof truckInfo.driverId === "object" && truckInfo.driverId
       ? truckInfo.driverId._id
       : typeof truckInfo.driverId === "string"
-      ? truckInfo.driverId
-      : "";
+        ? truckInfo.driverId
+        : "";
 
   return {
     // Basic Details
@@ -108,6 +113,18 @@ function getInitialState(mode: "add" | "edit", user?: TruckUser | null) {
     // Truck Info
     truckNumber: truckInfo.truckNumber || "",
     driverId: driverId || "",
+    capacity:
+      truckInfo.capacity !== undefined && truckInfo.capacity !== null
+        ? String(truckInfo.capacity)
+        : "0",
+    emiAmount:
+      truckInfo.emiAmount !== undefined && truckInfo.emiAmount !== null
+        ? String(truckInfo.emiAmount)
+        : "0",
+    emiDueDate:
+      truckInfo.emiDueDate !== undefined && truckInfo.emiDueDate !== null
+        ? String(truckInfo.emiDueDate)
+        : "",
     truckImageName: truckImageUrl ? "truck_image.jpg" : "",
     truckImageUrl: truckImageUrl,
 
@@ -367,6 +384,9 @@ export default function TruckFormModal({
         truckNumber: form.truckNumber.trim().toUpperCase(),
         truckImage: form.truckImageUrl,
         driverId: form.driverId || undefined,
+        capacity: Number(form.capacity) || 0,
+        emiAmount: Number(form.emiAmount) || 0,
+        emiDueDate: form.emiDueDate ? String(form.emiDueDate) : '1',
 
         // Truck Documents
         documents: {
@@ -458,9 +478,6 @@ export default function TruckFormModal({
       maxWidth="sm:max-w-4xl"
       title={
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded bg-[#2980b9]/10 text-[#2980b9]">
-            <TruckIcon className="w-4 h-4" />
-          </div>
           <span>{mode === "add" ? "Register New Truck" : "Edit Truck Details"}</span>
         </div>
       }
@@ -604,7 +621,7 @@ export default function TruckFormModal({
 
           {/* ─── SECTION 2: TRUCK & DRIVER INFORMATION ─── */}
           <FormCard title="Truck & Driver Information" icon={TruckIcon}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
               <FormInput
                 uppercase
                 label="Truck Number"
@@ -621,6 +638,35 @@ export default function TruckFormModal({
                 options={driverOptions}
                 value={form.driverId}
                 onChange={(val) => update("driverId", val || "")}
+                clearable
+              />
+
+              <FormInput
+                type="number"
+                min="0"
+                label="Capacity (kg)"
+                placeholder="e.g. 9000"
+                value={form.capacity}
+                onChange={(e) => update("capacity", e.target.value)}
+              />
+
+              <FormInput
+                type="number"
+                min="0"
+                label="EMI Amount (₹)"
+                placeholder="0"
+                value={form.emiAmount}
+                onChange={(e) => update("emiAmount", e.target.value)}
+              />
+
+              <FormSelect
+                searchable
+                label="EMI Due Date"
+                placeholder="Select day (1-31)"
+                searchPlaceholder="Search day (1-31)..."
+                options={EMI_DAY_OPTIONS}
+                value={form.emiDueDate}
+                onChange={(val) => update("emiDueDate", val || "")}
                 clearable
               />
 

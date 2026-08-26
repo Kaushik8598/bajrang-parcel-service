@@ -447,9 +447,6 @@ export default function StaffFormModal({
       maxWidth="sm:max-w-4xl"
       title={
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded bg-[#2980b9]/10 text-[#2980b9]">
-            <Users className="w-4 h-4" />
-          </div>
           <span>{mode === "add" ? "Add New Staff" : "Edit Staff Details"}</span>
         </div>
       }

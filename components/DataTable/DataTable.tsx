@@ -297,7 +297,7 @@ export default function DataTable<T extends Record<string, unknown>>({
       />
 
       {/* Table Container */}
-      <div className="relative rounded-lg border border-slate-300 overflow-hidden min-h-[160px]">
+      <div className="relative rounded-lg border border-slate-300 overflow-hidden">
         {/* Semi-transparent Loading Overlay for smooth data fetching UX */}
         {isLoading && (
           <div className="absolute inset-0 bg-white/75 backdrop-blur-[2px] z-20 flex flex-col items-center justify-center gap-2.5 transition-all animate-in fade-in-0 duration-150">

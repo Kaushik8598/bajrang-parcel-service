@@ -177,9 +177,9 @@ export default function ManageTruckPage() {
         const image = row.truckInfo?.truckImage;
         const displayName = row.truckInfo?.truckNumber || row.name;
         return (
-          <Avatar className="w-8 h-8 rounded border border-slate-200 bg-slate-50">
+          <Avatar className="w-8 h-8 rounded-full border border-slate-200 bg-slate-50">
             <AvatarImage src={image} alt={displayName} />
-            <AvatarFallback className="bg-[#2980b9] text-white text-xs font-bold rounded">
+            <AvatarFallback className="bg-[#2980b9] text-white text-xs font-bold rounded-full">
               {getInitials(displayName) || <TruckIcon className="w-3.5 h-3.5" />}
             </AvatarFallback>
           </Avatar>

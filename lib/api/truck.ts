@@ -80,6 +80,8 @@ export interface TruckInfo {
   documents?: TruckDocuments;
   ownerDetail?: TruckOwnerDetail;
   capacity?: number;
+  emiAmount?: number;
+  emiDueDate?: string;
   [key: string]: unknown;
 }
 
