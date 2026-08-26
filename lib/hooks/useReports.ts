@@ -5,6 +5,7 @@ import {
   getParcelDeliveredReports,
   getCancelBookingReports,
   getCustomerDiscountReports,
+  getPendingDeliveryReports,
   GetBookingReportsParams,
 } from "@/lib/api/reports";
 
@@ -227,6 +228,51 @@ export function useCustomerDiscountReports(params: GetBookingReportsParams = {})
     placeholderData: (previousData) => previousData,
   });
 }
+
+export const PENDING_DELIVERY_REPORTS_QUERY_KEY = ["pending-delivery-reports-list"] as const;
+
+/**
+ * React Query hook to fetch pending delivery reports list via GET /report/atDestination
+ */
+export function usePendingDeliveryReports(params: GetBookingReportsParams = {}) {
+  const {
+    page = 1,
+    limit = 10,
+    search = "",
+    fromBranchId = "",
+    toBranchId = "",
+    startDate = "",
+    endDate = "",
+    hasBill = "",
+  } = params;
+
+  return useQuery({
+    queryKey: [
+      ...PENDING_DELIVERY_REPORTS_QUERY_KEY,
+      page,
+      limit,
+      search,
+      fromBranchId,
+      toBranchId,
+      startDate,
+      endDate,
+      hasBill,
+    ],
+    queryFn: () =>
+      getPendingDeliveryReports({
+        page,
+        limit,
+        search,
+        fromBranchId,
+        toBranchId,
+        startDate,
+        endDate,
+        hasBill,
+      }),
+    placeholderData: (previousData) => previousData,
+  });
+}
+
 
 
 
