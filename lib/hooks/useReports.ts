@@ -3,6 +3,7 @@ import {
   getAllBookingReports,
   getParcelPendingReports,
   getParcelDeliveredReports,
+  getCancelBookingReports,
   GetBookingReportsParams,
 } from "@/lib/api/reports";
 
@@ -137,4 +138,49 @@ export function useParcelDeliveredReports(params: GetBookingReportsParams = {}) 
     placeholderData: (previousData) => previousData,
   });
 }
+
+export const CANCEL_BOOKING_REPORTS_QUERY_KEY = ["cancel-booking-reports-list"] as const;
+
+/**
+ * React Query hook to fetch cancel booking reports list via GET /report/cancelled
+ */
+export function useCancelBookingReports(params: GetBookingReportsParams = {}) {
+  const {
+    page = 1,
+    limit = 10,
+    search = "",
+    fromBranchId = "",
+    toBranchId = "",
+    startDate = "",
+    endDate = "",
+    hasBill = "",
+  } = params;
+
+  return useQuery({
+    queryKey: [
+      ...CANCEL_BOOKING_REPORTS_QUERY_KEY,
+      page,
+      limit,
+      search,
+      fromBranchId,
+      toBranchId,
+      startDate,
+      endDate,
+      hasBill,
+    ],
+    queryFn: () =>
+      getCancelBookingReports({
+        page,
+        limit,
+        search,
+        fromBranchId,
+        toBranchId,
+        startDate,
+        endDate,
+        hasBill,
+      }),
+    placeholderData: (previousData) => previousData,
+  });
+}
+
 
