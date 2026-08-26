@@ -145,13 +145,15 @@ export async function getUserPermissionsById(userId: string): Promise<UserPermis
   return response;
 }
 
+export type UserPermissionsMap = Record<string, UserPermissionActionMap>;
+
 /**
  * Update user permissions via PUT /user/permission/:id
- * Body: { permissions: [ { module, actions: { view, add, edit, delete, export }, displayName } ] }
+ * Body: { permissions: { admin: { view, add, edit, delete, export }, ... } }
  */
 export async function updateUserPermissionsById(
   userId: string,
-  permissions: UserPermissionItem[]
+  permissions: UserPermissionsMap | Record<string, unknown> | unknown
 ): Promise<{ success: boolean; message?: string; data?: unknown }> {
   const response = await request<{ success: boolean; message?: string; data?: unknown }>(
     `/user/permission/${userId}`,
@@ -162,6 +164,8 @@ export async function updateUserPermissionsById(
   );
   return response;
 }
+
+
 
 
 /**

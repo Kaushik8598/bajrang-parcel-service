@@ -16,12 +16,13 @@ export interface StatusBadgeProps {
 export default function StatusBadge({
   status,
   activeText = "Active",
-  inactiveText = "Block",
+  inactiveText = "Inactive",
   onToggle,
   canToggle = true,
   isLoading = false,
   className,
 }: StatusBadgeProps) {
+
   // Interpret truthy status (true, 1, "1", "active", "true")
   const isActive =
     typeof status === "boolean"

@@ -5,7 +5,9 @@ import {
   getUserPermissionsById,
   updateUserPermissionsById,
   UserPermissionItem,
+  UserPermissionsMap,
 } from "@/lib/api/user";
+
 
 export const ALL_USERS_QUERY_KEY = ["all-users-list"] as const;
 
@@ -39,6 +41,8 @@ export function useUserPermissionsById(userId: string | undefined, enabled = tru
     queryKey: [...USER_PERMISSIONS_QUERY_KEY, userId],
     queryFn: () => (userId ? getUserPermissionsById(userId) : null),
     enabled: Boolean(userId) && enabled,
+    staleTime: 0,
+    gcTime: 0,
   });
 }
 
@@ -54,16 +58,21 @@ export function useUpdateUserPermissionsById() {
       permissions,
     }: {
       userId: string;
-      permissions: UserPermissionItem[];
+      permissions: UserPermissionsMap | Record<string, unknown> | unknown;
     }) => updateUserPermissionsById(userId, permissions),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
+    onSuccess: (_, variables: any) => {
+      // Purge cached permission for this user so next edit fetches fresh data
+      queryClient.removeQueries({
         queryKey: [...USER_PERMISSIONS_QUERY_KEY, variables.userId],
       });
+      // Invalidate all-users-list once
       queryClient.invalidateQueries({
         queryKey: ALL_USERS_QUERY_KEY,
       });
     },
   });
 }
+
+
+
 

@@ -1,15 +1,10 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import {
-  Pencil,
-  RotateCcw,
-  Filter,
-} from "lucide-react";
+import { Pencil } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import DataTable from "@/components/DataTable/DataTable";
 import StatusBadge from "@/components/DataTable/StatusBadge";
-import { FormSelect } from "@/components/ui/form-select";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import UserPermissionsModal from "@/components/modals/UserPermissionsModal";
@@ -19,32 +14,11 @@ import { getInitials } from "@/lib/utils";
 import type { User as UserType } from "@/lib/types/auth";
 import type { ColumnDef } from "@/lib/types/common";
 
-const ROLE_OPTIONS = [
-  { value: "", label: "All Roles" },
-  { value: "superAdmin", label: "Super Admin" },
-  { value: "admin", label: "Admin" },
-  { value: "branch", label: "Branch" },
-  { value: "staff", label: "Staff" },
-  { value: "driver", label: "Driver" },
-  { value: "truck", label: "Truck" },
-  { value: "customer", label: "Customer" },
-];
-
-const STATUS_OPTIONS = [
-  { value: "", label: "All Status" },
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-];
-
 export default function PermissionsPage() {
   const queryClient = useQueryClient();
   const permissions = useModulePermissions("manageRights");
   const statusMutation = useUpdateUserStatus(["all-users-list"]);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
-
-  // Filters state
-  const [roleFilter, setRoleFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
 
   // Pagination & search state
   const [page, setPage] = useState(1);
@@ -60,8 +34,6 @@ export default function PermissionsPage() {
     page,
     limit,
     search,
-    role: roleFilter || undefined,
-    status: statusFilter || undefined,
   });
 
   // Extract user records from response
@@ -83,15 +55,6 @@ export default function PermissionsPage() {
     totalPages: 1,
     hasNextPage: false,
     hasPrevPage: false,
-  };
-
-  const hasActiveFilters = Boolean(roleFilter || statusFilter || search);
-
-  const handleResetFilter = () => {
-    setRoleFilter("");
-    setStatusFilter("");
-    setSearch("");
-    setPage(1);
   };
 
   const handleEditPermissions = (user: UserType) => {
@@ -225,60 +188,6 @@ export default function PermissionsPage() {
 
   return (
     <div className="space-y-3 pb-10">
-      {/* ─── Filter Section ─── */}
-      <div className="bg-white rounded-lg border border-slate-300 p-4 shadow-xs">
-        <div className="space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-              <Filter className="w-3.5 h-3.5 text-[#2980b9]" />
-              <span>Filter Users & Permissions</span>
-            </div>
-
-            {/* Reset link only shown in header when filters are active */}
-            {hasActiveFilters && (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleResetFilter}
-                  disabled={isLoading || isFetching}
-                  className="group inline-flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 underline underline-offset-4 cursor-pointer transition-colors disabled:opacity-50"
-                  title="Clear all active filters"
-                >
-                  <RotateCcw className="w-3 h-3 text-rose-600 group-hover:text-rose-700 transition-colors" />
-                  <span>Reset</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            <FormSelect
-              label="Role"
-              placeholder="All Roles"
-              options={ROLE_OPTIONS}
-              value={roleFilter}
-              onChange={(val) => {
-                setRoleFilter(val || "");
-                setPage(1);
-              }}
-              clearable
-            />
-
-            <FormSelect
-              label="Status"
-              placeholder="All Status"
-              options={STATUS_OPTIONS}
-              value={statusFilter}
-              onChange={(val) => {
-                setStatusFilter(val || "");
-                setPage(1);
-              }}
-              clearable
-            />
-          </div>
-        </div>
-      </div>
-
       {/* ─── Data Table ─── */}
       <DataTable<UserType>
         title="Permissions & User Rights"
@@ -319,9 +228,6 @@ export default function PermissionsPage() {
             if (!open) setSelectedUser(null);
           }}
           user={selectedUser}
-          onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["all-users-list"] });
-          }}
         />
       )}
     </div>

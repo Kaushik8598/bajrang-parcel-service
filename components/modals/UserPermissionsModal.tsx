@@ -15,7 +15,8 @@ import {
   useUpdateUserPermissionsById,
 } from "@/lib/hooks";
 import type { User } from "@/lib/types/auth";
-import type { UserPermissionItem, UserPermissionActionMap } from "@/lib/api/user";
+import type { UserPermissionItem, UserPermissionActionMap, UserPermissionsMap } from "@/lib/api/user";
+
 
 interface UserPermissionsModalProps {
   open: boolean;
@@ -42,7 +43,7 @@ export default function UserPermissionsModal({
 }: UserPermissionsModalProps) {
   const userId = user ? String(user._id || user.id || "") : "";
 
-  // Query specific user's permissions via GET /user/permission/:id
+  // Query user's permissions directly via GET /user/permission/:id
   const { data: userPermissionsRes, isLoading: isUserPermLoading } = useUserPermissionsById(
     userId,
     open && Boolean(userId)
@@ -52,12 +53,12 @@ export default function UserPermissionsModal({
   // Local table rows state
   const [rows, setRows] = useState<UserPermissionItem[]>([]);
 
-  // Initialize table rows from API response
+  // Load rows dynamically from API response
   useEffect(() => {
     if (!open) return;
 
     const rawData = userPermissionsRes?.data;
-    let list: UserPermissionItem[] = [];
+    let list: any[] = [];
 
     if (Array.isArray(rawData)) {
       list = rawData;
@@ -70,28 +71,26 @@ export default function UserPermissionsModal({
     }
 
     if (list.length > 0) {
-      const formattedRows: UserPermissionItem[] = list.map((item) => ({
+      const dynamicRows: UserPermissionItem[] = list.map((item) => ({
         module: item.module,
         displayName: item.displayName || item.module,
-        actions: {
-          view: Boolean(item.actions?.view),
-          add: Boolean(item.actions?.add),
-          edit: Boolean(item.actions?.edit),
-          delete: Boolean(item.actions?.delete),
-          export: Boolean(item.actions?.export),
-        },
+        actions: { ...item.actions },
       }));
-      setRows(formattedRows);
+      setRows(dynamicRows);
+    } else {
+      setRows([]);
     }
   }, [open, userPermissionsRes]);
 
   // ─── Select All & Column/Row Helpers ───────────────────────────────────────
 
-  // Check if every checkbox in the entire table is true
+  // Check if every available checkbox in the entire table is true
   const isGlobalAllSelected = useMemo(() => {
     if (rows.length === 0) return false;
     return rows.every((r) =>
-      ACTION_COLUMNS.every((col) => Boolean(r.actions?.[col.key]))
+      ACTION_COLUMNS.every((col) =>
+        r.actions[col.key] === undefined || Boolean(r.actions[col.key])
+      )
     );
   }, [rows]);
 
@@ -99,60 +98,71 @@ export default function UserPermissionsModal({
   const isGlobalSomeSelected = useMemo(() => {
     if (rows.length === 0) return false;
     return rows.some((r) =>
-      ACTION_COLUMNS.some((col) => Boolean(r.actions?.[col.key]))
+      ACTION_COLUMNS.some((col) => Boolean(r.actions[col.key]))
     );
   }, [rows]);
 
-  // Toggle Global Select All
+  // Toggle Global Select All (only affects supported actions)
   const handleToggleGlobalAll = () => {
     const targetState = !isGlobalAllSelected;
     setRows((prev) =>
-      prev.map((row) => ({
-        ...row,
-        actions: {
-          view: targetState,
-          add: targetState,
-          edit: targetState,
-          delete: targetState,
-          export: targetState,
-        },
-      }))
+      prev.map((row) => {
+        const updatedActions: UserPermissionActionMap = { ...row.actions };
+        ACTION_COLUMNS.forEach((col) => {
+          if (row.actions[col.key] !== undefined) {
+            updatedActions[col.key] = targetState;
+          }
+        });
+        return {
+          ...row,
+          actions: updatedActions,
+        };
+      })
     );
   };
 
-  // Check if all rows have a specific action checked
+  // Check if all supported rows have a specific column checked
   const isColumnAllChecked = (colKey: ActionKey) => {
-    if (rows.length === 0) return false;
-    return rows.every((r) => Boolean(r.actions?.[colKey]));
+    const supportedRows = rows.filter((r) => r.actions[colKey] !== undefined);
+    if (supportedRows.length === 0) return false;
+    return supportedRows.every((r) => Boolean(r.actions[colKey]));
   };
 
-  // Check if some rows have a specific action checked
+  // Check if some supported rows have a specific column checked
   const isColumnSomeChecked = (colKey: ActionKey) => {
-    if (rows.length === 0) return false;
-    return rows.some((r) => Boolean(r.actions?.[colKey]));
+    const supportedRows = rows.filter((r) => r.actions[colKey] !== undefined);
+    if (supportedRows.length === 0) return false;
+    return supportedRows.some((r) => Boolean(r.actions[colKey]));
   };
 
-  // Toggle all rows for a specific column
+  // Toggle all supported rows for a specific column
   const handleToggleColumn = (colKey: ActionKey) => {
     const allChecked = isColumnAllChecked(colKey);
     const targetState = !allChecked;
     setRows((prev) =>
-      prev.map((row) => ({
-        ...row,
-        actions: {
-          ...row.actions,
-          [colKey]: targetState,
-        },
-      }))
+      prev.map((row) => {
+        if (row.actions[colKey] === undefined) return row;
+        return {
+          ...row,
+          actions: {
+            ...row.actions,
+            [colKey]: targetState,
+          },
+        };
+      })
     );
   };
 
-  // Check if all actions in a single row are checked
+  // Check if all supported actions in a single row are checked
   const isRowAllChecked = (row: UserPermissionItem) => {
-    return ACTION_COLUMNS.every((col) => Boolean(row.actions?.[col.key]));
+    const supportedCols = ACTION_COLUMNS.filter(
+      (col) => row.actions[col.key] !== undefined
+    );
+    if (supportedCols.length === 0) return false;
+    return supportedCols.every((col) => Boolean(row.actions[col.key]));
   };
 
-  // Toggle all actions in a single row
+  // Toggle all supported actions in a single row
   const handleToggleRow = (index: number) => {
     setRows((prev) => {
       const updated = [...prev];
@@ -160,15 +170,16 @@ export default function UserPermissionsModal({
       const allChecked = isRowAllChecked(targetRow);
       const targetState = !allChecked;
 
+      const updatedActions: UserPermissionActionMap = { ...targetRow.actions };
+      ACTION_COLUMNS.forEach((col) => {
+        if (targetRow.actions[col.key] !== undefined) {
+          updatedActions[col.key] = targetState;
+        }
+      });
+
       updated[index] = {
         ...targetRow,
-        actions: {
-          view: targetState,
-          add: targetState,
-          edit: targetState,
-          delete: targetState,
-          export: targetState,
-        },
+        actions: updatedActions,
       };
       return updated;
     });
@@ -179,8 +190,9 @@ export default function UserPermissionsModal({
     setRows((prev) => {
       const updated = [...prev];
       const targetRow = updated[index];
-      const currentVal = Boolean(targetRow.actions?.[colKey]);
+      if (targetRow.actions[colKey] === undefined) return prev;
 
+      const currentVal = Boolean(targetRow.actions[colKey]);
       updated[index] = {
         ...targetRow,
         actions: {
@@ -197,10 +209,40 @@ export default function UserPermissionsModal({
     e.preventDefault();
     if (!userId) return;
 
+    // Format payload as an object where module name is directly the key:
+    // {
+    //   "permissions": {
+    //     "admin": {
+    //       "view": true,
+    //       "add": true,
+    //       "edit": true,
+    //       "delete": true,
+    //       "export": true
+    //     },
+    //     "branch": {
+    //       "view": true,
+    //       "add": true,
+    //       "edit": true,
+    //       "delete": true,
+    //       "export": true
+    //     }
+    //   }
+    // }
+    const permissionsPayload: Record<string, Record<string, boolean>> = {};
+    rows.forEach((row) => {
+      const cleanActions: Record<string, boolean> = {};
+      Object.keys(row.actions).forEach((actKey) => {
+        if (row.actions[actKey] !== undefined) {
+          cleanActions[actKey] = Boolean(row.actions[actKey]);
+        }
+      });
+      permissionsPayload[row.module] = cleanActions;
+    });
+
     updateMutation.mutate(
       {
         userId,
-        permissions: rows,
+        permissions: permissionsPayload,
       },
       {
         onSuccess: (res: any) => {
@@ -221,6 +263,7 @@ export default function UserPermissionsModal({
       }
     );
   };
+
 
   return (
     <AppModal
@@ -249,7 +292,7 @@ export default function UserPermissionsModal({
       footer={
         <div className="flex items-center justify-between w-full">
           <div className="text-xs text-slate-500 font-medium">
-            {rows.length} Modules Configured
+            {rows.length} Modules
           </div>
 
           <div className="flex items-center gap-2">
@@ -401,25 +444,30 @@ export default function UserPermissionsModal({
 
                     {/* Cell Action Checkboxes */}
                     {ACTION_COLUMNS.map((col) => {
-                      const isChecked = Boolean(row.actions?.[col.key]);
+                      const isSupported = row.actions[col.key] !== undefined;
+                      const isChecked = Boolean(row.actions[col.key]);
 
                       return (
                         <td
                           key={col.key}
                           className="px-3 py-3 text-center border-r border-slate-200 last:border-r-0"
                         >
-                          <button
-                            type="button"
-                            onClick={() => handleToggleCell(index, col.key)}
-                            className={`mx-auto w-4 h-4 rounded flex items-center justify-center transition-colors cursor-pointer ${
-                              isChecked
-                                ? "bg-[#2980b9] text-white shadow-2xs"
-                                : "border border-slate-300 bg-white hover:border-[#2980b9]"
-                            }`}
-                            title={`${col.label} ${row.displayName}`}
-                          >
-                            {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                          </button>
+                          {isSupported ? (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleCell(index, col.key)}
+                              className={`mx-auto w-4 h-4 rounded flex items-center justify-center transition-colors cursor-pointer ${
+                                isChecked
+                                  ? "bg-[#2980b9] text-white shadow-2xs"
+                                  : "border border-slate-300 bg-white hover:border-[#2980b9]"
+                              }`}
+                              title={`${col.label} ${row.displayName}`}
+                            >
+                              {isChecked && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                            </button>
+                          ) : (
+                            <span className="inline-block w-4 h-4 rounded border border-dashed border-slate-200 bg-slate-50/50" />
+                          )}
                         </td>
                       );
                     })}
