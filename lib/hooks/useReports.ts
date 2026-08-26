@@ -6,6 +6,7 @@ import {
   getCancelBookingReports,
   getCustomerDiscountReports,
   getPendingDeliveryReports,
+  getCustomerBookingReports,
   GetBookingReportsParams,
 } from "@/lib/api/reports";
 
@@ -272,6 +273,51 @@ export function usePendingDeliveryReports(params: GetBookingReportsParams = {}) 
     placeholderData: (previousData) => previousData,
   });
 }
+
+export const CUSTOMER_BOOKING_REPORTS_QUERY_KEY = ["customer-booking-reports-list"] as const;
+
+/**
+ * React Query hook to fetch customer booking / draft reports list via GET /report/draft
+ */
+export function useCustomerBookingReports(params: GetBookingReportsParams = {}) {
+  const {
+    page = 1,
+    limit = 10,
+    search = "",
+    fromBranchId = "",
+    toBranchId = "",
+    startDate = "",
+    endDate = "",
+    hasBill = "",
+  } = params;
+
+  return useQuery({
+    queryKey: [
+      ...CUSTOMER_BOOKING_REPORTS_QUERY_KEY,
+      page,
+      limit,
+      search,
+      fromBranchId,
+      toBranchId,
+      startDate,
+      endDate,
+      hasBill,
+    ],
+    queryFn: () =>
+      getCustomerBookingReports({
+        page,
+        limit,
+        search,
+        fromBranchId,
+        toBranchId,
+        startDate,
+        endDate,
+        hasBill,
+      }),
+    placeholderData: (previousData) => previousData,
+  });
+}
+
 
 
 

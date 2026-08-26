@@ -90,6 +90,7 @@ const DEFAULT_MENU: MenuItem[] = [
       { id: "parcel-pending-report", label: "Parcel Pending Report", path: "/reports/parcel-pending", permission_module: "pendingDelivery" },
       { id: "customer-discount-report", label: "Customer Discount Report", path: "/reports/customer-discount", permission_module: "discountBooking" },
       { id: "pending-delivery-report", label: "Pending Delivery Report", path: "/reports/pending-delivery", permission_module: "pendingDelivery" },
+      { id: "customer-booking-report", label: "Customer Booking Report", path: "/reports/customer-booking", permission_module: "booking" },
       { id: "memo-report", label: "Memo Report", path: "/reports/memo", permission_module: "memo" },
       { id: "branch-expense-report", label: "Branch Expense Report", path: "/reports/branch-expense", permission_module: "expense" },
       { id: "marketing-tools-report", label: "Marketing Tools", path: "/reports/marketing-tools", permission_module: "marketing" },
