@@ -236,11 +236,12 @@ export default function ManageStaffPage() {
         const b = row.staffProfile?.branchId;
         const code = typeof b === "object" && b ? b.branchInfo?.branchCode : null;
         return (
-          <span className="font-mono text-sm text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+          <span className="font-mono text-xs font-semibold text-slate-900">
             {code || "-"}
           </span>
         );
       },
+
     },
     {
       key: "email",

@@ -132,7 +132,7 @@ export default function BranchExpenseReportPage() {
       label: "Amount",
       sortable: true,
       render: (val) => (
-        <span className="font-bold text-red-600">{formatCurrency(Number(val))}</span>
+        <span className="font-semibold text-slate-900">{formatCurrency(Number(val))}</span>
       ),
     },
     {
@@ -147,11 +147,12 @@ export default function BranchExpenseReportPage() {
       label: "Transaction Id",
       sortable: true,
       render: (val) => (
-        <span className="font-mono text-xs bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+        <span className="font-mono text-xs font-semibold text-slate-900">
           {String(val)}
         </span>
       ),
     },
+
     { key: "total_package", label: "Total Package", sortable: true, width: "w-28" },
     {
       key: "transaction_image",

@@ -204,7 +204,7 @@ export default function CustomerDiscountReportPage() {
       width: "w-32",
       sortValue: (row) => row.docketNo1 || "",
       render: (_, row) => (
-        <span className="font-mono text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 tracking-tight">
+        <span className="font-mono text-xs font-semibold text-slate-900">
           {row.docketNo1 || "—"}
         </span>
       ),
@@ -216,7 +216,7 @@ export default function CustomerDiscountReportPage() {
       width: "w-36",
       sortValue: (row) => row.docketNo2 || "",
       render: (_, row) => (
-        <span className="font-mono text-xs font-semibold text-[#2980b9]">
+        <span className="font-mono text-xs font-semibold text-slate-900">
           {row.docketNo2 || "—"}
         </span>
       ),
@@ -230,16 +230,8 @@ export default function CustomerDiscountReportPage() {
       render: (_, row) => {
         const confirmed = row.trackingStatus?.confirmed ?? 0;
         const total = row.trackingStatus?.total ?? row.parcel ?? 0;
-        const isComplete = total > 0 && confirmed === total;
-
         return (
-          <span
-            className={`inline-flex items-center justify-center px-2 py-0.5 rounded text-[11px] font-bold border ${
-              isComplete
-                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                : "bg-amber-50 text-amber-700 border-amber-200"
-            }`}
-          >
+          <span className="text-xs font-semibold text-slate-900">
             {confirmed}/{total}
           </span>
         );
@@ -256,7 +248,7 @@ export default function CustomerDiscountReportPage() {
         if (!bName && !bCode) return <span className="text-slate-400 text-xs">—</span>;
         return (
           <div className="text-xs">
-            <span className="font-semibold text-slate-800">{bName || "—"}</span>
+            <span className="font-semibold text-slate-900">{bName || "—"}</span>
             {bCode && (
               <span className="text-[10px] text-slate-500 block font-mono">({bCode})</span>
             )}
@@ -275,7 +267,7 @@ export default function CustomerDiscountReportPage() {
         if (!bName && !bCode) return <span className="text-slate-400 text-xs">—</span>;
         return (
           <div className="text-xs">
-            <span className="font-semibold text-slate-800">{bName || "—"}</span>
+            <span className="font-semibold text-slate-900">{bName || "—"}</span>
             {bCode && (
               <span className="text-[10px] text-slate-500 block font-mono">({bCode})</span>
             )}
@@ -322,7 +314,7 @@ export default function CustomerDiscountReportPage() {
       render: (_, row) => {
         const { topayAmount } = getPaymentMethodAmounts(row);
         return topayAmount > 0 ? (
-          <span className="font-bold text-xs text-purple-700 font-mono">
+          <span className="font-medium text-xs text-slate-900 font-mono">
             {topayAmount.toFixed(2)}
           </span>
         ) : (
@@ -339,7 +331,7 @@ export default function CustomerDiscountReportPage() {
       render: (_, row) => {
         const { paidAmount } = getPaymentMethodAmounts(row);
         return paidAmount > 0 ? (
-          <span className="font-bold text-xs text-emerald-700 font-mono">
+          <span className="font-medium text-xs text-slate-900 font-mono">
             {paidAmount.toFixed(2)}
           </span>
         ) : (
@@ -356,7 +348,7 @@ export default function CustomerDiscountReportPage() {
       render: (_, row) => {
         const { gpayAmount } = getPaymentMethodAmounts(row);
         return gpayAmount > 0 ? (
-          <span className="font-bold text-xs text-teal-700 font-mono">
+          <span className="font-medium text-xs text-slate-900 font-mono">
             {gpayAmount.toFixed(2)}
           </span>
         ) : (
@@ -373,7 +365,7 @@ export default function CustomerDiscountReportPage() {
       render: (_, row) => {
         const { creditAmount } = getPaymentMethodAmounts(row);
         return creditAmount > 0 ? (
-          <span className="font-bold text-xs text-amber-700 font-mono">
+          <span className="font-medium text-xs text-slate-900 font-mono">
             {creditAmount.toFixed(2)}
           </span>
         ) : (
@@ -398,7 +390,7 @@ export default function CustomerDiscountReportPage() {
 
         return (
           <div className="flex items-center gap-1 text-xs">
-            <span className="font-mono font-medium text-slate-800">
+            <span className="font-mono font-medium text-slate-900">
               {billNo || (hasBill ? "Bill Attached" : "—")}
             </span>
             {billImage && (
@@ -422,7 +414,7 @@ export default function CustomerDiscountReportPage() {
       width: "w-24",
       sortValue: (row) => row.bookingById?.role || "",
       render: (_, row) => (
-        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 uppercase border border-slate-200">
+        <span className="text-xs font-medium text-slate-900 uppercase">
           {row.bookingById?.role || "staff"}
         </span>
       ),
@@ -434,11 +426,12 @@ export default function CustomerDiscountReportPage() {
       width: "w-32",
       sortValue: (row) => row.bookingById?.name || "",
       render: (_, row) => (
-        <span className="text-xs font-medium text-slate-800 uppercase">
+        <span className="text-xs font-medium text-slate-900 uppercase">
           {row.bookingById?.name || "—"}
         </span>
       ),
     },
+
     {
       key: "bookingDate",
       label: "DateTime",
@@ -609,9 +602,7 @@ export default function CustomerDiscountReportPage() {
             <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
             {/* Qty (Tracking Confirmed / Total) */}
             <td className="px-2.5 py-2.5 font-bold text-xs text-slate-900 border-r border-slate-300">
-              <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-slate-200 text-slate-900 border border-slate-300">
-                {totals.totalConfirmedQty}/{totals.totalParcelsQty}
-              </span>
+              {totals.totalConfirmedQty}/{totals.totalParcelsQty}
             </td>
             {/* From Branch */}
             <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
@@ -622,19 +613,19 @@ export default function CustomerDiscountReportPage() {
             {/* Receiver */}
             <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
             {/* Topay Total */}
-            <td className="px-2.5 py-2.5 text-purple-700 font-bold text-xs font-mono border-r border-slate-300">
+            <td className="px-2.5 py-2.5 text-slate-900 font-bold text-xs font-mono border-r border-slate-300">
               {totals.totalTopay > 0 ? totals.totalTopay.toFixed(2) : "—"}
             </td>
             {/* Paid Total */}
-            <td className="px-2.5 py-2.5 text-emerald-700 font-bold text-xs font-mono border-r border-slate-300">
+            <td className="px-2.5 py-2.5 text-slate-900 font-bold text-xs font-mono border-r border-slate-300">
               {totals.totalPaid > 0 ? totals.totalPaid.toFixed(2) : "—"}
             </td>
             {/* Gpay Total */}
-            <td className="px-2.5 py-2.5 text-teal-700 font-bold text-xs font-mono border-r border-slate-300">
+            <td className="px-2.5 py-2.5 text-slate-900 font-bold text-xs font-mono border-r border-slate-300">
               {totals.totalGpay > 0 ? totals.totalGpay.toFixed(2) : "—"}
             </td>
             {/* Credit Total */}
-            <td className="px-2.5 py-2.5 text-amber-700 font-bold text-xs font-mono border-r border-slate-300">
+            <td className="px-2.5 py-2.5 text-slate-900 font-bold text-xs font-mono border-r border-slate-300">
               {totals.totalCredit > 0 ? totals.totalCredit.toFixed(2) : "—"}
             </td>
             {/* Bill No */}
@@ -649,6 +640,7 @@ export default function CustomerDiscountReportPage() {
             <td className="px-2.5 py-2.5 font-bold text-xs text-slate-900 whitespace-nowrap">
               Grand: ₹{totals.grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
             </td>
+
           </tr>
         }
       />

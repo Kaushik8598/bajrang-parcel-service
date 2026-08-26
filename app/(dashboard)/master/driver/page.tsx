@@ -233,11 +233,12 @@ export default function ManageDriverPage() {
       render: (_, row) => {
         const dl = row.driverInfo?.drivingLicense?.number;
         return (
-          <span className="font-mono text-sm font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">
+          <span className="font-mono text-xs font-semibold text-slate-900">
             {dl || "-"}
           </span>
         );
       },
+
     },
     {
       key: "address",

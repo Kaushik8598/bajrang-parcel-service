@@ -122,20 +122,13 @@ export default function MemoReportPage() {
       label: "Status",
       sortable: true,
       render: (val) => (
-        <span
-          className={`inline-block px-2 py-0.5 text-[11px] font-semibold rounded border ${
-            val === "Completed"
-              ? "bg-green-50 text-green-800 border-green-200"
-              : val === "In Transit"
-              ? "bg-blue-50 text-blue-800 border-blue-200"
-              : "bg-amber-50 text-amber-800 border-amber-200"
-          }`}
-        >
+        <span className="text-xs font-semibold text-slate-900">
           {String(val)}
         </span>
       ),
     },
   ];
+
 
   return (
     <div className="space-y-4 pb-12">
