@@ -76,9 +76,8 @@ export default function PermissionsPage() {
           showToast(
             "success",
             res.message ||
-              `User "${user.name}" status updated to ${nextStatus === "active" ? "Active" : "Inactive"}`
+            `User "${user.name}" status updated to ${nextStatus === "active" ? "Active" : "Inactive"}`
           );
-          queryClient.invalidateQueries({ queryKey: ["all-users-list"] });
         },
         onError: (err) => {
           showToast("error", err.message || "Failed to update status.");
@@ -89,6 +88,7 @@ export default function PermissionsPage() {
       }
     );
   };
+
 
   // Extract photo url
   const getPhotoUrl = (user: UserType): string => {

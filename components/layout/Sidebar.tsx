@@ -108,16 +108,35 @@ interface SidebarProps {
 }
 
 // ─── Permission check ─────────────────────────────────────────────────────────
-function isMenuVisible(item: MenuItem, user: User | null, permissions: UserPermissions | null): boolean {
+function isMenuVisible(item: MenuItem, user: User | null, permissions: UserPermissions | any): boolean {
   if (!item.permission_module) return true;
-  if (user?.role === "superAdmin" || user?.role === "admin") return true;
-  if (!permissions) return true;
+  if (!permissions) return false;
+
+  // If array format: [ { module: "admin", actions: { view, ... } } ] or [ { admin: { view, ... } } ]
+  if (Array.isArray(permissions)) {
+    for (const p of permissions) {
+      if (!p || typeof p !== "object") continue;
+      if (p.module === item.permission_module && p.actions) {
+        return Boolean(p.actions.view);
+      }
+      if (p[item.permission_module]) {
+        const actions = p[item.permission_module].actions || p[item.permission_module];
+        return Boolean(actions.view);
+      }
+    }
+    return false;
+  }
+
+  // If object format: { admin: { view: true, ... } }
   const modPerm = permissions[item.permission_module as keyof UserPermissions];
   if (typeof modPerm === "object" && modPerm !== null) {
-    return modPerm.view ?? true;
+    const actions = (modPerm as any).actions || modPerm;
+    return Boolean(actions.view);
   }
-  return true;
+
+  return false;
 }
+
 
 // ─── SidebarItem ──────────────────────────────────────────────────────────────
 function SidebarItem({
