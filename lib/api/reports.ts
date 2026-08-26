@@ -166,3 +166,42 @@ export async function getParcelPendingReports(
   return response;
 }
 
+/**
+ * Fetch parcel delivery reports with pagination and filter support via GET /report/delivered
+ */
+export async function getParcelDeliveredReports(
+  params: GetBookingReportsParams = {}
+): Promise<BookingReportsApiResponse> {
+  const {
+    page = 1,
+    limit = 10,
+    search = "",
+    fromBranchId,
+    toBranchId,
+    startDate,
+    endDate,
+    hasBill,
+  } = params;
+
+  const queryParams: Record<string, string | number | boolean> = {
+    page,
+    limit,
+  };
+
+  if (search) queryParams.search = search;
+  if (fromBranchId) queryParams.fromBranchId = fromBranchId;
+  if (toBranchId) queryParams.toBranchId = toBranchId;
+  if (startDate) queryParams.startDate = startDate;
+  if (endDate) queryParams.endDate = endDate;
+  if (hasBill !== undefined && hasBill !== "") {
+    queryParams.hasBill = hasBill === "true" || hasBill === true ? true : false;
+  }
+
+  const response = await request<BookingReportsApiResponse>("/report/delivered", {
+    method: "GET",
+    params: queryParams,
+  });
+  return response;
+}
+
+
