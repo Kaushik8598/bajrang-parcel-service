@@ -5,16 +5,19 @@ import { Pencil, Trash2, User } from "lucide-react";
 import DataTable from "@/components/DataTable/DataTable";
 import StatusBadge from "@/components/DataTable/StatusBadge";
 import DeleteConfirmDialog from "@/components/DataTable/DeleteConfirmDialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import DriverFormModal from "@/components/modals/DriverFormModal";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { showToast } from "@/lib/toast";
 import { getInitials } from "@/lib/utils";
 import {
   useDrivers,
+  useCreateDriver,
+  useUpdateDriver,
   useUpdateUserStatus,
   useModulePermissions,
 } from "@/lib/hooks";
-import type { DriverUser } from "@/lib/api/driver";
+import type { DriverUser, DriverPayload } from "@/lib/api/driver";
 import type { ColumnDef } from "@/lib/types/common";
 
 export default function ManageDriverPage() {
@@ -28,8 +31,12 @@ export default function ManageDriverPage() {
   // Data fetching hook
   const { data: apiResponse, isLoading } = useDrivers({ page, limit, search });
 
+  // Mutations
+  const createDriverMutation = useCreateDriver();
+  const updateDriverMutation = useUpdateDriver();
   const statusMutation = useUpdateUserStatus();
-  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+
+  const isFormSubmitting = createDriverMutation.isPending || updateDriverMutation.isPending;
 
   // Extract driver users and pagination metadata
   const driverUsers: DriverUser[] = apiResponse?.data?.users || [];
@@ -42,6 +49,13 @@ export default function ManageDriverPage() {
     hasPrevPage: false,
   };
 
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+
+  // Form Modal state
+  const [formModalOpen, setFormModalOpen] = useState(false);
+  const [formMode, setFormMode] = useState<"add" | "edit">("add");
+  const [selectedDriver, setSelectedDriver] = useState<DriverUser | null>(null);
+
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [driverToDelete, setDriverToDelete] = useState<DriverUser | null>(null);
@@ -49,12 +63,50 @@ export default function ManageDriverPage() {
 
   // Handle Add Driver
   const handleAdd = () => {
-    showToast("info", "Add Driver", "Driver registration form modal will be opened here.");
+    setFormMode("add");
+    setSelectedDriver(null);
+    setFormModalOpen(true);
   };
 
   // Handle Edit Driver
   const handleEdit = (row: DriverUser) => {
-    showToast("info", `Edit Driver: ${row.name}`, `City: ${row.driverInfo?.city || "-"}`);
+    setFormMode("edit");
+    setSelectedDriver(row);
+    setFormModalOpen(true);
+  };
+
+  // Handle Form Submit (Add / Edit)
+  const handleFormSubmit = async (payload: DriverPayload) => {
+    if (formMode === "add") {
+      createDriverMutation.mutate(payload, {
+        onSuccess: (res) => {
+          showToast(
+            "success",
+            res.message || `Driver "${payload.name}" registered successfully.`
+          );
+          setFormModalOpen(false);
+        },
+        onError: (err) => {
+          showToast("error", err.message || "Failed to register driver.");
+        },
+      });
+    } else if (selectedDriver) {
+      updateDriverMutation.mutate(
+        { userId: selectedDriver._id, payload },
+        {
+          onSuccess: (res) => {
+            showToast(
+              "success",
+              res.message || `Driver "${payload.name}" updated successfully.`
+            );
+            setFormModalOpen(false);
+          },
+          onError: (err) => {
+            showToast("error", err.message || "Failed to update driver.");
+          },
+        }
+      );
+    }
   };
 
   // Handle Status Toggle (active <-> inactive)
@@ -114,6 +166,15 @@ export default function ManageDriverPage() {
     );
   };
 
+  // Extract photo url
+  const getPhotoUrl = (user: DriverUser): string => {
+    if (typeof user.profilePhoto === "string") return user.profilePhoto;
+    if (user.profilePhoto && typeof user.profilePhoto === "object" && "image" in user.profilePhoto) {
+      return String(user.profilePhoto.image || "");
+    }
+    return "";
+  };
+
   // ─── Table Columns ─────────────────────────────────────────────────────────
   const columns: ColumnDef<DriverUser>[] = [
     {
@@ -121,16 +182,20 @@ export default function ManageDriverPage() {
       label: "Driver Name",
       sortable: true,
       sortValue: (row) => row.name || "",
-      render: (_, row) => (
-        <div className="flex items-center gap-2">
-          <Avatar className="w-8 h-8 rounded-full border border-slate-200 bg-slate-50">
-            <AvatarFallback className="bg-[#2980b9] text-white text-xs font-bold rounded-full">
-              {getInitials(row.name) || <User className="w-3.5 h-3.5" />}
-            </AvatarFallback>
-          </Avatar>
-          <span className="font-semibold text-slate-900">{row.name}</span>
-        </div>
-      ),
+      render: (_, row) => {
+        const photo = getPhotoUrl(row);
+        return (
+          <div className="flex items-center gap-2">
+            <Avatar className="w-8 h-8 rounded-full border border-slate-200 bg-slate-50">
+              <AvatarImage src={photo} alt={row.name} />
+              <AvatarFallback className="bg-[#2980b9] text-white text-xs font-bold rounded-full">
+                {getInitials(row.name) || <User className="w-3.5 h-3.5" />}
+              </AvatarFallback>
+            </Avatar>
+            <span className="font-semibold text-slate-900">{row.name}</span>
+          </div>
+        );
+      },
     },
     {
       key: "mobile",
@@ -260,6 +325,17 @@ export default function ManageDriverPage() {
             setPage(1);
           },
         }}
+      />
+
+      {/* Add / Edit Driver Modal */}
+      <DriverFormModal
+        open={formModalOpen}
+        onOpenChange={setFormModalOpen}
+        mode={formMode}
+        editId={selectedDriver?._id}
+        editData={selectedDriver}
+        isLoading={isFormSubmitting}
+        onSubmit={handleFormSubmit}
       />
 
       {/* Delete Confirmation Dialog */}

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getDrivers,
+  getTruckDropdownList,
   createDriver,
   updateDriver,
   GetDriversParams,
@@ -9,6 +10,7 @@ import {
 import { USER_SINGLE_QUERY_KEY } from "./useUserById";
 
 export const DRIVERS_QUERY_KEY = ["drivers-list"] as const;
+export const TRUCKS_DROPDOWN_QUERY_KEY = ["trucks-dropdown-list"] as const;
 
 /**
  * Custom React Query hook to fetch and manage driver list
@@ -20,6 +22,17 @@ export function useDrivers(params: GetDriversParams = {}) {
     queryKey: [...DRIVERS_QUERY_KEY, page, limit, search],
     queryFn: () => getDrivers({ page, limit, search }),
     placeholderData: (previousData) => previousData,
+  });
+}
+
+/**
+ * Custom React Query hook to fetch truck list for dropdown
+ */
+export function useTruckDropdownList() {
+  return useQuery({
+    queryKey: TRUCKS_DROPDOWN_QUERY_KEY,
+    queryFn: getTruckDropdownList,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
