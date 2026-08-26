@@ -19,6 +19,12 @@ export interface ModuleActionPermissions {
   delete?: boolean;
   export?: boolean;
   manage?: boolean;
+  status?: boolean;
+  print?: boolean;
+  create?: boolean;
+  read?: boolean;
+  update?: boolean;
+  [key: string]: boolean | undefined;
 }
 
 export interface UserPermissions {
@@ -104,6 +110,7 @@ export interface User {
   createdAt?: string;
   updatedAt?: string;
   __v?: number;
+  [key: string]: unknown;
 }
 
 export interface AuthResponseData {

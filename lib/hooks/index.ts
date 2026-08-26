@@ -10,3 +10,4 @@ export * from "./useModulePermissions";
 export * from "./useDebounce";
 export * from "./useUpload";
 export * from "./useUserById";
+export * from "./useUsers";

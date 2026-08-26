@@ -96,7 +96,7 @@ const DEFAULT_MENU: MenuItem[] = [
       { id: "marketing-tools-report", label: "Marketing Tools", path: "/reports/marketing-tools", permission_module: "marketing" },
     ],
   },
-  { id: "manage-user-rights", label: "Manage User Rights", path: "/user-rights", icon: "manage-user-rights", permission_module: "manageRights" },
+  { id: "manage-user-rights", label: "Permissions", path: "/permissions", icon: "manage-user-rights", permission_module: "manageRights" },
   { id: "website-settings", label: "Website Settings", path: "/website-settings", icon: "website-settings", permission_module: "profile" },
 ];
 
