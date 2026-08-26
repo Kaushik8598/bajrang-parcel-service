@@ -127,3 +127,42 @@ export async function getAllBookingReports(
 
   return response;
 }
+
+/**
+ * Fetch parcel pending reports with pagination and filter support via GET /report/confirmed
+ */
+export async function getParcelPendingReports(
+  params: GetBookingReportsParams = {}
+): Promise<BookingReportsApiResponse> {
+  const {
+    page = 1,
+    limit = 10,
+    search = "",
+    fromBranchId,
+    toBranchId,
+    startDate,
+    endDate,
+    hasBill,
+  } = params;
+
+  const queryParams: Record<string, string | number | boolean> = {
+    page,
+    limit,
+  };
+
+  if (search) queryParams.search = search;
+  if (fromBranchId) queryParams.fromBranchId = fromBranchId;
+  if (toBranchId) queryParams.toBranchId = toBranchId;
+  if (startDate) queryParams.startDate = startDate;
+  if (endDate) queryParams.endDate = endDate;
+  if (hasBill !== undefined && hasBill !== "") {
+    queryParams.hasBill = hasBill === "true" || hasBill === true ? true : false;
+  }
+
+  const response = await request<BookingReportsApiResponse>("/report/confirmed", {
+    method: "GET",
+    params: queryParams,
+  });
+  return response;
+}
+
