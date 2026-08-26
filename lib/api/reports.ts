@@ -27,8 +27,19 @@ export interface BookingByIdRef {
 
 export interface TrackingStatusRef {
   confirmed?: number;
+  delivered?: number;
+  cancelled?: number;
+  draft?: number;
+  arrived_at_destination?: number;
   total?: number;
   [key: string]: unknown;
+}
+
+export interface DeliveryInfoRef {
+  receiverName?: string;
+  receiverMobile?: string;
+  deliveredAt?: string;
+  deliveryRemark?: string;
 }
 
 export interface ParcelBookingReportItem {
@@ -42,12 +53,14 @@ export interface ParcelBookingReportItem {
   parcel?: number; // Qty
   finalBillAmount?: number;
   paymentMethod?: "g pay" | "credit" | "paid" | "to-pay" | "not-pay" | string;
+  discount?: number;
   hasBill?: boolean;
   billNo?: string;
   billImage?: string;
   bookingDate?: string;
   bookingTime?: string;
   bookingById?: BookingByIdRef;
+  deliveryInfo?: DeliveryInfoRef;
   remark?: string;
   trackingStatus?: TrackingStatusRef;
   status?: string;
@@ -55,6 +68,8 @@ export interface ParcelBookingReportItem {
   cancelRemark?: string;
   [key: string]: unknown;
 }
+
+
 
 export interface GetBookingReportsParams {
   page?: number;

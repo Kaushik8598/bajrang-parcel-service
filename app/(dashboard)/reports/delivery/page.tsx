@@ -16,7 +16,9 @@ import { useParcelDeliveredReports, useOnlyBranchList, useModulePermissions } fr
 import { getStoredUserRole, getStoredUser } from "@/lib/api/auth";
 import type { BranchDropdownItem } from "@/lib/api/branch";
 import type { ParcelBookingReportItem } from "@/lib/api/reports";
+import { moment } from "@/lib/utils";
 import type { ColumnDef } from "@/lib/types/common";
+
 
 const HAS_BILL_OPTIONS = [
   { value: "true", label: "With Bill" },
@@ -168,6 +170,7 @@ export default function ParcelDeliveryReportPage() {
     let totalPaid = 0;
     let totalGpay = 0;
     let totalCredit = 0;
+    let totalDiscount = 0;
     let totalConfirmedQty = 0;
     let totalParcelsQty = 0;
 
@@ -178,7 +181,9 @@ export default function ParcelDeliveryReportPage() {
       totalGpay += gpayAmount;
       totalCredit += creditAmount;
 
-      totalConfirmedQty += row.trackingStatus?.confirmed ?? 0;
+      totalDiscount += Number(row.discount) || 0;
+
+      totalConfirmedQty += row.trackingStatus?.delivered ?? 0;
       totalParcelsQty += row.trackingStatus?.total ?? row.parcel ?? 0;
     });
 
@@ -189,6 +194,7 @@ export default function ParcelDeliveryReportPage() {
       totalPaid,
       totalGpay,
       totalCredit,
+      totalDiscount,
       grandTotal,
       totalConfirmedQty,
       totalParcelsQty,
@@ -223,16 +229,16 @@ export default function ParcelDeliveryReportPage() {
     },
     {
       key: "trackingStatus",
-      label: "Qty",
+      label: "Parcel",
       sortable: true,
       width: "w-20",
-      sortValue: (row) => row.trackingStatus?.confirmed ?? row.parcel ?? 0,
+      sortValue: (row) => row.trackingStatus?.delivered ?? row.parcel ?? 0,
       render: (_, row) => {
-        const confirmed = row.trackingStatus?.confirmed ?? 0;
+        const delivered = row.trackingStatus?.delivered ?? 0;
         const total = row.trackingStatus?.total ?? row.parcel ?? 0;
         return (
           <span className="text-xs font-semibold text-slate-900">
-            {confirmed}/{total}
+            {delivered}/{total}
           </span>
         );
       },
@@ -374,6 +380,23 @@ export default function ParcelDeliveryReportPage() {
       },
     },
     {
+      key: "discount",
+      label: "Discount",
+      sortable: true,
+      width: "w-24",
+      sortValue: (row) => Number(row.discount) || 0,
+      render: (_, row) => {
+        const discount = Number(row.discount) || 0;
+        return discount > 0 ? (
+          <span className="font-medium text-xs text-slate-900 font-mono">
+            {discount.toFixed(2)}
+          </span>
+        ) : (
+          <span className="text-slate-300 text-xs">—</span>
+        );
+      },
+    },
+    {
       key: "billNo",
       label: "Bill No",
       sortable: true,
@@ -420,42 +443,66 @@ export default function ParcelDeliveryReportPage() {
       ),
     },
     {
-      key: "bookedBy",
-      label: "Book By",
+      key: "receiverName",
+      label: "Receiver Name",
       sortable: true,
-      width: "w-32",
-      sortValue: (row) => row.bookingById?.name || "",
-      render: (_, row) => (
-        <span className="text-xs font-medium text-slate-900 uppercase">
-          {row.bookingById?.name || "—"}
-        </span>
-      ),
-    },
-
-    {
-      key: "bookingDate",
-      label: "DateTime",
-      sortable: true,
-      width: "w-32",
-      sortValue: (row) => `${row.bookingDate || ""} ${row.bookingTime || ""}`,
-      render: (_, row) => (
-        <div className="text-[11px] leading-tight whitespace-nowrap">
-          <p className="font-medium text-slate-800">{row.bookingDate || "—"}</p>
-          <p className="text-slate-500 font-mono text-[10px]">{row.bookingTime || ""}</p>
-        </div>
-      ),
+      width: "w-36",
+      sortValue: (row) => row.deliveryInfo?.receiverName || "",
+      render: (_, row) => {
+        const rName = row.deliveryInfo?.receiverName;
+        const rMobile = row.deliveryInfo?.receiverMobile;
+        if (!rName && !rMobile) return <span className="text-slate-400 text-xs">—</span>;
+        return (
+          <div className="text-xs space-y-0.5 max-w-[140px]">
+            <p className="text-slate-900 font-semibold uppercase leading-tight truncate">
+              {rName || "—"}
+            </p>
+            {rMobile && (
+              <p className="text-[11px] text-slate-500 font-mono">
+                {rMobile}
+              </p>
+            )}
+          </div>
+        );
+      },
     },
     {
-      key: "remark",
-      label: "Remark",
+      key: "deliveredAt",
+      label: "Delivered At",
+      sortable: true,
+      width: "w-32",
+      sortValue: (row) => row.deliveryInfo?.deliveredAt || "",
+      render: (_, row) => {
+        const rawDeliveredAt = row.deliveryInfo?.deliveredAt;
+        if (!rawDeliveredAt) return <span className="text-slate-400 text-xs">—</span>;
+        const m = moment(rawDeliveredAt);
+        const isValid = m.isValid();
+        const datePart = isValid ? m.format("DD-MM-YYYY") : rawDeliveredAt;
+        const timePart = isValid ? m.format("hh:mm A") : "";
+        return (
+          <div className="text-[11px] leading-tight whitespace-nowrap">
+            <p className="font-medium text-slate-900">{datePart}</p>
+            {timePart && <p className="text-slate-500 font-mono text-[10px]">{timePart}</p>}
+          </div>
+        );
+      },
+    },
+    {
+      key: "deliveryRemark",
+      label: "Delivered Remark",
       sortable: false,
-      render: (_, row) => (
-        <span className="text-xs text-slate-600 line-clamp-1" title={row.remark}>
-          {row.remark || "—"}
-        </span>
-      ),
+      render: (_, row) => {
+        const rem = row.deliveryInfo?.deliveryRemark;
+        return (
+          <span className="text-xs text-slate-600 line-clamp-1" title={rem || ""}>
+            {rem || "—"}
+          </span>
+        );
+      },
     },
   ];
+
+
 
   return (
     <div className="space-y-3">
@@ -628,18 +675,23 @@ export default function ParcelDeliveryReportPage() {
             <td className="px-2.5 py-2.5 text-slate-900 font-bold text-xs font-mono border-r border-slate-300">
               {totals.totalCredit > 0 ? totals.totalCredit.toFixed(2) : "—"}
             </td>
+            {/* Discount Total */}
+            <td className="px-2.5 py-2.5 text-slate-900 font-bold text-xs font-mono border-r border-slate-300">
+              {totals.totalDiscount > 0 ? totals.totalDiscount.toFixed(2) : "—"}
+            </td>
             {/* Bill No */}
             <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
             {/* Type */}
             <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
-            {/* Book By */}
+            {/* Receiver Name */}
             <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
-            {/* DateTime */}
+            {/* Delivered At */}
             <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
-            {/* Remark (Grand Total Amount) */}
+            {/* Delivered Remark (Grand Total Amount) */}
             <td className="px-2.5 py-2.5 font-bold text-xs text-slate-900 whitespace-nowrap">
               Grand: ₹{totals.grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
             </td>
+
 
           </tr>
         }

@@ -50,15 +50,13 @@ function printBiltyReceipt(booking: ParcelBookingReportItem) {
   const printedAt = moment().format("DD-MM-YYYY hh:mm A");
 
   const fromName = booking.fromBranch
-    ? `${booking.fromBranch.branchName || ""}${
-        booking.fromBranch.branchCode ? ` (${booking.fromBranch.branchCode})` : ""
-      }`
+    ? `${booking.fromBranch.branchName || ""}${booking.fromBranch.branchCode ? ` (${booking.fromBranch.branchCode})` : ""
+    }`
     : "—";
 
   const toName = booking.toBranch
-    ? `${booking.toBranch.branchName || ""}${
-        booking.toBranch.branchCode ? ` (${booking.toBranch.branchCode})` : ""
-      }`
+    ? `${booking.toBranch.branchName || ""}${booking.toBranch.branchCode ? ` (${booking.toBranch.branchCode})` : ""
+    }`
     : "—";
 
   const html = `<!DOCTYPE html>
@@ -86,10 +84,9 @@ function printBiltyReceipt(booking: ParcelBookingReportItem) {
     .table th, .table td { border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left; font-size: 11px; }
     .table th { background: #f1f5f9; font-weight: 700; }
     .total-row { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1e293b; padding-top: 8px; margin-top: 8px; }
-    .payment-tag { font-size: 13px; font-weight: 800; padding: 4px 10px; border-radius: 4px; ${
-      isToPay
-        ? "background:#fef3c7; color:#92400e; border:1px solid #f59e0b;"
-        : "background:#dcfce7; color:#166534; border:1px solid #22c55e;"
+    .payment-tag { font-size: 13px; font-weight: 800; padding: 4px 10px; border-radius: 4px; ${isToPay
+      ? "background:#fef3c7; color:#92400e; border:1px solid #f59e0b;"
+      : "background:#dcfce7; color:#166534; border:1px solid #22c55e;"
     } }
     .sign-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 36px; text-align: center; }
     .sign-line { border-top: 1px dashed #475569; padding-top: 4px; font-size: 10px; font-weight: 600; }
@@ -428,7 +425,7 @@ export default function ParcelPendingReportPage() {
     },
     {
       key: "trackingStatus",
-      label: "Qty",
+      label: "Parcel",
       sortable: true,
       width: "w-20",
       sortValue: (row) => row.trackingStatus?.confirmed ?? row.parcel ?? 0,

@@ -178,7 +178,7 @@ export default function PendingDeliveryReportPage() {
       totalGpay += gpayAmount;
       totalCredit += creditAmount;
 
-      totalConfirmedQty += row.trackingStatus?.confirmed ?? 0;
+      totalConfirmedQty += row.trackingStatus?.arrived_at_destination ?? 0;
       totalParcelsQty += row.trackingStatus?.total ?? row.parcel ?? 0;
     });
 
@@ -223,16 +223,16 @@ export default function PendingDeliveryReportPage() {
     },
     {
       key: "trackingStatus",
-      label: "Qty",
+      label: "Parcel",
       sortable: true,
       width: "w-20",
-      sortValue: (row) => row.trackingStatus?.confirmed ?? row.parcel ?? 0,
+      sortValue: (row) => row.trackingStatus?.arrived_at_destination ?? row.parcel ?? 0,
       render: (_, row) => {
-        const confirmed = row.trackingStatus?.confirmed ?? 0;
+        const arrived_at_destination = row.trackingStatus?.arrived_at_destination ?? 0;
         const total = row.trackingStatus?.total ?? row.parcel ?? 0;
         return (
           <span className="text-xs font-semibold text-slate-900">
-            {confirmed}/{total}
+            {arrived_at_destination}/{total}
           </span>
         );
       },
