@@ -4,6 +4,7 @@ import {
   getParcelPendingReports,
   getParcelDeliveredReports,
   getCancelBookingReports,
+  getCustomerDiscountReports,
   GetBookingReportsParams,
 } from "@/lib/api/reports";
 
@@ -182,5 +183,50 @@ export function useCancelBookingReports(params: GetBookingReportsParams = {}) {
     placeholderData: (previousData) => previousData,
   });
 }
+
+export const CUSTOMER_DISCOUNT_REPORTS_QUERY_KEY = ["customer-discount-reports-list"] as const;
+
+/**
+ * React Query hook to fetch customer discount reports list via GET /report/discount
+ */
+export function useCustomerDiscountReports(params: GetBookingReportsParams = {}) {
+  const {
+    page = 1,
+    limit = 10,
+    search = "",
+    fromBranchId = "",
+    toBranchId = "",
+    startDate = "",
+    endDate = "",
+    hasBill = "",
+  } = params;
+
+  return useQuery({
+    queryKey: [
+      ...CUSTOMER_DISCOUNT_REPORTS_QUERY_KEY,
+      page,
+      limit,
+      search,
+      fromBranchId,
+      toBranchId,
+      startDate,
+      endDate,
+      hasBill,
+    ],
+    queryFn: () =>
+      getCustomerDiscountReports({
+        page,
+        limit,
+        search,
+        fromBranchId,
+        toBranchId,
+        startDate,
+        endDate,
+        hasBill,
+      }),
+    placeholderData: (previousData) => previousData,
+  });
+}
+
 
 
