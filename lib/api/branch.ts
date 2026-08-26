@@ -221,3 +221,13 @@ export async function getBranchDropdownList(): Promise<BranchDropdownApiResponse
   });
 }
 
+/**
+ * Fetch list of only branches for reports dropdown via GET /user/onlyBranch
+ */
+export async function getOnlyBranchList(): Promise<BranchDropdownApiResponse> {
+  return await request<BranchDropdownApiResponse>("/user/onlyBranch", {
+    method: "GET",
+  });
+}
+
+

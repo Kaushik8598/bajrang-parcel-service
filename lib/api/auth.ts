@@ -216,8 +216,27 @@ export function getStoredPermissions(): UserPermissions | null {
 }
 
 /**
+ * Get stored user role from Cookies or localStorage
+ */
+export function getStoredUserRole(): string | null {
+  const cookieRole = Cookies.get(AUTH_ROLE_KEY);
+  if (cookieRole) return cookieRole;
+  const user = getStoredUser();
+  if (user?.role) return user.role;
+  if (typeof window !== "undefined") {
+    try {
+      return localStorage.getItem(AUTH_ROLE_KEY);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
  * Check if the user is currently authenticated
  */
 export function isAuthenticated(): boolean {
   return Boolean(getStoredToken());
 }
+

@@ -1,47 +1,69 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Printer,
   Pencil,
   Trash2,
-  Printer,
-  Plus,
   RotateCcw,
-  CheckCircle2,
+  Filter,
+  Eye,
+  FileText,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import DataTable from "@/components/DataTable/DataTable";
 import DeleteConfirmDialog from "@/components/DataTable/DeleteConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
 import { FormSelect } from "@/components/ui/form-select";
-import type { SearchableSelectOption } from "@/components/ui/searchable-select";
-import {
-  getBranches,
-  MOCK_BOOKINGS,
-  MOCK_BRANCHES,
-} from "@/lib/api/booking";
-import { formatDateTime, formatDate, getCurrentDate, moment } from "@/lib/utils";
-import type { ColumnDef, TablePermissions } from "@/lib/types/common";
-import type { ParcelBookingRecord } from "@/lib/types/booking";
+import AppModal from "@/components/ui/AppModal";
+import { showToast } from "@/lib/toast";
+import { useBookingReports, useOnlyBranchList, useModulePermissions } from "@/lib/hooks";
+import { getStoredUserRole, getStoredUser } from "@/lib/api/auth";
+import type { BranchDropdownItem } from "@/lib/api/branch";
+import type { ParcelBookingReportItem } from "@/lib/api/reports";
+import { moment } from "@/lib/utils";
+import type { ColumnDef } from "@/lib/types/common";
+
+const HAS_BILL_OPTIONS = [
+  { value: "true", label: "With Bill" },
+  { value: "false", label: "Without Bill" },
+];
 
 // ─── Professional Printable Bilty Helper ──────────────────────────────────────
-function printBiltyReceipt(booking: ParcelBookingRecord) {
+
+function printBiltyReceipt(booking: ParcelBookingReportItem) {
   const printWindow = window.open("", "_blank");
   if (!printWindow) return;
 
-  const totalQty = booking.total_qty || 1;
-  const netCost = booking.net_cost || booking.topay_amount || booking.paid_amount || 0;
-  const isToPay = booking.payment_method === "To Pay";
-  const formattedBookingDate = formatDateTime(booking.booking_date, "DD-MM-YYYY hh:mm A");
+  const totalQty = booking.parcel || 1;
+  const netCost = booking.finalBillAmount || 0;
+  const paymentMethod = booking.paymentMethod || "To Pay";
+  const isToPay =
+    paymentMethod.toLowerCase().includes("to-pay") ||
+    paymentMethod.toLowerCase().includes("to pay") ||
+    paymentMethod.toLowerCase() === "topay";
+  const formattedBookingDate = booking.bookingDate
+    ? `${booking.bookingDate} ${booking.bookingTime || ""}`
+    : moment().format("DD-MM-YYYY hh:mm A");
   const printedAt = moment().format("DD-MM-YYYY hh:mm A");
+
+  const fromName = booking.fromBranch
+    ? `${booking.fromBranch.branchName || ""}${booking.fromBranch.branchCode ? ` (${booking.fromBranch.branchCode})` : ""
+    }`
+    : "—";
+
+  const toName = booking.toBranch
+    ? `${booking.toBranch.branchName || ""}${booking.toBranch.branchCode ? ` (${booking.toBranch.branchCode})` : ""
+    }`
+    : "—";
 
   const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Bilty - ${booking.docket_no}</title>
+  <title>Bilty - ${booking.docketNo2 || booking.docketNo1 || "Receipt"}</title>
   <style>
     @media print {
       body { margin: 0; padding: 10px; font-family: 'Segoe UI', Arial, sans-serif; }
@@ -62,7 +84,10 @@ function printBiltyReceipt(booking: ParcelBookingRecord) {
     .table th, .table td { border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left; font-size: 11px; }
     .table th { background: #f1f5f9; font-weight: 700; }
     .total-row { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1e293b; padding-top: 8px; margin-top: 8px; }
-    .payment-tag { font-size: 13px; font-weight: 800; padding: 4px 10px; border-radius: 4px; ${isToPay ? "background:#fef3c7; color:#92400e; border:1px solid #f59e0b;" : "background:#dcfce7; color:#166534; border:1px solid #22c55e;"} }
+    .payment-tag { font-size: 13px; font-weight: 800; padding: 4px 10px; border-radius: 4px; ${isToPay
+      ? "background:#fef3c7; color:#92400e; border:1px solid #f59e0b;"
+      : "background:#dcfce7; color:#166534; border:1px solid #22c55e;"
+    } }
     .sign-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 36px; text-align: center; }
     .sign-line { border-top: 1px dashed #475569; padding-top: 4px; font-size: 10px; font-weight: 600; }
   </style>
@@ -77,12 +102,12 @@ function printBiltyReceipt(booking: ParcelBookingRecord) {
     <div class="meta-grid">
       <div>
         <div><strong>Date/Time:</strong> ${formattedBookingDate}</div>
-        <div><strong>Tracking No:</strong> ${booking.tracking_no || "—"}</div>
-        <div><strong>Bill / LR No:</strong> ${booking.bill_no || "—"}</div>
+        <div><strong>Tracking No:</strong> ${booking.docketNo1 || "—"}</div>
+        <div><strong>Bill / LR No:</strong> ${booking.billNo || "—"}</div>
       </div>
       <div style="text-align:right;">
-        <div class="badge-docket">DOCKET: ${booking.docket_no}</div>
-        <div style="margin-top:4px;"><strong>Route:</strong> ${booking.from_branch_name || "Surat"} → ${booking.to_branch_name || "Valsad"}</div>
+        <div class="badge-docket">DOCKET: ${booking.docketNo2 || booking.docketNo1 || "—"}</div>
+        <div style="margin-top:4px;"><strong>Route:</strong> ${fromName} → ${toName}</div>
       </div>
     </div>
 
@@ -90,17 +115,15 @@ function printBiltyReceipt(booking: ParcelBookingRecord) {
       <div class="party-box">
         <div class="party-title">Consignor (Sender)</div>
         <div class="party-name">${booking.sender?.name || "—"}</div>
-        <div>Contact: ${booking.sender?.contact_no || "—"}</div>
-        <div>Address: ${booking.sender?.address || booking.sender?.city || "—"}</div>
-        ${booking.sender?.gstin ? `<div>GSTIN: ${booking.sender.gstin}</div>` : ""}
+        <div>Contact: ${booking.sender?.mobile || booking.sender?.contact_no || "—"}</div>
+        ${booking.sender?.city ? `<div>City: ${booking.sender.city}</div>` : ""}
       </div>
 
       <div class="party-box">
         <div class="party-title">Consignee (Receiver)</div>
         <div class="party-name">${booking.receiver?.name || "—"}</div>
-        <div>Contact: ${booking.receiver?.contact_no || "—"}</div>
-        <div>Address: ${booking.receiver?.address || booking.receiver?.city || "—"}</div>
-        ${booking.receiver?.gstin ? `<div>GSTIN: ${booking.receiver.gstin}</div>` : ""}
+        <div>Contact: ${booking.receiver?.mobile || booking.receiver?.contact_no || "—"}</div>
+        ${booking.receiver?.city ? `<div>City: ${booking.receiver.city}</div>` : ""}
       </div>
     </div>
 
@@ -109,35 +132,23 @@ function printBiltyReceipt(booking: ParcelBookingRecord) {
         <tr>
           <th style="width:40px;">#</th>
           <th>Description / Material</th>
-          <th>Packing</th>
-          <th style="width:60px; text-align:center;">Qty</th>
-          <th style="width:100px; text-align:right;">Amount (₹)</th>
+          <th style="width:80px; text-align:center;">Qty (Parcels)</th>
+          <th style="width:120px; text-align:right;">Amount (₹)</th>
         </tr>
       </thead>
       <tbody>
-        ${(booking.packages || [
-      { id: "1", qty: totalQty, material: "Parcel Packages", packing: "Carton", price: netCost - 20 },
-    ])
-      .map(
-        (p, idx) => `<tr>
-            <td>${idx + 1}</td>
-            <td>${p.material || "General Goods"}</td>
-            <td>${p.packing || "Carton"}</td>
-            <td style="text-align:center;">${p.qty || 1}</td>
-            <td style="text-align:right;">₹${p.price || 0}</td>
-          </tr>`
-      )
-      .join("")}
         <tr>
-          <td colspan="4" style="text-align:right; font-weight:600;">Bilty Charge:</td>
-          <td style="text-align:right;">₹${booking.bilty_charge || 20}</td>
+          <td>1</td>
+          <td>General Cargo / Parcels (${booking.remark || "Standard Booking"})</td>
+          <td style="text-align:center;">${totalQty}</td>
+          <td style="text-align:right;">₹${netCost.toFixed(2)}</td>
         </tr>
       </tbody>
     </table>
 
     <div class="total-row">
       <div>
-        <span class="payment-tag">${booking.payment_method?.toUpperCase() || "TO PAY"}: ₹${netCost.toFixed(2)}</span>
+        <span class="payment-tag">${paymentMethod.toUpperCase()}: ₹${netCost.toFixed(2)}</span>
       </div>
       <div style="font-size:14px; font-weight:800;">
         Total Amount: ₹${netCost.toFixed(2)}
@@ -145,7 +156,7 @@ function printBiltyReceipt(booking: ParcelBookingRecord) {
     </div>
 
     <div class="sign-grid">
-      <div class="sign-line">Booking Clerk (${booking.booked_by || "Deepakbhai"})</div>
+      <div class="sign-line">Booking By (${booking.bookingById?.name || "Staff"})</div>
       <div class="sign-line">Driver Sign</div>
       <div class="sign-line">Receiver (Party Sign)</div>
     </div>
@@ -161,160 +172,312 @@ function printBiltyReceipt(booking: ParcelBookingRecord) {
   }, 250);
 }
 
-export default function ManageParcelBookingPage() {
+// ─── Payment Extraction Helper ─────────────────────────────────────────────────
+
+function getPaymentMethodAmounts(row: ParcelBookingReportItem) {
+  const m = (row.paymentMethod || "").toLowerCase().trim();
+  const amt = Number(row.finalBillAmount) || 0;
+
+  const isTopay = m.includes("to-pay") || m.includes("to pay") || m === "topay";
+  const isPaid = m === "paid";
+  const isGpay = m === "g pay" || m === "gpay" || m === "g-pay";
+  const isCredit = m === "credit";
+
+  return {
+    isTopay,
+    topayAmount: isTopay ? amt : 0,
+
+    isPaid,
+    paidAmount: isPaid ? amt : 0,
+
+    isGpay,
+    gpayAmount: isGpay ? amt : 0,
+
+    isCredit,
+    creditAmount: isCredit ? amt : 0,
+  };
+}
+
+// ─── Main Component ────────────────────────────────────────────────────────────
+
+export default function ManageParcelBookingReportsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const permissions = useModulePermissions("booking");
 
-  // ─── Local State & Filters ──────────────────────────────────────────────────
-  const [data, setData] = useState<ParcelBookingRecord[]>(MOCK_BOOKINGS);
-  const [fromDate, setFromDate] = useState(() => moment().format("YYYY-MM-DD"));
-  const [toDate, setToDate] = useState(() => moment().format("YYYY-MM-DD"));
-  const [selectedFromBranch, setSelectedFromBranch] = useState("all");
-  const [selectedToBranch, setSelectedToBranch] = useState("all");
+  // Determine current user role for filter authorization
+  const [userRole, setUserRole] = useState<string>("");
+  useEffect(() => {
+    const role = getStoredUserRole() || getStoredUser()?.role || "";
+    setUserRole(role.toLowerCase());
+  }, []);
 
-  // Dialogs
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [bookingToDelete, setBookingToDelete] = useState<ParcelBookingRecord | null>(null);
+  const isAdminOrSuperAdmin =
+    userRole === "admin" ||
+    userRole === "superadmin" ||
+    userRole === "super_admin" ||
+    userRole === "super-admin";
 
-  // Toast / feedback message
-  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  // Filter input states (filters trigger directly on change)
+  const [fromDateInput, setFromDateInput] = useState("");
+  const [toDateInput, setToDateInput] = useState("");
+  const [fromBranchInput, setFromBranchInput] = useState("");
+  const [toBranchInput, setToBranchInput] = useState("");
+  const [hasBillInput, setHasBillInput] = useState("");
 
-  // ─── Fetch Branches ────────────────────────────────────────────────────────
-  const { data: branches = MOCK_BRANCHES } = useQuery({
-    queryKey: ["branches"],
-    queryFn: getBranches,
-    placeholderData: MOCK_BRANCHES,
+  // Table pagination & search state
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [search, setSearch] = useState("");
+
+  // Live data fetching hook via GET /report/all
+  const { data: apiResponse, isLoading, isFetching } = useBookingReports({
+    page,
+    limit,
+    search,
+    startDate: fromDateInput || undefined,
+    endDate: toDateInput || undefined,
+    fromBranchId: (isAdminOrSuperAdmin ? fromBranchInput : undefined) || undefined,
+    toBranchId: toBranchInput || undefined,
+    hasBill: hasBillInput || undefined,
   });
 
-  const fromBranchFilterOptions: SearchableSelectOption[] = useMemo(
-    () => [
-      { value: "all", label: "All From Branch" },
-      ...branches.map((b) => ({
-        value: String(b.id),
-        label: b.name,
-      })),
-    ],
-    [branches]
+  // Check if any filter is active
+  const hasActiveFilters = Boolean(
+    fromDateInput ||
+    toDateInput ||
+    fromBranchInput ||
+    toBranchInput ||
+    hasBillInput
   );
 
-  const toBranchFilterOptions: SearchableSelectOption[] = useMemo(
-    () => [
-      { value: "all", label: "All To Branch" },
-      ...branches.map((b) => ({
-        value: String(b.id),
-        label: b.name,
-      })),
-    ],
-    [branches]
+  // Fetch only branches dropdown list via GET /user/onlyBranch
+  const { data: branchDropdownRes } = useOnlyBranchList();
+  const branchDropdownList = useMemo(() => {
+    const rawData = branchDropdownRes?.data;
+    if (Array.isArray(rawData)) return rawData;
+    if (rawData && typeof rawData === "object") {
+      if (Array.isArray(rawData.branches)) return rawData.branches;
+      if (Array.isArray(rawData.users)) return rawData.users;
+      if (Array.isArray(rawData.data)) return rawData.data;
+    }
+    return [];
+  }, [branchDropdownRes]);
+
+  const branchOptions = useMemo(
+    () =>
+      branchDropdownList.map((b: BranchDropdownItem) => {
+        const branchCode = b.branchInfo?.branchCode;
+        const branchName = b.branchInfo?.branchName || b.name || "Branch";
+        const label = branchCode ? `${branchCode} - ${branchName}` : branchName;
+        return {
+          value: b._id,
+          label,
+        };
+      }),
+    [branchDropdownList]
   );
 
-  // ─── Filter Handler ────────────────────────────────────────────────────────
-  const handleFilterSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    let filtered = [...MOCK_BOOKINGS];
-
-    if (selectedFromBranch && selectedFromBranch !== "all") {
-      filtered = filtered.filter((b) => String(b.from_branch_id) === selectedFromBranch);
+  // Extract bookings list from response
+  const bookingRecords: ParcelBookingReportItem[] = useMemo(() => {
+    const rawData = apiResponse?.data;
+    if (Array.isArray(rawData)) return rawData;
+    if (rawData && typeof rawData === "object") {
+      if (Array.isArray(rawData.bookings)) return rawData.bookings;
+      if (Array.isArray(rawData.reports)) return rawData.reports;
+      if (Array.isArray(rawData.items)) return rawData.items;
+      if (Array.isArray(rawData.data)) return rawData.data;
     }
-    if (selectedToBranch && selectedToBranch !== "all") {
-      filtered = filtered.filter((b) => String(b.to_branch_id) === selectedToBranch);
-    }
+    return [];
+  }, [apiResponse]);
 
-    setData(filtered);
-    setFeedbackMessage("Filters applied successfully.");
-    setTimeout(() => setFeedbackMessage(null), 2500);
+  const paginationMeta = apiResponse?.pagination || {
+    total: bookingRecords.length,
+    page,
+    limit,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
   };
 
+  // Bill Image preview modal state
+  const [previewBillImage, setPreviewBillImage] = useState<string | null>(null);
+
+  // Cancel Booking confirmation state
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [bookingToCancel, setBookingToCancel] = useState<ParcelBookingReportItem | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelRemark, setCancelRemark] = useState("");
+  const [cancelReasonError, setCancelReasonError] = useState("");
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const handleCancelClick = (row: ParcelBookingReportItem) => {
+    setBookingToCancel(row);
+    setCancelReason("");
+    setCancelRemark("");
+    setCancelReasonError("");
+    setCancelDialogOpen(true);
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!bookingToCancel) return;
+    if (!cancelReason.trim()) {
+      setCancelReasonError("Please enter a cancellation reason");
+      return;
+    }
+    setCancelReasonError("");
+    setIsCancelling(true);
+    try {
+      await import("@/lib/api/booking").then((m) =>
+        m.updateBookingStatus(bookingToCancel._id, "cancelled", {
+          cancelReason: cancelReason.trim(),
+          cancelRemark: cancelRemark.trim(),
+        })
+      );
+      showToast(
+        "success",
+        `Booking "${bookingToCancel.docketNo2 || bookingToCancel.docketNo1 || "docket"}" cancelled successfully.`
+      );
+      queryClient.invalidateQueries({ queryKey: ["booking-reports-list"] });
+      setCancelDialogOpen(false);
+      setBookingToCancel(null);
+      setCancelReason("");
+      setCancelRemark("");
+    } catch (err: unknown) {
+      const msg = err && typeof err === "object" && "message" in err ? String(err.message) : "Failed to cancel booking.";
+      showToast("error", msg);
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  // Handle Reset Filter
   const handleResetFilter = () => {
-    setFromDate(moment().format("YYYY-MM-DD"));
-    setToDate(moment().format("YYYY-MM-DD"));
-    setSelectedFromBranch("all");
-    setSelectedToBranch("all");
-    setData(MOCK_BOOKINGS);
+    setFromDateInput("");
+    setToDateInput("");
+    setFromBranchInput("");
+    setToBranchInput("");
+    setHasBillInput("");
+    setPage(1);
   };
 
-  // ─── Action Handlers ───────────────────────────────────────────────────────
-  const handleAddBooking = () => {
-    router.push("/transaction/booking/add");
-  };
+  // ─── Column-wise Total Calculation ─────────────────────────────────────────
+  const totals = useMemo(() => {
+    let totalTopay = 0;
+    let totalPaid = 0;
+    let totalGpay = 0;
+    let totalCredit = 0;
+    let totalParcels = 0;
 
-  const handleOpenEdit = (row: ParcelBookingRecord) => {
-    router.push(`/transaction/booking/edit/${row.id}`);
-  };
+    bookingRecords.forEach((row) => {
+      const { topayAmount, paidAmount, gpayAmount, creditAmount } = getPaymentMethodAmounts(row);
+      totalTopay += topayAmount;
+      totalPaid += paidAmount;
+      totalGpay += gpayAmount;
+      totalCredit += creditAmount;
 
-  const handleDeleteClick = (row: ParcelBookingRecord) => {
-    setBookingToDelete(row);
-    setDeleteDialogOpen(true);
-  };
+      totalParcels += Number(row.parcel) || 0;
+    });
 
-  const handleConfirmCancelBooking = () => {
-    if (bookingToDelete) {
-      setData((prev) => prev.filter((b) => b.id !== bookingToDelete.id));
-      setDeleteDialogOpen(false);
-      setFeedbackMessage(`Booking docket "${bookingToDelete.docket_no}" cancelled.`);
-      setBookingToDelete(null);
-      setTimeout(() => setFeedbackMessage(null), 3000);
-    }
-  };
+    const grandTotal = totalTopay + totalPaid + totalGpay + totalCredit;
 
-  // ─── Table Columns (Exact match with user screenshot) ──────────────────────
-  const columns: ColumnDef<ParcelBookingRecord>[] = [
+    return {
+      totalTopay,
+      totalPaid,
+      totalGpay,
+      totalCredit,
+      grandTotal,
+      totalParcels,
+    };
+  }, [bookingRecords]);
+
+  // ─── Table Columns ─────────────────────────────────────────────────────────
+  const columns: ColumnDef<ParcelBookingReportItem>[] = [
     {
-      key: "tracking_no",
+      key: "docketNo1",
       label: "Tracking No",
       sortable: true,
-      render: (val) => (
-        <span className="text-black text-xs tracking-tight">
-          {String(val || "—")}
+      width: "w-32",
+      sortValue: (row) => row.docketNo1 || "",
+      render: (_, row) => (
+        <span className="font-mono text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 tracking-tight">
+          {row.docketNo1 || "—"}
         </span>
       ),
     },
     {
-      key: "docket_no",
+      key: "docketNo2",
       label: "Docket No",
       sortable: true,
-      render: (val) => (
-        <span className="text-black text-xs">
-          {String(val || "—")}
+      width: "w-36",
+      sortValue: (row) => row.docketNo2 || "",
+      render: (_, row) => (
+        <span className="font-mono text-xs font-semibold text-[#2980b9]">
+          {row.docketNo2 || "—"}
         </span>
       ),
     },
     {
-      key: "total_qty",
-      label: "Qty",
+      key: "parcel",
+      label: "Parcel",
       sortable: true,
-      width: "w-14",
-      render: (val) => (
-        <span className="text-black text-xs">{String(val || 1)}</span>
+      width: "w-20",
+      sortValue: (row) => row.parcel || 0,
+      render: (_, row) => (
+        <span className="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 font-bold text-xs bg-slate-100 text-slate-800 rounded border border-slate-200">
+          {row.parcel ?? 0}
+        </span>
       ),
     },
     {
-      key: "from_branch_name",
+      key: "fromBranch",
       label: "From Branch",
-      render: (val, row) => (
-        <span className="text-xs text-black">
-          {String(val || row.from_branch_id || "—")}
-        </span>
-      ),
+      sortable: true,
+      sortValue: (row) => row.fromBranch?.branchName || "",
+      render: (_, row) => {
+        const bName = row.fromBranch?.branchName;
+        const bCode = row.fromBranch?.branchCode;
+        if (!bName && !bCode) return <span className="text-slate-400 text-xs">—</span>;
+        return (
+          <div className="text-xs">
+            <span className="font-semibold text-slate-800">{bName || "—"}</span>
+            {bCode && (
+              <span className="text-[10px] text-slate-500 block font-mono">({bCode})</span>
+            )}
+          </div>
+        );
+      },
     },
     {
-      key: "to_branch_name",
+      key: "toBranch",
       label: "To Branch",
-      render: (val, row) => (
-        <span className="text-xs text-black">
-          {String(val || row.to_branch_id || "—")}
-        </span>
-      ),
+      sortable: true,
+      sortValue: (row) => row.toBranch?.branchName || "",
+      render: (_, row) => {
+        const bName = row.toBranch?.branchName;
+        const bCode = row.toBranch?.branchCode;
+        if (!bName && !bCode) return <span className="text-slate-400 text-xs">—</span>;
+        return (
+          <div className="text-xs">
+            <span className="font-semibold text-slate-800">{bName || "—"}</span>
+            {bCode && (
+              <span className="text-[10px] text-slate-500 block font-mono">({bCode})</span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: "sender",
       label: "Sender",
+      sortable: false,
       render: (_, row) => (
-        <div className="text-xs space-y-0.5 max-w-[140px]">
-          <p className="text-black uppercase leading-tight truncate">
+        <div className="text-xs space-y-0.5 max-w-[130px]">
+          <p className="text-slate-900 font-semibold uppercase leading-tight truncate">
             {row.sender?.name || "—"}
           </p>
           <p className="text-[11px] text-slate-500 font-mono">
-            {row.sender?.contact_no || "—"}
+            {row.sender?.mobile || row.sender?.contact_no || "—"}
           </p>
         </div>
       ),
@@ -322,26 +485,29 @@ export default function ManageParcelBookingPage() {
     {
       key: "receiver",
       label: "Receiver",
+      sortable: false,
       render: (_, row) => (
-        <div className="text-xs space-y-0.5 max-w-[150px]">
-          <p className="text-black uppercase leading-tight truncate">
+        <div className="text-xs space-y-0.5 max-w-[130px]">
+          <p className="text-slate-900 font-semibold uppercase leading-tight truncate">
             {row.receiver?.name || "—"}
           </p>
           <p className="text-[11px] text-slate-500 font-mono">
-            {row.receiver?.contact_no || "—"}
+            {row.receiver?.mobile || row.receiver?.contact_no || "—"}
           </p>
         </div>
       ),
     },
     {
-      key: "topay_amount",
+      key: "topay",
       label: "Topay",
       sortable: true,
-      render: (val, row) => {
-        const amt = val ?? (row.payment_method === "To Pay" ? row.net_cost : null);
-        return amt ? (
-          <span className="text-black text-xs">
-            {Number(amt).toFixed(2)}
+      width: "w-24",
+      sortValue: (row) => getPaymentMethodAmounts(row).topayAmount,
+      render: (_, row) => {
+        const { topayAmount } = getPaymentMethodAmounts(row);
+        return topayAmount > 0 ? (
+          <span className="font-bold text-xs text-purple-700 font-mono">
+            {topayAmount.toFixed(2)}
           </span>
         ) : (
           <span className="text-slate-300 text-xs">—</span>
@@ -349,14 +515,16 @@ export default function ManageParcelBookingPage() {
       },
     },
     {
-      key: "paid_amount",
+      key: "paid",
       label: "Paid",
       sortable: true,
-      render: (val, row) => {
-        const amt = val ?? (row.payment_method === "Paid" ? row.net_cost : null);
-        return amt ? (
-          <span className="text-black text-xs">
-            {Number(amt).toFixed(2)}
+      width: "w-24",
+      sortValue: (row) => getPaymentMethodAmounts(row).paidAmount,
+      render: (_, row) => {
+        const { paidAmount } = getPaymentMethodAmounts(row);
+        return paidAmount > 0 ? (
+          <span className="font-bold text-xs text-emerald-700 font-mono">
+            {paidAmount.toFixed(2)}
           </span>
         ) : (
           <span className="text-slate-300 text-xs">—</span>
@@ -364,72 +532,159 @@ export default function ManageParcelBookingPage() {
       },
     },
     {
-      key: "booking_type",
+      key: "gpay",
+      label: "Gpay",
+      sortable: true,
+      width: "w-24",
+      sortValue: (row) => getPaymentMethodAmounts(row).gpayAmount,
+      render: (_, row) => {
+        const { gpayAmount } = getPaymentMethodAmounts(row);
+        return gpayAmount > 0 ? (
+          <span className="font-bold text-xs text-teal-700 font-mono">
+            {gpayAmount.toFixed(2)}
+          </span>
+        ) : (
+          <span className="text-slate-300 text-xs">—</span>
+        );
+      },
+    },
+    {
+      key: "credit",
+      label: "Credit",
+      sortable: true,
+      width: "w-24",
+      sortValue: (row) => getPaymentMethodAmounts(row).creditAmount,
+      render: (_, row) => {
+        const { creditAmount } = getPaymentMethodAmounts(row);
+        return creditAmount > 0 ? (
+          <span className="font-bold text-xs text-amber-700 font-mono">
+            {creditAmount.toFixed(2)}
+          </span>
+        ) : (
+          <span className="text-slate-300 text-xs">—</span>
+        );
+      },
+    },
+    {
+      key: "billNo",
+      label: "Bill No",
+      sortable: true,
+      width: "w-28",
+      sortValue: (row) => row.billNo || "",
+      render: (_, row) => {
+        const hasBill = row.hasBill;
+        const billNo = row.billNo;
+        const billImage = row.billImage;
+
+        if (!billNo && !hasBill && !billImage) {
+          return <span className="text-slate-400 text-xs">—</span>;
+        }
+
+        return (
+          <div className="flex items-center gap-1 text-xs">
+            <span className="font-mono font-medium text-slate-800">
+              {billNo || (hasBill ? "Bill Attached" : "—")}
+            </span>
+            {billImage && (
+              <button
+                type="button"
+                onClick={() => setPreviewBillImage(billImage)}
+                className="p-1 text-[#2980b9] hover:text-[#1b4f72] hover:bg-blue-50 rounded transition-colors"
+                title="View Bill Image"
+              >
+                <Eye className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "bookingType",
       label: "Type",
-      render: (val) => (
-        <span className="text-xs text-black">
-          {String(val || "Branch User")}
+      sortable: true,
+      width: "w-24",
+      sortValue: (row) => row.bookingById?.role || "",
+      render: (_, row) => (
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 uppercase border border-slate-200">
+          {row.bookingById?.role || "staff"}
         </span>
       ),
     },
     {
-      key: "booked_by",
+      key: "bookedBy",
       label: "Book By",
-      render: (val) => (
-        <span className="text-xs text-black uppercase">
-          {String(val || "DEEPAKBHAI")}
+      sortable: true,
+      width: "w-32",
+      sortValue: (row) => row.bookingById?.name || "",
+      render: (_, row) => (
+        <span className="text-xs font-medium text-slate-800 uppercase">
+          {row.bookingById?.name || "—"}
         </span>
       ),
     },
     {
-      key: "booking_date",
+      key: "bookingDate",
       label: "DateTime",
       sortable: true,
-      render: (val) => (
-        <span className="text-[11px] text-black whitespace-nowrap">
-          {formatDateTime(String(val || ""))}
+      width: "w-32",
+      sortValue: (row) => `${row.bookingDate || ""} ${row.bookingTime || ""}`,
+      render: (_, row) => (
+        <div className="text-[11px] leading-tight whitespace-nowrap">
+          <p className="font-medium text-slate-800">{row.bookingDate || "—"}</p>
+          <p className="text-slate-500 font-mono text-[10px]">{row.bookingTime || ""}</p>
+        </div>
+      ),
+    },
+    {
+      key: "remark",
+      label: "Remark",
+      sortable: false,
+      render: (_, row) => (
+        <span className="text-xs text-slate-600 line-clamp-1" title={row.remark}>
+          {row.remark || "—"}
         </span>
       ),
     },
     {
       key: "action",
       label: "Action",
-      width: "w-64",
+      width: "w-52",
       render: (_, row) => (
-        <div className="flex items-center gap-1.5 py-1">
-          {/* Edit button */}
-          {PERMISSIONS.canEdit && (
+        <div className="flex items-center gap-1.5 py-0.5">
+          {permissions.canEdit && (
             <Button
               type="button"
               size="sm"
-              onClick={() => handleOpenEdit(row)}
+              onClick={() => router.push(`/transaction/booking/edit/${row._id || row.id}`)}
               className="h-7 px-2.5 text-xs bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-xs transition-colors"
+              title="Edit Booking"
             >
               <Pencil className="w-3 h-3 mr-1" />
               Edit
             </Button>
           )}
-
-          {/* Cancel Booking button */}
-          {PERMISSIONS.canDelete && (
+          {permissions.canDelete && (
             <Button
               type="button"
               size="sm"
-              onClick={() => handleDeleteClick(row)}
+              variant="destructive"
+              disabled={isCancelling && bookingToCancel?._id === row._id}
+              onClick={() => handleCancelClick(row)}
               className="h-7 px-2.5 text-xs bg-[#e74c3c] hover:bg-[#c0392b] text-white shadow-xs transition-colors"
+              title="Cancel Booking"
             >
               <Trash2 className="w-3 h-3 mr-1" />
               Cancel
             </Button>
           )}
-
-          {/* Print button */}
-          {PERMISSIONS.canPrint && (
+          {permissions.canPrint && (
             <Button
               type="button"
               size="sm"
               onClick={() => printBiltyReceipt(row)}
               className="h-7 px-2.5 text-xs bg-[#2c3e50] hover:bg-[#1a252f] text-white shadow-xs transition-colors"
+              title="Print Bilty"
             >
               <Printer className="w-3 h-3 mr-1" />
               Print
@@ -438,143 +693,289 @@ export default function ManageParcelBookingPage() {
         </div>
       ),
     },
-    {
-      key: "party_sign",
-      label: "Party Sign",
-      width: "w-20",
-      render: () => (
-        <div className="w-14 h-8 border border-dashed border-slate-300 rounded bg-slate-50 flex items-center justify-center text-[10px] text-slate-400 select-none">
-          Sign
-        </div>
-      ),
-    },
   ];
 
-  const PERMISSIONS: TablePermissions = {
-    canExcel: true,
-    canPDF: true,
-    canPrint: true,
-    canAdd: true,
-    canEdit: true,
-    canDelete: true,
-  };
-
   return (
-    <div className="space-y-5 pb-12">
-      {/* ─── Top Filter Card (Manage Parcel Booking Report) ────────────────── */}
-      <div className="bg-white rounded-xl border border-slate-200/80 shadow-xs p-5 md:p-6 space-y-4">
-        <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-100">
-          <h1 className="text-xl font-bold text-black tracking-tight">
-            Manage Parcel Booking Report
-          </h1>
+    <div className="space-y-3">
+      {/* ─── Filter Section ─── */}
+      <div className="bg-white rounded-lg border border-slate-300 p-4 shadow-xs">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+              <Filter className="w-3.5 h-3.5 text-[#2980b9]" />
+              <span>Filter Parcel Booking Reports</span>
+              {!isAdminOrSuperAdmin && (
+                <span className="text-[10px] text-slate-400 font-normal ml-1">
+                  (Branch View: Destination Filter)
+                </span>
+              )}
+            </div>
 
-          {/* <Button
-            type="button"
-            onClick={handleAddBooking}
-            size="sm"
-            className="bg-[#27ae60] hover:bg-[#219a52] text-white h-8 px-3.5 text-xs font-semibold shadow-xs transition-colors"
+            {/* Reset link only shown in header when filters are active */}
+            {hasActiveFilters && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleResetFilter}
+                  disabled={isLoading || isFetching}
+                  className="group inline-flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 underline underline-offset-4 cursor-pointer transition-colors disabled:opacity-50"
+                  title="Clear all active filters"
+                >
+                  <RotateCcw className="w-3 h-3 text-rose-600 group-hover:text-rose-700 transition-colors" />
+                  <span>Reset</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div
+            className={
+              isAdminOrSuperAdmin
+                ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3"
+                : "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3"
+            }
           >
-            <Plus className="w-3.5 h-3.5 mr-1.5" />
-            Add Parcel Booking
-          </Button> */}
+            {/* Admin and SuperAdmin get From Date, To Date, From Branch */}
+            {isAdminOrSuperAdmin && (
+              <>
+                <FormInput
+                  label="From Date"
+                  type="date"
+                  value={fromDateInput}
+                  onChange={(e) => {
+                    setFromDateInput(e.target.value);
+                    setPage(1);
+                  }}
+                />
+
+                <FormInput
+                  label="To Date"
+                  type="date"
+                  value={toDateInput}
+                  onChange={(e) => {
+                    setToDateInput(e.target.value);
+                    setPage(1);
+                  }}
+                />
+
+                <FormSelect
+                  searchable
+                  label="From Branch"
+                  placeholder="All From Branches"
+                  searchPlaceholder="Search branch..."
+                  options={branchOptions}
+                  value={fromBranchInput}
+                  onChange={(val) => {
+                    setFromBranchInput(val || "");
+                    setPage(1);
+                  }}
+                  clearable
+                />
+              </>
+            )}
+
+            {/* All roles (including staff/branch) get To Branch filter */}
+            <FormSelect
+              searchable
+              label="To Branch"
+              placeholder="All To Branches"
+              searchPlaceholder="Search destination branch..."
+              options={branchOptions}
+              value={toBranchInput}
+              onChange={(val) => {
+                setToBranchInput(val || "");
+                setPage(1);
+              }}
+              clearable
+            />
+
+            {/* Has Bill filter */}
+            <FormSelect
+              label="Has Bill"
+              placeholder="All (With / Without Bill)"
+              options={HAS_BILL_OPTIONS}
+              value={hasBillInput}
+              onChange={(val) => {
+                setHasBillInput(val || "");
+                setPage(1);
+              }}
+              clearable
+            />
+          </div>
         </div>
-
-        {/* Filter Form Controls */}
-        <form onSubmit={handleFilterSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* From Date */}
-            <FormInput
-              label="From Date:"
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-            />
-
-            {/* To Date */}
-            <FormInput
-              label="To Date:"
-              type="date"
-              placeholder="Select To date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-            />
-
-            {/* From Branch */}
-            <FormSelect
-              label="From Branch:"
-              options={fromBranchFilterOptions}
-              value={selectedFromBranch}
-              onChange={(val) => setSelectedFromBranch(val)}
-              placeholder="All From Branch"
-              searchPlaceholder="Search branch..."
-            />
-
-            {/* To Branch */}
-            <FormSelect
-              label="To Branch:"
-              options={toBranchFilterOptions}
-              value={selectedToBranch}
-              onChange={(val) => setSelectedToBranch(val)}
-              placeholder="All To Branch"
-              searchPlaceholder="Search branch..."
-            />
-          </div>
-
-          {/* Submit Button Centered */}
-          <div className="flex items-center justify-center gap-2 pt-1">
-            <Button
-              type="submit"
-              className="bg-[#2980b9] hover:bg-[#2471a3] text-white h-8 px-7 text-xs font-semibold shadow-xs transition-colors"
-            >
-              Submit
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleResetFilter}
-              className="h-8 px-3 text-xs text-slate-600 border-slate-200 hover:bg-slate-50"
-              title="Reset Filters"
-            >
-              <RotateCcw className="w-3.5 h-3.5 mr-1" />
-              Reset
-            </Button>
-          </div>
-        </form>
       </div>
 
-      {/* ─── Feedback Alert ────────────────────────────────────────────────── */}
-      {feedbackMessage && (
-        <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-green-800 text-xs flex items-center gap-2 animate-in fade-in">
-          <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
-          <span className="font-semibold">{feedbackMessage}</span>
-        </div>
+      {/* ─── Reports Data Table ─── */}
+      <DataTable<ParcelBookingReportItem>
+        title="Parcel Booking Reports"
+        columns={columns}
+        data={bookingRecords}
+        isLoading={isLoading || isFetching}
+        permissions={permissions}
+        onSearch={(query) => {
+          setSearch(query);
+          setPage(1);
+        }}
+        searchValue={search}
+        clientSide={false}
+        pagination={{
+          page,
+          pageSize: limit,
+          total: paginationMeta.total,
+          onPageChange: (newPage) => setPage(newPage),
+          onPageSizeChange: (newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          },
+        }}
+        footer={
+          <tr className="bg-slate-100/95 font-bold text-xs border-t-2 border-slate-300">
+            {/* Sr No */}
+            <td className="px-2.5 py-2.5 text-black font-bold text-xs border-r border-slate-300">
+              Total
+            </td>
+            {/* Tracking No */}
+            <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
+            {/* Docket No */}
+            <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
+            {/* Parcel Total */}
+            <td className="px-2.5 py-2.5 font-bold text-xs text-slate-900 border-r border-slate-300">
+              <span className="inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded text-[11px] font-bold bg-slate-200 text-slate-900 border border-slate-300">
+                {totals.totalParcels}
+              </span>
+            </td>
+            {/* From Branch */}
+            <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
+            {/* To Branch */}
+            <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
+            {/* Sender */}
+            <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
+            {/* Receiver */}
+            <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
+            {/* Topay Total */}
+            <td className="px-2.5 py-2.5 text-purple-700 font-bold text-xs font-mono border-r border-slate-300">
+              {totals.totalTopay > 0 ? totals.totalTopay.toFixed(2) : "—"}
+            </td>
+            {/* Paid Total */}
+            <td className="px-2.5 py-2.5 text-emerald-700 font-bold text-xs font-mono border-r border-slate-300">
+              {totals.totalPaid > 0 ? totals.totalPaid.toFixed(2) : "—"}
+            </td>
+            {/* Gpay Total */}
+            <td className="px-2.5 py-2.5 text-teal-700 font-bold text-xs font-mono border-r border-slate-300">
+              {totals.totalGpay > 0 ? totals.totalGpay.toFixed(2) : "—"}
+            </td>
+            {/* Credit Total */}
+            <td className="px-2.5 py-2.5 text-amber-700 font-bold text-xs font-mono border-r border-slate-300">
+              {totals.totalCredit > 0 ? totals.totalCredit.toFixed(2) : "—"}
+            </td>
+            {/* Bill No */}
+            <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
+            {/* Type */}
+            <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
+            {/* Book By */}
+            <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
+            {/* DateTime */}
+            <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
+            {/* Remark (Grand Total Amount) */}
+            <td className="px-2.5 py-2.5 font-bold text-xs text-slate-900 border-r border-slate-300 whitespace-nowrap">
+              Grand: ₹{totals.grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+            </td>
+            {/* Action */}
+            <td className="px-2.5 py-2.5 text-slate-400 text-xs">—</td>
+          </tr>
+        }
+      />
+
+      {/* ─── Bill Image Preview Modal ─── */}
+      {previewBillImage && (
+        <AppModal
+          open={Boolean(previewBillImage)}
+          onOpenChange={(open) => !open && setPreviewBillImage(null)}
+          maxWidth="sm:max-w-xl"
+          title={
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-[#2980b9]" />
+              <span>Bill / Invoice Image</span>
+            </div>
+          }
+          footer={
+            <div className="flex items-center justify-between w-full">
+              <a
+                href={previewBillImage}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-[#2980b9] hover:underline font-semibold"
+              >
+                Open in new tab
+              </a>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setPreviewBillImage(null)}
+                className="h-7 px-3 text-xs"
+              >
+                Close
+              </Button>
+            </div>
+          }
+        >
+          <div className="p-2 flex items-center justify-center bg-slate-100 rounded-lg max-h-[70vh] overflow-auto">
+            {previewBillImage.endsWith(".pdf") ? (
+              <iframe
+                src={previewBillImage}
+                className="w-full h-96 rounded border border-slate-300"
+                title="Bill PDF"
+              />
+            ) : (
+              <img
+                src={previewBillImage}
+                alt="Bill Document"
+                className="max-h-[65vh] max-w-full object-contain rounded shadow-sm"
+              />
+            )}
+          </div>
+        </AppModal>
       )}
 
-      {/* ─── Main DataTable ────────────────────────────────────────────────── */}
-      <DataTable<ParcelBookingRecord>
-        title="Parcel Bookings"
-        columns={columns}
-        data={data}
-        permissions={PERMISSIONS}
-        // onAdd={handleAddBooking}
-        clientSide
-      />
-
-      {/* ─── Cancel / Delete Confirmation Dialog ───────────────────────────── */}
+      {/* ─── Cancel Booking Confirmation Dialog ─── */}
       <DeleteConfirmDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        onConfirm={handleConfirmCancelBooking}
-        title="Cancel Parcel Booking"
-        itemName={bookingToDelete?.docket_no}
-        description={
-          bookingToDelete
-            ? `Are you sure you want to cancel parcel booking docket "${bookingToDelete.docket_no}"?`
-            : undefined
-        }
-        confirmText="Cancel Booking"
-      />
+        open={cancelDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && !isCancelling) {
+            setCancelDialogOpen(false);
+            setBookingToCancel(null);
+            setCancelReason("");
+            setCancelRemark("");
+            setCancelReasonError("");
+          }
+        }}
+        onConfirm={handleConfirmCancel}
+        isLoading={isCancelling}
+        title="Cancel Booking"
+        confirmText="Confirm Cancel"
+        description={`Are you sure you want to cancel booking "${bookingToCancel?.docketNo2 || bookingToCancel?.docketNo1 || "this docket"}"? Please provide cancellation details below.`}
+      >
+        <div className="space-y-3 pt-1">
+          <FormInput
+            required
+            label="Cancel Reason"
+            placeholder="Enter reason for cancellation (e.g. Party Cancelled, Wrong Entry)"
+            value={cancelReason}
+            onChange={(e) => {
+              setCancelReason(e.target.value);
+              if (e.target.value.trim()) setCancelReasonError("");
+            }}
+            error={cancelReasonError}
+          />
+          <FormInput
+            label="Cancel Remark"
+            placeholder="Enter cancellation remarks (optional)"
+            value={cancelRemark}
+            onChange={(e) => setCancelRemark(e.target.value)}
+          />
+        </div>
+      </DeleteConfirmDialog>
     </div>
   );
 }

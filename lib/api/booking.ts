@@ -296,13 +296,34 @@ export async function updateParcelBooking(
   }
 }
 
+export interface CancelBookingBody {
+  cancelReason?: string;
+  cancelRemark?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * POST /booking/:id/:status
+ * Update booking status (e.g. status = 'cancelled')
+ */
+export async function updateBookingStatus(
+  id: number | string,
+  status: string = "cancelled",
+  body?: CancelBookingBody
+): Promise<{ success: boolean; message?: string; [key: string]: unknown }> {
+  return await request<{ success: boolean; message?: string }>(`/booking/${id}/${status}`, {
+    method: "POST",
+    body,
+  });
+}
+
 /**
  * DELETE /bookings/:id
  * Cancel / Delete booking
  */
 export async function deleteParcelBooking(id: number | string): Promise<boolean> {
   try {
-    await request<ApiResponse<null>>(`/bookings/${id}`, { method: "DELETE" });
+    await updateBookingStatus(id, "cancelled");
     return true;
   } catch {
     return true;

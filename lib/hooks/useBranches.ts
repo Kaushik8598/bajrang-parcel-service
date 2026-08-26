@@ -57,6 +57,7 @@ export function useUpdateBranch() {
 }
 
 export const BRANCH_DROPDOWN_QUERY_KEY = ["branch-dropdown-list"] as const;
+export const ONLY_BRANCH_DROPDOWN_QUERY_KEY = ["only-branch-dropdown-list"] as const;
 
 /**
  * Custom React Query hook to fetch branch list for dropdowns via GET /user/branchAndAdminList
@@ -68,4 +69,16 @@ export function useBranchDropdownList() {
     staleTime: 5 * 60 * 1000, // cache for 5 minutes
   });
 }
+
+/**
+ * Custom React Query hook to fetch ONLY branches for reports dropdowns via GET /user/onlyBranch
+ */
+export function useOnlyBranchList() {
+  return useQuery({
+    queryKey: ONLY_BRANCH_DROPDOWN_QUERY_KEY,
+    queryFn: () => import("@/lib/api/branch").then((m) => m.getOnlyBranchList()),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 

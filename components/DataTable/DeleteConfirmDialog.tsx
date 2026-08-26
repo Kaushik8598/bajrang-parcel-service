@@ -21,6 +21,7 @@ export interface DeleteConfirmDialogProps {
   confirmText?: string;
   cancelText?: string;
   isLoading?: boolean;
+  children?: React.ReactNode;
 }
 
 export default function DeleteConfirmDialog({
@@ -33,6 +34,7 @@ export default function DeleteConfirmDialog({
   confirmText = "Delete",
   cancelText = "Cancel",
   isLoading = false,
+  children,
 }: DeleteConfirmDialogProps) {
   const handleConfirm = () => {
     onConfirm();
@@ -44,7 +46,7 @@ export default function DeleteConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md p-6 bg-white rounded-xl shadow-xl">
+      <DialogContent className="max-w-md p-6 bg-white rounded-xl shadow-xl space-y-4">
         <div className="flex items-start gap-4">
           {/* Warning Icon Badge */}
           <div className="w-11 h-11 rounded-full bg-red-100/80 border border-red-200 flex items-center justify-center flex-shrink-0 text-[#e74c3c]">
@@ -57,13 +59,15 @@ export default function DeleteConfirmDialog({
                 {title}
               </DialogTitle>
             </DialogHeader>
-            <DialogDescription className="text-xs text-black leading-relaxed">
+            <DialogDescription className="text-xs text-slate-600 leading-relaxed">
               {description || defaultDescription}
             </DialogDescription>
           </div>
         </div>
 
-        <DialogFooter className="flex items-center justify-end gap-2 border-t border-slate-100 bg-transparent p-0 pt-3">
+        {children && <div className="space-y-3 pt-1">{children}</div>}
+
+        <DialogFooter className="flex items-center justify-end gap-2 border-t border-slate-300 bg-transparent p-0 pt-3">
           <Button
             type="button"
             variant="outline"

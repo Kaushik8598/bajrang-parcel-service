@@ -161,6 +161,8 @@ export interface DataTableProps<T extends Record<string, unknown>> {
   };
   /** If true, filtering/sorting/pagination handled internally (client-side) */
   clientSide?: boolean;
+  /** Optional custom table footer (e.g. summary totals row) */
+  footer?: React.ReactNode;
 }
 
 // ─── Main DataTable ────────────────────────────────────────────────────────────
@@ -180,6 +182,7 @@ export default function DataTable<T extends Record<string, unknown>>({
   searchValue,
   pagination,
   clientSide = true,
+  footer,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -396,6 +399,11 @@ export default function DataTable<T extends Record<string, unknown>>({
                 })
               )}
             </tbody>
+            {footer && (
+              <tfoot className="bg-slate-100/95 font-bold border-t-2 border-slate-300">
+                {footer}
+              </tfoot>
+            )}
           </table>
         </div>
       </div>

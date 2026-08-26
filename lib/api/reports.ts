@@ -1,0 +1,129 @@
+import { request } from "./client";
+
+export interface BranchRef {
+  _id?: string;
+  branchName?: string;
+  branchCode?: string;
+  city?: string;
+  [key: string]: unknown;
+}
+
+export interface PartyRef {
+  name?: string;
+  mobile?: string;
+  contact_no?: string;
+  gstin?: string;
+  address?: string;
+  city?: string;
+  [key: string]: unknown;
+}
+
+export interface BookingByIdRef {
+  _id?: string;
+  name?: string;
+  role?: string;
+  [key: string]: unknown;
+}
+
+export interface TrackingStatusRef {
+  confirmed?: number;
+  total?: number;
+  [key: string]: unknown;
+}
+
+export interface ParcelBookingReportItem {
+  _id: string;
+  docketNo1?: string; // Tracking No
+  docketNo2?: string; // Docket No
+  fromBranch?: BranchRef;
+  toBranch?: BranchRef;
+  sender?: PartyRef;
+  receiver?: PartyRef;
+  parcel?: number; // Qty
+  finalBillAmount?: number;
+  paymentMethod?: "g pay" | "credit" | "paid" | "to-pay" | "not-pay" | string;
+  hasBill?: boolean;
+  billNo?: string;
+  billImage?: string;
+  bookingDate?: string;
+  bookingTime?: string;
+  bookingById?: BookingByIdRef;
+  remark?: string;
+  trackingStatus?: TrackingStatusRef;
+  status?: string;
+  [key: string]: unknown;
+}
+
+export interface GetBookingReportsParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  fromBranchId?: string;
+  toBranchId?: string;
+  startDate?: string;
+  endDate?: string;
+  hasBill?: boolean | string;
+}
+
+export interface BookingReportsPagination {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
+export interface BookingReportsApiResponse {
+  success: boolean;
+  message?: string;
+  data:
+    | {
+        bookings?: ParcelBookingReportItem[];
+        reports?: ParcelBookingReportItem[];
+        items?: ParcelBookingReportItem[];
+        data?: ParcelBookingReportItem[];
+        [key: string]: unknown;
+      }
+    | ParcelBookingReportItem[];
+  pagination?: BookingReportsPagination;
+}
+
+/**
+ * Fetch all booking reports with pagination and filter support via GET /report/all
+ */
+export async function getAllBookingReports(
+  params: GetBookingReportsParams = {}
+): Promise<BookingReportsApiResponse> {
+  const {
+    page = 1,
+    limit = 10,
+    search = "",
+    fromBranchId,
+    toBranchId,
+    startDate,
+    endDate,
+    hasBill,
+  } = params;
+
+  const queryParams: Record<string, string | number | boolean> = {
+    page,
+    limit,
+  };
+
+  if (search) queryParams.search = search;
+  if (fromBranchId) queryParams.fromBranchId = fromBranchId;
+  if (toBranchId) queryParams.toBranchId = toBranchId;
+  if (startDate) queryParams.startDate = startDate;
+  if (endDate) queryParams.endDate = endDate;
+  if (hasBill !== undefined && hasBill !== "") {
+    queryParams.hasBill = hasBill === "true" || hasBill === true ? true : false;
+  }
+
+  const response = await request<BookingReportsApiResponse>("/report/all", {
+    method: "GET",
+    params: queryParams,
+  });
+
+  return response;
+}
