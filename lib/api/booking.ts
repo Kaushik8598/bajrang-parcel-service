@@ -4,29 +4,9 @@ import type { ApiResponse } from "../types/common";
 import type { Branch, Driver, ParcelBookingFormData, ParcelBookingRecord } from "../types/booking";
 
 
-// ─── Static Mock Branches (Matching screenshot) ──────────────────────────────
-export const MOCK_BRANCHES: Branch[] = [
-  { id: "1", name: "VAR - VARACHHA MAIN", code: "VAR", city: "Surat" },
-  { id: "2", name: "VAL - VALSAD", code: "VAL", city: "Valsad" },
-  { id: "3", name: "UDH - UDHNA", code: "UDH", city: "Surat" },
-  { id: "4", name: "ANK - ANKLESHWAR", code: "ANK", city: "Ankleshwar" },
-  { id: "5", name: "AMD - AHMEDABAD CENTRAL", code: "AMD", city: "Ahmedabad" },
-  { id: "6", name: "RJT - RAJKOT MAIN", code: "RJT", city: "Rajkot" },
-  { id: "7", name: "VAD - VADODARA EXPRESS", code: "VAD", city: "Vadodara" },
-  { id: "8", name: "BOM - MUMBAI VASHI", code: "BOM", city: "Mumbai" },
-];
-
-// ─── Static Mock Drivers ──────────────────────────────────────────────────────
-export const MOCK_DRIVERS: Driver[] = [
-  { id: "1", driver_name: "Ramesh Bhai Patel", driver_mobile: "9825112233", vehicle_no: "GJ-05-AB-1234", license_no: "GJ0520150012345" },
-  { id: "2", driver_name: "Mukesh Kumar Sharma", driver_mobile: "9879001122", vehicle_no: "GJ-01-CD-5678", license_no: "GJ0120180054321" },
-  { id: "3", driver_name: "Jignesh Vaghela", driver_mobile: "9909223344", vehicle_no: "GJ-03-EF-9012", license_no: "GJ0320190098765" },
-  { id: "4", driver_name: "Suresh Chauhan", driver_mobile: "9712556677", vehicle_no: "GJ-06-GH-3456", license_no: "GJ0620200011223" },
-  { id: "5", driver_name: "Prakash Bhai Rabari", driver_mobile: "9898334455", vehicle_no: "GJ-10-JK-7890", license_no: "GJ1020210044556" },
-];
-
 // ─── Static Mock Bookings (Matching screenshot) ──────────────────────────────
 export const MOCK_BOOKINGS: ParcelBookingRecord[] = [
+
   {
     id: 1,
     tracking_no: "VALT-126581",
@@ -176,31 +156,7 @@ export const MOCK_BOOKINGS: ParcelBookingRecord[] = [
 
 // ─── API Endpoints ────────────────────────────────────────────────────────────
 
-/**
- * GET /branches
- * Fetch all available branches
- */
-export async function getBranches(): Promise<Branch[]> {
-  try {
-    const response = await request<ApiResponse<Branch[]>>("/branches");
-    return response.data;
-  } catch {
-    return MOCK_BRANCHES;
-  }
-}
 
-/**
- * GET /drivers
- * Fetch all available drivers
- */
-export async function getDrivers(): Promise<Driver[]> {
-  try {
-    const response = await request<ApiResponse<Driver[]>>("/drivers");
-    return response.data;
-  } catch {
-    return MOCK_DRIVERS;
-  }
-}
 
 /**
  * GET /bookings

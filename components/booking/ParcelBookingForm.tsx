@@ -26,17 +26,15 @@ import { FormInput, FormTextarea } from "@/components/ui/form-input";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormCard } from "@/components/ui/form-card";
 import type { SearchableSelectOption } from "@/components/ui/searchable-select";
+import { useOnlyBranchList, useDrivers } from "@/lib/hooks";
 import {
-  getBranches,
-  getDrivers,
   getBookingById,
   createParcelBooking,
   updateParcelBooking,
   getLastBookedDocket,
-  MOCK_BRANCHES,
-  MOCK_DRIVERS,
 } from "@/lib/api/booking";
 import { formatCurrency } from "@/lib/utils";
+
 import { showToast } from "@/lib/toast";
 import type {
   ParcelBookingFormData,
@@ -81,18 +79,65 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
     enabled: Boolean(isEdit && bookingId),
   });
 
-  // ─── Fetch Branches, Drivers & Last Docket ──────────────────────────────────
-  const { data: branches = MOCK_BRANCHES } = useQuery({
-    queryKey: ["branches"],
-    queryFn: getBranches,
-    placeholderData: MOCK_BRANCHES,
-  });
+  // ─── Fetch Branches (via GET /user/onlyBranch) ──────────────────────────────
+  const { data: branchDropdownRes, isLoading: isBranchesLoading } = useOnlyBranchList();
+  const branchDropdownList = useMemo(() => {
+    const rawData = branchDropdownRes?.data;
+    if (Array.isArray(rawData)) return rawData;
+    if (rawData && typeof rawData === "object") {
+      if (Array.isArray((rawData as any).branches)) return (rawData as any).branches;
+      if (Array.isArray((rawData as any).users)) return (rawData as any).users;
+      if (Array.isArray((rawData as any).data)) return (rawData as any).data;
+    }
+    return [];
+  }, [branchDropdownRes]);
 
-  const { data: drivers = MOCK_DRIVERS } = useQuery({
-    queryKey: ["drivers"],
-    queryFn: getDrivers,
-    placeholderData: MOCK_DRIVERS,
-  });
+  const branchOptions: SearchableSelectOption[] = useMemo(
+    () =>
+      branchDropdownList.map((b: any) => {
+        const id = String(b._id || b.id || "");
+        const code = b.branchInfo?.branchCode || b.code || "";
+        const name = b.branchInfo?.branchName || b.name || "Branch";
+        const label = code ? `${code} - ${name}` : name;
+        return {
+          value: id,
+          label,
+        };
+      }),
+    [branchDropdownList]
+  );
+
+  // ─── Fetch Drivers (via GET /user/role/driver?page=1&limit=100) ──────────────
+  const { data: driversRes, isLoading: isDriversLoading } = useDrivers({ page: 1, limit: 100 });
+  const driversList = useMemo(() => {
+    const rawData = driversRes?.data;
+    if (Array.isArray(rawData)) return rawData;
+    if (rawData && typeof rawData === "object") {
+      if (Array.isArray((rawData as any).users)) return (rawData as any).users;
+      if (Array.isArray((rawData as any).data)) return (rawData as any).data;
+      if (Array.isArray((rawData as any).drivers)) return (rawData as any).drivers;
+    }
+    return [];
+  }, [driversRes]);
+
+  const driverOptions: SearchableSelectOption[] = useMemo(
+    () =>
+      driversList.map((d: any) => {
+        const id = String(d._id || d.id || "");
+        const name = d.name || d.driver_name || "Driver";
+        const truckNo =
+          typeof d.driverInfo?.assignedTruckId === "object" && d.driverInfo?.assignedTruckId !== null
+            ? d.driverInfo.assignedTruckId.truckInfo?.truckNumber || d.driverInfo.assignedTruckId.name || ""
+            : (d.vehicle_no || "");
+        const label = truckNo ? `${name} (${truckNo})` : name;
+        return {
+          value: id,
+          label,
+        };
+      }),
+    [driversList]
+  );
+
 
   const { data: lastDocketData } = useQuery({
     queryKey: ["last-docket"],
@@ -100,25 +145,6 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
     enabled: !isEdit,
   });
 
-  const branchOptions: SearchableSelectOption[] = useMemo(
-    () =>
-      branches.map((b) => ({
-        value: String(b.id),
-        label: b.name,
-        subLabel: b.city ? `${b.city} (${b.code || ""})` : b.code,
-      })),
-    [branches]
-  );
-
-  const driverOptions: SearchableSelectOption[] = useMemo(
-    () =>
-      drivers.map((d) => ({
-        value: String(d.id),
-        label: d.driver_name,
-        subLabel: `${d.vehicle_no} • ${d.driver_mobile}`,
-      })),
-    [drivers]
-  );
 
   // ─── Form State ─────────────────────────────────────────────────────────────
   const [formData, setFormData] = useState<ParcelBookingFormData>({
@@ -249,20 +275,27 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
       return;
     }
 
-    const selected = drivers.find((d) => String(d.id) === String(driverId));
+    const selected: any = driversList.find((d: any) => String(d._id || d.id) === String(driverId));
     if (selected) {
+      const vehicleNo =
+        typeof selected.driverInfo?.assignedTruckId === "object" && selected.driverInfo?.assignedTruckId !== null
+          ? selected.driverInfo.assignedTruckId.truckInfo?.truckNumber || selected.driverInfo.assignedTruckId.name || ""
+          : (selected.vehicle_no || "");
+      const licenseNo = selected.driverInfo?.drivingLicense?.number || selected.license_no || "";
+
       setFormData((p) => ({
         ...p,
         driver: {
-          driver_id: String(selected.id),
-          driver_name: selected.driver_name,
-          driver_mobile: selected.driver_mobile,
-          vehicle_no: selected.vehicle_no,
-          license_no: selected.license_no || "",
+          driver_id: String(selected._id || selected.id),
+          driver_name: selected.name || selected.driver_name || "",
+          driver_mobile: selected.mobile || selected.driver_mobile || "",
+          vehicle_no: vehicleNo,
+          license_no: licenseNo,
         },
       }));
     }
   };
+
 
   // ─── Auto-calculate Net Cost ────────────────────────────────────────────────
   const totalPackageAmount = useMemo(() => {
