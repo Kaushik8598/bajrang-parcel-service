@@ -23,7 +23,7 @@ import { useBookingReports, useOnlyBranchList, useModulePermissions } from "@/li
 import { getStoredUserRole, getStoredUser } from "@/lib/api/auth";
 import type { BranchDropdownItem } from "@/lib/api/branch";
 import type { ParcelBookingReportItem } from "@/lib/api/reports";
-import { moment } from "@/lib/utils";
+import { getCurrentDateTime } from "@/lib/utils";
 import type { ColumnDef } from "@/lib/types/common";
 
 const HAS_BILL_OPTIONS = [
@@ -46,8 +46,9 @@ function printBiltyReceipt(booking: ParcelBookingReportItem) {
     paymentMethod.toLowerCase() === "topay";
   const formattedBookingDate = booking.bookingDate
     ? `${booking.bookingDate} ${booking.bookingTime || ""}`
-    : moment().format("DD-MM-YYYY hh:mm A");
-  const printedAt = moment().format("DD-MM-YYYY hh:mm A");
+    : getCurrentDateTime();
+  const printedAt = getCurrentDateTime();
+
 
   const fromName = booking.fromBranch
     ? `${booking.fromBranch.branchName || ""}${booking.fromBranch.branchCode ? ` (${booking.fromBranch.branchCode})` : ""

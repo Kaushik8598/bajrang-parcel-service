@@ -16,8 +16,9 @@ import { useParcelDeliveredReports, useOnlyBranchList, useModulePermissions } fr
 import { getStoredUserRole, getStoredUser } from "@/lib/api/auth";
 import type { BranchDropdownItem } from "@/lib/api/branch";
 import type { ParcelBookingReportItem } from "@/lib/api/reports";
-import { moment } from "@/lib/utils";
+import { formatDeliveredDateTime } from "@/lib/utils";
 import type { ColumnDef } from "@/lib/types/common";
+
 
 
 const HAS_BILL_OPTIONS = [
@@ -473,20 +474,19 @@ export default function ParcelDeliveryReportPage() {
       width: "w-32",
       sortValue: (row) => row.deliveryInfo?.deliveredAt || "",
       render: (_, row) => {
-        const rawDeliveredAt = row.deliveryInfo?.deliveredAt;
-        if (!rawDeliveredAt) return <span className="text-slate-400 text-xs">—</span>;
-        const m = moment(rawDeliveredAt);
-        const isValid = m.isValid();
-        const datePart = isValid ? m.format("DD-MM-YYYY") : rawDeliveredAt;
-        const timePart = isValid ? m.format("hh:mm A") : "";
+        const formatted = formatDeliveredDateTime(row.deliveryInfo?.deliveredAt);
+        if (!formatted) return <span className="text-slate-400 text-xs">—</span>;
         return (
           <div className="text-[11px] leading-tight whitespace-nowrap">
-            <p className="font-medium text-slate-900">{datePart}</p>
-            {timePart && <p className="text-slate-500 font-mono text-[10px]">{timePart}</p>}
+            <p className="font-medium text-slate-900">{formatted.datePart}</p>
+            {formatted.timePart && (
+              <p className="text-slate-500 font-mono text-[10px]">{formatted.timePart}</p>
+            )}
           </div>
         );
       },
     },
+
     {
       key: "deliveryRemark",
       label: "Delivered Remark",

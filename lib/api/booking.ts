@@ -1,7 +1,8 @@
-import moment from "moment";
+import { formatDateTime } from "../utils";
 import { request } from "./client";
 import type { ApiResponse } from "../types/common";
 import type { Branch, Driver, ParcelBookingFormData, ParcelBookingRecord } from "../types/booking";
+
 
 // ─── Static Mock Branches (Matching screenshot) ──────────────────────────────
 export const MOCK_BRANCHES: Branch[] = [
@@ -254,8 +255,9 @@ export async function createParcelBooking(
       id: Date.now(),
       tracking_no: `VALT-${Math.floor(100000 + Math.random() * 900000)}`,
       docket_no: `VAR-${Date.now().toString().slice(-9)}`,
-      booking_date: moment().format("DD-MM-YYYY HH:mm:ss"),
+      booking_date: formatDateTime(new Date()),
       from_branch_id: data.from_branch_id,
+
       to_branch_id: data.to_branch_id,
       bill_no: data.bill_no,
       goods_value: data.goods_value,

@@ -1,8 +1,8 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import moment from "moment";
 
 export function cn(...inputs: ClassValue[]) {
+
   return twMerge(clsx(inputs));
 }
 
@@ -23,51 +23,77 @@ export function getInitials(name: string): string {
     .slice(0, 2);
 }
 
-/**
- * Format any date string/timestamp using Moment.js
- * Default format: DD-MM-YYYY
- */
-export function formatDate(
-  date?: string | Date | number | null,
-  format = "DD-MM-YYYY"
-): string {
+export function formatDate(date?: string | Date | number | null): string {
   if (!date) return "—";
-  const parsed = moment(date, [
-    "DD-MM-YYYY HH:mm:ss",
-    "DD-MM-YYYY hh:mm A",
-    "YYYY-MM-DD HH:mm:ss",
-    "YYYY-MM-DD",
-    "DD-MM-YYYY",
-    moment.ISO_8601,
-  ]);
-  return parsed.isValid() ? parsed.format(format) : String(date);
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return String(date);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
 }
 
 /**
- * Format any date-time string/timestamp using Moment.js
+ * Format any date-time string/timestamp
  * Default format: DD-MM-YYYY hh:mm A
  */
-export function formatDateTime(
-  date?: string | Date | number | null,
-  format = "DD-MM-YYYY hh:mm A"
-): string {
+export function formatDateTime(date?: string | Date | number | null): string {
   if (!date) return "—";
-  const parsed = moment(date, [
-    "DD-MM-YYYY HH:mm:ss",
-    "DD-MM-YYYY hh:mm A",
-    "YYYY-MM-DD HH:mm:ss",
-    "YYYY-MM-DD",
-    "DD-MM-YYYY",
-    moment.ISO_8601,
-  ]);
-  return parsed.isValid() ? parsed.format(format) : String(date);
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return String(date);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  let hours = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const formattedHours = String(hours).padStart(2, "0");
+  return `${day}-${month}-${year} ${formattedHours}:${minutes} ${ampm}`;
 }
 
 /**
- * Get current formatted date using Moment.js
+ * Get date and time parts separately for UI rendering
  */
-export function getCurrentDate(format = "YYYY-MM-DD"): string {
-  return moment().format(format);
+export function formatDeliveredDateTime(
+  date?: string | Date | number | null
+): { datePart: string; timePart: string } | null {
+  if (!date) return null;
+  const d = new Date(date);
+  if (isNaN(d.getTime())) {
+    return { datePart: String(date), timePart: "" };
+  }
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  let hours = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const formattedHours = String(hours).padStart(2, "0");
+  return {
+    datePart: `${day}-${month}-${year}`,
+    timePart: `${formattedHours}:${minutes} ${ampm}`,
+  };
 }
 
-export { moment };
+/**
+ * Get current formatted date (YYYY-MM-DD)
+ */
+export function getCurrentDate(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Get current formatted date-time (DD-MM-YYYY hh:mm A)
+ */
+export function getCurrentDateTime(): string {
+  return formatDateTime(new Date());
+}
+
