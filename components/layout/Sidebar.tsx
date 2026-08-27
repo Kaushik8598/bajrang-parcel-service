@@ -21,6 +21,8 @@ import {
   UserCog,
   X,
   PanelLeftClose,
+  Navigation,
+  Megaphone,
 } from "lucide-react";
 import { cn, getInitials } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -49,6 +51,8 @@ const ICON_MAP: Record<string, React.ElementType> = {
   "manage-driver": Package,
   transaction: FileText,
   reports: BarChart3,
+  tracking: Navigation,
+  "marketing-tools": Megaphone,
   "manage-user-rights": ShieldCheck,
   "website-settings": Globe,
 };
@@ -64,9 +68,9 @@ const DEFAULT_MENU: MenuItem[] = [
       { id: "manage-admin", label: "Manage Admin", path: "/master/admin", permission_module: "admin" },
       { id: "manage-branch", label: "Manage Branch", path: "/master/branch", permission_module: "branch" },
       { id: "manage-staff", label: "Manage Staff", path: "/master/staff", permission_module: "staff" },
-      { id: "manage-customer", label: "Manage Customer", path: "/master/customer", permission_module: "customer" },
       { id: "manage-truck", label: "Manage Truck", path: "/master/truck", permission_module: "truck" },
       { id: "manage-driver", label: "Manage Driver", path: "/master/driver", permission_module: "driver" },
+      { id: "manage-customer", label: "Manage Customer", path: "/master/customer", permission_module: "customer" },
     ],
   },
   {
@@ -75,8 +79,12 @@ const DEFAULT_MENU: MenuItem[] = [
     icon: "transaction",
     children: [
       { id: "booking", label: "Parcel Booking", path: "/transaction/booking", permission_module: "booking" },
+      { id: "customer-booking-parcel", label: "Customer Booking Parcel", path: "/transaction/customer-booking", permission_module: "booking" },
+      { id: "load-parcel", label: "Load Parcel", path: "/transaction/load-parcel", permission_module: "loadParcel" },
+      { id: "unload-parcel", label: "Unload Parcel", path: "/transaction/unload-parcel", permission_module: "unloadParcel" },
       { id: "delivery", label: "Parcel Delivery", path: "/transaction/delivery", permission_module: "delivery" },
-      { id: "memo", label: "Memo", path: "/transaction/memo", permission_module: "memo" },
+      { id: "add-memo", label: "Add memo", path: "/transaction/memo", permission_module: "memo" },
+      { id: "add-expense", label: "Add Expence", path: "/transaction/expense", permission_module: "expense" },
     ],
   },
   {
@@ -90,15 +98,16 @@ const DEFAULT_MENU: MenuItem[] = [
       { id: "parcel-pending-report", label: "Parcel Pending Report", path: "/reports/parcel-pending", permission_module: "pendingDelivery" },
       { id: "customer-discount-report", label: "Customer Discount Report", path: "/reports/customer-discount", permission_module: "discountBooking" },
       { id: "pending-delivery-report", label: "Pending Delivery Report", path: "/reports/pending-delivery", permission_module: "pendingDelivery" },
-      { id: "customer-booking-report", label: "Customer Booking Report", path: "/reports/customer-booking", permission_module: "booking" },
       { id: "memo-report", label: "Memo Report", path: "/reports/memo", permission_module: "memo" },
       { id: "branch-expense-report", label: "Branch Expense Report", path: "/reports/branch-expense", permission_module: "expense" },
-      { id: "marketing-tools-report", label: "Marketing Tools", path: "/reports/marketing-tools", permission_module: "marketing" },
     ],
   },
+  { id: "tracking", label: "Tracking", path: "/tracking", icon: "tracking", permission_module: "manageTracking" },
+  { id: "marketing-tools", label: "Marketing Tools", path: "/marketing-tools", icon: "marketing-tools", permission_module: "marketing" },
   { id: "manage-user-rights", label: "Permissions", path: "/permissions", icon: "manage-user-rights", permission_module: "manageRights" },
   { id: "website-settings", label: "Website Settings", path: "/website-settings", icon: "website-settings", permission_module: "profile" },
 ];
+
 
 // ─── Props ─────────────────────────────────────────────────────────────────────
 interface SidebarProps {
@@ -238,9 +247,10 @@ function SidebarItem({
         <div
           className={cn(
             "overflow-hidden transition-all duration-200",
-            expanded ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"
+            expanded ? "max-h-[800px] opacity-100" : "max-h-0 opacity-0"
           )}
         >
+
           <div className="ml-5 border-l border-white/10 pl-2 py-0.5 space-y-0.5">
             {visibleChildren.map((child: MenuItem) => (
               <SidebarItem

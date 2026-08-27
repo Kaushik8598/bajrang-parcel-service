@@ -465,8 +465,9 @@ export default function CustomerBookingReportPage() {
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
               <Filter className="w-3.5 h-3.5 text-[#2980b9]" />
-              <span>Filter Customer Booking Reports</span>
+              <span>Filter Customer Booking Parcel</span>
               {!isAdminOrSuperAdmin && (
+
                 <span className="text-[10px] text-slate-400 font-normal ml-1">
                   (Branch View: Destination Filter)
                 </span>
@@ -569,8 +570,9 @@ export default function CustomerBookingReportPage() {
 
       {/* ─── Reports Data Table ─── */}
       <DataTable<ParcelBookingReportItem>
-        title="Customer Booking Reports"
+        title="Customer Booking Parcel"
         columns={columns}
+
         data={bookingRecords}
         isLoading={isLoading || isFetching}
         permissions={permissions}
