@@ -43,16 +43,12 @@ export async function getBookingById(id: number | string): Promise<ParcelBooking
  */
 export async function createParcelBooking(
   data: any
-): Promise<ParcelBookingRecord> {
-  try {
-    const response = await request<{ success: boolean; data: ParcelBookingRecord }>("/booking", {
-      method: "POST",
-      body: data,
-    });
-    return response.data;
-  } catch (err: any) {
-    throw err;
-  }
+): Promise<any> {
+  const response = await request<any>("/booking", {
+    method: "POST",
+    body: data,
+  });
+  return response;
 }
 
 /**
@@ -62,16 +58,12 @@ export async function createParcelBooking(
 export async function updateParcelBooking(
   id: number | string,
   data: any
-): Promise<ParcelBookingRecord> {
-  try {
-    const response = await request<{ success: boolean; data: ParcelBookingRecord }>(`/booking/${id}`, {
-      method: "PUT",
-      body: data,
-    });
-    return response.data;
-  } catch (err: any) {
-    throw err;
-  }
+): Promise<any> {
+  const response = await request<any>(`/booking/${id}`, {
+    method: "PUT",
+    body: data,
+  });
+  return response;
 }
 
 export interface CancelBookingBody {
@@ -110,7 +102,6 @@ export async function deleteParcelBooking(id: number | string): Promise<boolean>
 
 export interface LastBookingDocketData {
   docketNo?: string;
-  docket_no?: string;
   bookingDate?: string;
   bookingTime?: string;
 }

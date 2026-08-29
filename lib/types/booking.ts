@@ -89,7 +89,7 @@ export interface ParcelBookingFormData {
 export interface ParcelBookingRecord extends Omit<ParcelBookingFormData, "sender_id_proof"> {
   id: number;
   tracking_no: string;
-  docket_no: string;
+  docketNo: string;
   booking_date: string;
   status: "Booked" | "In Transit" | "Delivered" | "Cancelled";
   sender_id_proof_name?: string;

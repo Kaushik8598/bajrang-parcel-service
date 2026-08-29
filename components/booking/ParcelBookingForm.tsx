@@ -16,7 +16,6 @@ import {
   UserCheck,
   FileCheck,
   Loader2,
-  CheckCircle2,
   X,
   UserCog,
   Search,
@@ -62,12 +61,6 @@ const GOODS_VALUE_OPTIONS: SearchableSelectOption[] = [
 const PAYMENT_TYPE_OPTIONS: SearchableSelectOption[] = [
   { value: "Direct", label: "Direct" },
   { value: "Per Package", label: "Per Package" },
-];
-
-const PAYMENT_METHOD_OPTIONS: SearchableSelectOption[] = [
-  { value: "To Pay", label: "To Pay", subLabel: "Receiver pays at delivery" },
-  { value: "Paid", label: "Paid", subLabel: "Sender paid at booking" },
-  { value: "Not Pay", label: "Not Pay", subLabel: "On credit / account" },
 ];
 
 const BILL_TYPE_OPTIONS: SearchableSelectOption[] = [
@@ -142,7 +135,6 @@ export interface ParcelBookingFormProps {
 
 export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelBookingFormProps) {
   const router = useRouter();
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [billType, setBillType] = useState<"with_bill" | "without_bill">("with_bill");
   const [billFile, setBillFile] = useState<File | null>(null);
@@ -958,23 +950,24 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
       }
       return createParcelBooking(payload);
     },
-    onSuccess: (result) => {
-      const msg = isEdit
-        ? `Parcel Booking "${result.docket_no || initialBooking?.docket_no}" updated successfully!`
-        : `Parcel Booking created successfully! Docket No: ${result.docket_no || "BPS-" + Date.now().toString().slice(-6)}`;
-      setSuccessMessage(msg);
-      showToast("success", msg);
+    onSuccess: (result: any) => {
+      const apiMessage = result?.message || result?.data?.message;
+      if (apiMessage) {
+        showToast("success", apiMessage);
+      }
       setFormErrors({});
-      window.scrollTo({ top: 0, behavior: "smooth" });
       setTimeout(() => {
         router.push("/reports/booking");
-      }, 1200);
+      }, 1000);
     },
-    onError: (err: Error) => {
-      const errMsg = err.message || "Failed to process parcel booking.";
-      setFormErrors({ form: errMsg });
-      showToast("error", errMsg);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+    onError: (err: any) => {
+      const apiErrorMessage =
+        err?.response?.data?.message ||
+        err?.data?.message ||
+        err?.message;
+      if (apiErrorMessage) {
+        showToast("error", apiErrorMessage);
+      }
     },
   });
 
@@ -1100,7 +1093,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
           {isEdit ? (
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-[11px] font-semibold bg-blue-50 text-[#2980b9] border border-blue-200 px-2 py-0.5 rounded">
-                Docket: {initialBooking?.docket_no || `#${bookingId}`}
+                Docket: {initialBooking?.docketNo || `#${bookingId}`}
               </span>
               <span className="text-[11px] font-semibold text-slate-500">
                 Tracking: {initialBooking?.tracking_no || "—"}
@@ -1108,21 +1101,24 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
             </div>
           ) : (
             <span className="text-xs font-semibold text-red-600 tracking-wide flex items-center gap-1 flex-wrap">
-              <span>Last Booked Docket :</span>
               {isLastDocketLoading ? (
-                <Skeleton className="h-4 w-28 inline-block bg-slate-200 animate-pulse rounded" />
-              ) : lastDocketData?.docketNo || lastDocketData?.docket_no ? (
-                <span className="text-slate-800 underline font-mono font-bold">
-                  {lastDocketData.docketNo || lastDocketData.docket_no}
-                  {lastDocketData.bookingDate && (
-                    <span className="text-slate-500 font-normal no-underline ml-1 text-[11px]">
-                      ({lastDocketData.bookingDate}{lastDocketData.bookingTime ? ` ${lastDocketData.bookingTime}` : ""})
-                    </span>
-                  )}
-                </span>
-              ) : (
-                <span className="text-slate-500 font-normal">Booking Not Found</span>
-              )}
+                <>
+                  <span>Last Booked Docket :</span>
+                  <Skeleton className="h-4 w-28 inline-block bg-slate-200 animate-pulse rounded" />
+                </>
+              ) : lastDocketData?.docketNo ? (
+                <>
+                  <span>Last Booked Docket :</span>
+                  <span className="text-slate-800 underline font-mono font-bold">
+                    {lastDocketData.docketNo}
+                    {lastDocketData.bookingDate && (
+                      <span className="text-slate-500 font-normal no-underline ml-1 text-[11px]">
+                        ({lastDocketData.bookingDate}{lastDocketData.bookingTime ? ` ${lastDocketData.bookingTime}` : ""})
+                      </span>
+                    )}
+                  </span>
+                </>
+              ) : null}
             </span>
           )}
         </div>
@@ -1136,26 +1132,6 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
           Back to List
         </Button>
       </div>
-
-      {/* ─── Alerts ──────────────────────────────────────────────────────────── */}
-      {successMessage && (
-        <div className="p-2 rounded bg-green-50 border border-green-200 text-green-800 text-xs flex items-center gap-2 animate-in fade-in">
-          <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
-          <span className="font-semibold">{successMessage}</span>
-        </div>
-      )}
-
-      {formErrors.form && (
-        <div className="p-2 rounded bg-red-50 border border-red-200 text-red-700 text-xs flex items-center justify-between gap-2 animate-in fade-in">
-          <span>{formErrors.form}</span>
-          <button
-            onClick={() => setFormErrors((p) => ({ ...p, form: "" }))}
-            className="text-red-400 hover:text-red-600"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
 
       <form
         data-booking-form="true"
