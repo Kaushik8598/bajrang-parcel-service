@@ -58,6 +58,14 @@ export interface UserBalanceResponse {
  * Response: { success: true, data: { balance: 0 } }
  */
 export async function getUserBalance(): Promise<number> {
+  const token = getStoredToken();
+  const stored = getStoredUser();
+  const fallback = typeof stored?.balance === "number" ? stored.balance : 0;
+
+  if (!token) {
+    return fallback;
+  }
+
   try {
     const response = await request<{
       success: boolean;
@@ -68,7 +76,6 @@ export async function getUserBalance(): Promise<number> {
 
     if (response?.data && typeof response.data.balance === "number") {
       const liveBalance = response.data.balance;
-      const stored = getStoredUser();
       if (stored) {
         stored.balance = liveBalance;
         Cookies.set(AUTH_USER_KEY, JSON.stringify(stored), { expires: 7, path: "/", sameSite: "lax" });
@@ -79,10 +86,10 @@ export async function getUserBalance(): Promise<number> {
       return liveBalance;
     }
 
-    return 0;
-  } catch (err) {
-    console.error("getUserBalance API error:", err);
-    return 0;
+    return fallback;
+  } catch {
+    // Silently fall back to cached balance on connection issues
+    return fallback;
   }
 }
 

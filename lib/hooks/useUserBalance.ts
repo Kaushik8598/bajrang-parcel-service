@@ -15,10 +15,14 @@ export function useUserBalance() {
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
     staleTime: 1000 * 30, // 30 seconds
+    retry: 1,
   });
 
+  const stored = getStoredUser();
+  const fallbackBalance = typeof stored?.balance === "number" ? stored.balance : 0;
+
   return {
-    balance: typeof query.data === "number" ? query.data : 0,
+    balance: typeof query.data === "number" ? query.data : fallbackBalance,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     error: query.error,

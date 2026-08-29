@@ -48,6 +48,8 @@ import { cn } from "@/lib/utils";
 import { getStoredUser, getStoredUserRole } from "@/lib/api/auth";
 import { showToast } from "@/lib/toast";
 import { FileUploadPreview } from "@/components/ui/file-upload-preview";
+import { printBookingSlip } from "@/components/booking/BookingPrintSlip";
+import { printBookingBarcode } from "@/components/booking/BookingBarcodeSticker";
 import type {
   ParcelBookingFormData,
   PackageItem,
@@ -138,6 +140,7 @@ export interface SuccessModalState {
   docketNo1?: string;
   docketNo2?: string;
   message?: string;
+  bookingData?: any;
 }
 
 export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelBookingFormProps) {
@@ -964,13 +967,15 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
         showToast("success", apiMessage);
       }
       setFormErrors({});
-      const docketNo1 = result?.data?.docketNo1 || result?.docketNo1 || "";
-      const docketNo2 = result?.data?.docketNo2 || result?.docketNo2 || "";
+      const fullBookingData = result?.data || result;
+      const docketNo1 = fullBookingData?.docketNo1 || fullBookingData?.docketNo || "";
+      const docketNo2 = fullBookingData?.docketNo2 || fullBookingData?.tracking_no || "";
       setSuccessModal({
         isOpen: true,
         docketNo1,
         docketNo2,
         message: apiMessage || (isEdit ? "Booking Updated Successfully!" : "Booking Created Successfully!"),
+        bookingData: fullBookingData,
       });
     },
     onError: (err: any) => {
@@ -2155,7 +2160,23 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
               <Button
                 type="button"
                 onClick={() => {
-                  showToast("info", "Print Slip will be available soon.");
+                  const bData = successModal?.bookingData || formData;
+                  const fromId = bData?.fromBranchId || bData?.from_branch_id || formData.from_branch_id;
+                  const toId = bData?.toBranchId || bData?.to_branch_id || formData.to_branch_id;
+
+                  const selectedFromBranch = branchDropdownList.find(
+                    (b: any) => String(b.value) === String(fromId)
+                  );
+                  const selectedToBranch = branchDropdownList.find(
+                    (b: any) => String(b.value) === String(toId)
+                  );
+
+                  printBookingSlip({
+                    booking: bData,
+                    fromBranch: (selectedFromBranch as any)?.raw || selectedFromBranch,
+                    toBranch: (selectedToBranch as any)?.raw || selectedToBranch,
+                    user: currentUser,
+                  });
                 }}
                 className="bg-[#2980b9] hover:bg-[#2471a3] text-white h-8 px-3 text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
               >
@@ -2167,7 +2188,23 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 type="button"
                 variant="outline"
                 onClick={() => {
-                  showToast("info", "Print Barcode will be available soon.");
+                  const bData = successModal?.bookingData || formData;
+                  const fromId = bData?.fromBranchId || bData?.from_branch_id || formData.from_branch_id;
+                  const toId = bData?.toBranchId || bData?.to_branch_id || formData.to_branch_id;
+
+                  const selectedFromBranch = branchDropdownList.find(
+                    (b: any) => String(b.value) === String(fromId)
+                  );
+                  const selectedToBranch = branchDropdownList.find(
+                    (b: any) => String(b.value) === String(toId)
+                  );
+
+                  printBookingBarcode({
+                    booking: bData,
+                    fromBranch: (selectedFromBranch as any)?.raw || selectedFromBranch,
+                    toBranch: (selectedToBranch as any)?.raw || selectedToBranch,
+                    user: currentUser,
+                  });
                 }}
                 className="h-8 px-3 text-xs font-semibold text-slate-700 border-slate-300 hover:bg-slate-100 flex items-center gap-1.5 transition-colors cursor-pointer"
               >
