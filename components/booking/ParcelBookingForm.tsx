@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
@@ -12,21 +12,18 @@ import {
   ArrowLeft,
   Plus,
   Trash2,
-  Upload,
   UserCheck,
   FileCheck,
   Loader2,
   X,
   UserCog,
-  Search,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { FormInput, FormTextarea } from "@/components/ui/form-input";
-import { FormSelect } from "@/components/ui/form-select";
+import { FormSelect, type FormSelectOption } from "@/components/ui/form-select";
 import { FormCard } from "@/components/ui/form-card";
-import type { SearchableSelectOption } from "@/components/ui/searchable-select";
 import { useOnlyBranchList, useDrivers, useDebounce, useUpload } from "@/lib/hooks";
 import {
   getBookingById,
@@ -35,11 +32,9 @@ import {
   getLastBookedDocket,
   getSenderCustomerSuggestions,
   getReceiverCustomerSuggestions,
-  CustomerSuggestion,
 } from "@/lib/api/booking";
-import { formatCurrency, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { getStoredUser, getStoredUserRole } from "@/lib/api/auth";
-
 import { showToast } from "@/lib/toast";
 import { FileUploadPreview } from "@/components/ui/file-upload-preview";
 import type {
@@ -51,24 +46,18 @@ import type {
   DeliveryType,
 } from "@/lib/types/booking";
 
-// ─── Static dropdown options ──────────────────────────────────────────────────
-const GOODS_VALUE_OPTIONS: SearchableSelectOption[] = [
+const GOODS_VALUE_OPTIONS: FormSelectOption[] = [
   { value: "500", label: "500" },
   { value: "1000", label: "1000" },
   { value: "2000", label: "2000" },
 ];
 
-const PAYMENT_TYPE_OPTIONS: SearchableSelectOption[] = [
+const PAYMENT_TYPE_OPTIONS: FormSelectOption[] = [
   { value: "Direct", label: "Direct" },
   { value: "Per Package", label: "Per Package" },
 ];
 
-const BILL_TYPE_OPTIONS: SearchableSelectOption[] = [
-  { value: "with_bill", label: "With Bill" },
-  { value: "without_bill", label: "Without Bill" },
-];
-
-const DELIVERY_TYPE_OPTIONS: SearchableSelectOption[] = [
+const DELIVERY_TYPE_OPTIONS: FormSelectOption[] = [
   { value: "office", label: "Office" },
   { value: "door", label: "Door" },
 ];
@@ -161,8 +150,8 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
   }, [bookingPreferences]);
 
   // ─── Dynamic Bill Type Options based on bookingPreferences ────────────────
-  const billTypeOptions = useMemo<SearchableSelectOption[]>(() => {
-    const list: SearchableSelectOption[] = [];
+  const billTypeOptions = useMemo<FormSelectOption[]>(() => {
+    const list: FormSelectOption[] = [];
     if (bookingPreferences.bookWithBill !== false) {
       list.push({ value: "with_bill", label: "With Bill" });
     }
@@ -184,8 +173,8 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
   }, [billTypeOptions, billType]);
 
   // ─── Dynamic Payment Method Options based on bookingPreferences ───────────
-  const paymentMethodOptions = useMemo<SearchableSelectOption[]>(() => {
-    const list: SearchableSelectOption[] = [];
+  const paymentMethodOptions = useMemo<FormSelectOption[]>(() => {
+    const list: FormSelectOption[] = [];
     if (bookingPreferences.allowToPayBooking !== false) {
       list.push({ value: "To Pay", label: "To Pay" });
     }
@@ -222,7 +211,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
   });
 
   // ─── Fetch Branches (via GET /user/onlyBranch) ──────────────────────────────
-  const { data: branchDropdownRes, isLoading: isBranchesLoading } = useOnlyBranchList();
+  const { data: branchDropdownRes } = useOnlyBranchList();
   const branchDropdownList = useMemo(() => {
     const rawData = branchDropdownRes?.data;
     if (Array.isArray(rawData)) return rawData;
@@ -234,7 +223,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
     return [];
   }, [branchDropdownRes]);
 
-  const branchOptions: SearchableSelectOption[] = useMemo(
+  const branchOptions: FormSelectOption[] = useMemo(
     () =>
       branchDropdownList.map((b: any) => {
         // API returns flat: { _id, name, code, role }
@@ -251,7 +240,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
   );
 
   // ─── Fetch Drivers (via GET /user/role/driver?page=1&limit=100) ──────────────
-  const { data: driversRes, isLoading: isDriversLoading } = useDrivers({ page: 1, limit: 100 });
+  const { data: driversRes } = useDrivers({ page: 1, limit: 100 });
   const driversList = useMemo(() => {
     const rawData = driversRes?.data;
     if (Array.isArray(rawData)) return rawData;
@@ -263,7 +252,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
     return [];
   }, [driversRes]);
 
-  const driverOptions: SearchableSelectOption[] = useMemo(
+  const driverOptions: FormSelectOption[] = useMemo(
     () =>
       driversList.map((d: any) => {
         const id = String(d._id || d.id || "");
@@ -465,7 +454,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
   const [lastBookingsList, setLastBookingsList] = useState<any[]>([]);
 
   // Query Sender Suggestions via GET /booking/senderCxSuggetion (loads default list on mount, filters on search)
-  const { data: senderSugData, isLoading: isSenderLoading } = useQuery({
+  const { data: senderSugData } = useQuery({
     queryKey: ["sender-suggestions", debouncedSenderSearch],
     queryFn: () => getSenderCustomerSuggestions(debouncedSenderSearch),
     staleTime: 1000 * 30,
@@ -476,7 +465,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
   }, [senderSugData]);
 
   // Query Receiver Suggestions via GET /booking/receiverCxSuggetion?senderMobile=...
-  const { data: receiverSugData, isLoading: isReceiverLoading } = useQuery({
+  const { data: receiverSugData } = useQuery({
     queryKey: ["receiver-suggestions", formData.sender.contact_no, debouncedReceiverSearch],
     queryFn: () =>
       getReceiverCustomerSuggestions(formData.sender.contact_no, debouncedReceiverSearch),
@@ -498,7 +487,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
 
   // ─── Sender FormSelect Options ───────────────────────────────────────────
   const senderOptions = useMemo(() => {
-    const list: SearchableSelectOption[] = senderSuggestions.map((cust) => {
+    const list: FormSelectOption[] = senderSuggestions.map((cust) => {
       const parts = [cust.city, cust.gst].filter(Boolean);
       return {
         value: cust.mobile,
@@ -525,7 +514,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
 
   // ─── Receiver FormSelect Options ─────────────────────────────────────────
   const receiverOptions = useMemo(() => {
-    const list: SearchableSelectOption[] = receiverSuggestions.map((cust) => {
+    const list: FormSelectOption[] = receiverSuggestions.map((cust) => {
       const parts = [cust.city, cust.gst].filter(Boolean);
       return {
         value: cust.mobile,
