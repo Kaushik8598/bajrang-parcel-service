@@ -1,162 +1,8 @@
-import { formatDateTime } from "../utils";
 import { request } from "./client";
 import type { ApiResponse } from "../types/common";
-import type { Branch, Driver, ParcelBookingFormData, ParcelBookingRecord } from "../types/booking";
-
-
-// ─── Static Mock Bookings (Matching screenshot) ──────────────────────────────
-export const MOCK_BOOKINGS: ParcelBookingRecord[] = [
-
-  {
-    id: 1,
-    tracking_no: "VALT-126581",
-    docket_no: "VAR-202649348",
-    booking_date: "24-08-2026 19:41:59",
-    from_branch_id: "1",
-    from_branch_name: "VAR - VARACHHA MAIN",
-    to_branch_id: "2",
-    to_branch_name: "VAL - VALSAD",
-    bill_no: "INV-9921",
-    goods_value: 1000,
-    status: "Booked",
-    sender: {
-      contact_no: "7201077000",
-      gstin: "24AAAAA0000A1Z5",
-      name: "K L COMFORTC",
-      address: "Shop 12, Varachha Main Road",
-      city: "Surat",
-      pincode: "395006",
-    },
-    receiver: {
-      contact_no: "8452823142",
-      gstin: "24BBBBB1111B2Z6",
-      name: "DWRKA FESHAN SATISH BHAI",
-      address: "44, Station Road",
-      city: "Valsad",
-      pincode: "396001",
-    },
-    packages: [
-      { id: "1", qty: 1, material: "Cotton Box", packing: "Carton", payment_type: "Direct", price: 180 },
-    ],
-    total_qty: 1,
-    payment_method: "To Pay",
-    topay_amount: 200,
-    paid_amount: undefined,
-    bilty_charge: 20,
-    net_cost: 200,
-    booking_type: "Branch User",
-    booked_by: "DEEPAKBHAI",
-    remark: "Handle with care",
-  },
-  {
-    id: 2,
-    tracking_no: "VALT-126580",
-    docket_no: "VAR-202649347",
-    booking_date: "24-08-2026 19:37:01",
-    from_branch_id: "1",
-    from_branch_name: "VAR - VARACHHA MAIN",
-    to_branch_id: "2",
-    to_branch_name: "VAL - VALSAD",
-    bill_no: "BILL-1044",
-    goods_value: 500,
-    status: "Booked",
-    sender: {
-      contact_no: "9624177722",
-      gstin: "24CCCCC2222C3Z7",
-      name: "SUPRIME TEX",
-      address: "Ring Road Market",
-      city: "Surat",
-    },
-    receiver: {
-      contact_no: "948343303",
-      gstin: "24DDDDD3333D4Z8",
-      name: "SANKALP",
-      address: "MG Road",
-      city: "Valsad",
-    },
-    packages: [
-      { id: "1", qty: 1, material: "Fabrics", packing: "Bundle", payment_type: "Direct", price: 120 },
-    ],
-    total_qty: 1,
-    payment_method: "To Pay",
-    topay_amount: 140,
-    paid_amount: undefined,
-    bilty_charge: 20,
-    net_cost: 140,
-    booking_type: "Branch User",
-    booked_by: "DEEPAKBHAI",
-  },
-  {
-    id: 3,
-    tracking_no: "ANKT-126579",
-    docket_no: "UDH-202632738",
-    booking_date: "24-08-2026 19:33:48",
-    from_branch_id: "3",
-    from_branch_name: "UDH - UDHNA",
-    to_branch_id: "4",
-    to_branch_name: "ANK - ANKLESHWAR",
-    bill_no: "INV-5520",
-    goods_value: 2000,
-    status: "In Transit",
-    sender: {
-      contact_no: "9825278971",
-      name: "pyramind",
-      city: "Surat",
-    },
-    receiver: {
-      contact_no: "9820765564",
-      name: "SVM GROUP",
-      city: "Ankleshwar",
-    },
-    packages: [
-      { id: "1", qty: 1, material: "Machinery Parts", packing: "Wooden Box", payment_type: "Direct", price: 200 },
-    ],
-    total_qty: 1,
-    payment_method: "To Pay",
-    topay_amount: 220,
-    paid_amount: undefined,
-    bilty_charge: 20,
-    net_cost: 220,
-    booking_type: "Branch User",
-    booked_by: "SANJAY BHAI",
-  },
-  {
-    id: 4,
-    tracking_no: "SURT-126578",
-    docket_no: "AMD-202611942",
-    booking_date: "24-08-2026 18:20:10",
-    from_branch_id: "5",
-    from_branch_name: "AMD - AHMEDABAD CENTRAL",
-    to_branch_id: "1",
-    to_branch_name: "VAR - VARACHHA MAIN",
-    bill_no: "INV-7801",
-    goods_value: 1000,
-    status: "Booked",
-    sender: {
-      contact_no: "9876543210",
-      name: "Mahadev Sarees",
-    },
-    receiver: {
-      contact_no: "9825098250",
-      name: "Radhe Enterprise",
-    },
-    packages: [
-      { id: "1", qty: 3, material: "Silk Sarees", packing: "Carton", payment_type: "Direct", price: 430 },
-    ],
-    total_qty: 3,
-    payment_method: "Paid",
-    topay_amount: undefined,
-    paid_amount: 450,
-    bilty_charge: 20,
-    net_cost: 450,
-    booking_type: "Admin",
-    booked_by: "ADMIN",
-  },
-];
+import type { ParcelBookingRecord } from "../types/booking";
 
 // ─── API Endpoints ────────────────────────────────────────────────────────────
-
-
 
 /**
  * GET /bookings
@@ -172,9 +18,9 @@ export async function getBookings(filters?: {
     const response = await request<ApiResponse<ParcelBookingRecord[]>>("/bookings", {
       params: filters,
     });
-    return response.data;
+    return response.data || [];
   } catch {
-    return MOCK_BOOKINGS;
+    return [];
   }
 }
 
@@ -185,10 +31,9 @@ export async function getBookings(filters?: {
 export async function getBookingById(id: number | string): Promise<ParcelBookingRecord | null> {
   try {
     const response = await request<{ success: boolean; data: ParcelBookingRecord }>(`/booking/${id}`);
-    return response.data;
+    return response.data || null;
   } catch {
-    const found = MOCK_BOOKINGS.find((b) => String(b.id) === String(id));
-    return found || null;
+    return null;
   }
 }
 
