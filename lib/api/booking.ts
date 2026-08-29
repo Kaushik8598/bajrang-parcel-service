@@ -288,16 +288,27 @@ export async function deleteParcelBooking(id: number | string): Promise<boolean>
   }
 }
 
+export interface LastBookingDocketData {
+  docketNo?: string;
+  docket_no?: string;
+  bookingDate?: string;
+  bookingTime?: string;
+}
+
 /**
- * GET /bookings/last-docket
- * Fetch last booked docket number
+ * GET /booking/lastBookingDocket
+ * Fetch last booked docket details
  */
-export async function getLastBookedDocket(): Promise<{ docket_no: string | null }> {
+export async function getLastBookedDocket(): Promise<LastBookingDocketData | null> {
   try {
-    const response = await request<ApiResponse<{ docket_no: string }>>("/bookings/last-docket");
-    return response.data;
+    const response = await request<{
+      success: boolean;
+      data: LastBookingDocketData;
+      message?: string;
+    }>("/booking/lastBookingDocket");
+    return response.data || null;
   } catch {
-    return { docket_no: "VAR-202649348" };
+    return null;
   }
 }
 

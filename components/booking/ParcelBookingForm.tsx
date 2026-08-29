@@ -21,6 +21,7 @@ import {
   UserCog,
   Search,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { FormInput, FormTextarea } from "@/components/ui/form-input";
@@ -584,7 +585,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
     }
   };
 
-  const { data: lastDocketData } = useQuery({
+  const { data: lastDocketData, isLoading: isLastDocketLoading } = useQuery({
     queryKey: ["last-docket"],
     queryFn: getLastBookedDocket,
     enabled: !isEdit,
@@ -870,12 +871,21 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
               </span>
             </div>
           ) : (
-            <span className="text-xs font-semibold text-red-600 tracking-wide">
-              Last Booked Docket :{" "}
-              {lastDocketData?.docket_no ? (
-                <span className="text-slate-800 underline">{lastDocketData.docket_no}</span>
+            <span className="text-xs font-semibold text-red-600 tracking-wide flex items-center gap-1 flex-wrap">
+              <span>Last Booked Docket :</span>
+              {isLastDocketLoading ? (
+                <Skeleton className="h-4 w-28 inline-block bg-slate-200 animate-pulse rounded" />
+              ) : lastDocketData?.docketNo || lastDocketData?.docket_no ? (
+                <span className="text-slate-800 underline font-mono font-bold">
+                  {lastDocketData.docketNo || lastDocketData.docket_no}
+                  {lastDocketData.bookingDate && (
+                    <span className="text-slate-500 font-normal no-underline ml-1 text-[11px]">
+                      ({lastDocketData.bookingDate}{lastDocketData.bookingTime ? ` ${lastDocketData.bookingTime}` : ""})
+                    </span>
+                  )}
+                </span>
               ) : (
-                "Booking Not Found"
+                <span className="text-slate-500 font-normal">Booking Not Found</span>
               )}
             </span>
           )}
