@@ -48,6 +48,17 @@ export interface DriverDetails {
   license_no?: string;
 }
 
+export type DeliveryType = "office" | "door";
+
+export interface DeliveryInfo {
+  deliveryType?: DeliveryType;
+  receiverName?: string;
+  receiverMobile?: string;
+  deliveryProof?: string;
+  deliveredAt?: string;
+  deliveryRemark?: string;
+}
+
 export interface ParcelBookingFormData {
   from_branch_id: string;
   to_branch_id: string;
@@ -60,10 +71,17 @@ export interface ParcelBookingFormData {
   bilty_charge: number;
   net_cost: number;
   hamali_cost?: number;
+  pickup_charge?: number;
+  loading_charge?: number;
+  delivery_type?: DeliveryType;
+  delivery_charge?: number;
+  extra_charge?: number;
+  discount?: number;
   sender_id_proof?: File | null;
   sender_id_proof_url?: string;
   remark?: string;
   cancel_reason?: string;
+  cancel_remark?: string;
   driver?: DriverDetails;
   show_driver_details?: boolean;
 }

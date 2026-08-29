@@ -28,7 +28,7 @@ import { FormInput, FormTextarea } from "@/components/ui/form-input";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormCard } from "@/components/ui/form-card";
 import type { SearchableSelectOption } from "@/components/ui/searchable-select";
-import { useOnlyBranchList, useDrivers, useDebounce } from "@/lib/hooks";
+import { useOnlyBranchList, useDrivers, useDebounce, useUpload } from "@/lib/hooks";
 import {
   getBookingById,
   createParcelBooking,
@@ -49,6 +49,7 @@ import type {
   GoodsValue,
   PaymentType,
   PaymentMethod,
+  DeliveryType,
 } from "@/lib/types/booking";
 
 // ─── Static dropdown options ──────────────────────────────────────────────────
@@ -72,6 +73,11 @@ const PAYMENT_METHOD_OPTIONS: SearchableSelectOption[] = [
 const BILL_TYPE_OPTIONS: SearchableSelectOption[] = [
   { value: "with_bill", label: "With Bill" },
   { value: "without_bill", label: "Without Bill" },
+];
+
+const DELIVERY_TYPE_OPTIONS: SearchableSelectOption[] = [
+  { value: "office", label: "Office" },
+  { value: "door", label: "Door" },
 ];
 
 export interface ExtractedRefPackage {
@@ -140,6 +146,9 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [billType, setBillType] = useState<"with_bill" | "without_bill">("with_bill");
   const [billFile, setBillFile] = useState<File | null>(null);
+  const [billFileUrl, setBillFileUrl] = useState<string>("");
+  const [showAdditionalCharges, setShowAdditionalCharges] = useState(false);
+  const { uploadFile, uploadingFields } = useUpload();
 
   // ─── Role & Branch Access (Stable references) ──────────────────────────────
   const currentUser = useMemo(() => getStoredUser(), []);
@@ -316,11 +325,17 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
       },
     ],
     payment_method: "To Pay",
+    delivery_type: "office",
     bilty_charge: Number((currentUser as any)?.bookingPreferences?.biltyCharge ?? 20),
-    net_cost: Number((currentUser as any)?.bookingPreferences?.biltyCharge ?? 20),
     hamali_cost: Number((currentUser as any)?.bookingPreferences?.hamaliCost ?? 0),
+    pickup_charge: 0,
+    loading_charge: 0,
+    delivery_charge: 0,
+    extra_charge: 0,
+    net_cost: Number((currentUser as any)?.bookingPreferences?.biltyCharge ?? 20),
     remark: "",
     cancel_reason: "",
+    cancel_remark: "",
     show_driver_details: false,
     driver: {
       driver_id: "",
@@ -413,11 +428,19 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 price: (initialBooking.net_cost || 200) - 20,
               },
             ],
-        payment_method: initialBooking.payment_method || "To Pay",
-        bilty_charge: initialBooking.bilty_charge ?? 20,
-        net_cost: initialBooking.net_cost || 20,
+        payment_method: initialBooking.payment_method || (initialBooking as any).paymentMethod || "To Pay",
+        delivery_type: ((initialBooking as any).deliveryInfo?.deliveryType || initialBooking.delivery_type || "office") as DeliveryType,
+        bilty_charge: Number(initialBooking.bilty_charge ?? (initialBooking as any).biltyCharge ?? 20),
+        hamali_cost: Number(initialBooking.hamali_cost ?? (initialBooking as any).hamaliCost ?? 0),
+        pickup_charge: Number(initialBooking.pickup_charge ?? (initialBooking as any).pickupCharge ?? 0),
+        loading_charge: Number(initialBooking.loading_charge ?? (initialBooking as any).loadingCharge ?? 0),
+        delivery_charge: Number(initialBooking.delivery_charge ?? (initialBooking as any).deliveryCharge ?? 0),
+        extra_charge: Number(initialBooking.extra_charge ?? (initialBooking as any).extraCharge ?? 0),
+        net_cost: Number(initialBooking.net_cost ?? (initialBooking as any).finalBillAmount ?? 20),
+        sender_id_proof_url: initialBooking.sender_id_proof_url || (initialBooking as any).senderProof || "",
         remark: initialBooking.remark || "",
-        cancel_reason: initialBooking.cancel_reason || "",
+        cancel_reason: initialBooking.cancel_reason || (initialBooking as any).cancelReason || "",
+        cancel_remark: initialBooking.cancel_remark || (initialBooking as any).cancelRemark || "",
         show_driver_details: Boolean(initialBooking.driver?.driver_name),
         driver: {
           driver_id: initialBooking.driver?.driver_id || "",
@@ -427,6 +450,16 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
           license_no: initialBooking.driver?.license_no || "",
         },
       });
+
+      const hasExtra = Boolean(
+        Number(initialBooking.pickup_charge ?? (initialBooking as any).pickupCharge ?? 0) > 0 ||
+        Number(initialBooking.loading_charge ?? (initialBooking as any).loadingCharge ?? 0) > 0 ||
+        Number(initialBooking.delivery_charge ?? (initialBooking as any).deliveryCharge ?? 0) > 0 ||
+        Number(initialBooking.extra_charge ?? (initialBooking as any).extraCharge ?? 0) > 0 ||
+        Number(initialBooking.hamali_cost ?? (initialBooking as any).hamaliCost ?? 0) > 0 ||
+        ((initialBooking as any).deliveryInfo?.deliveryType || initialBooking.delivery_type) === "door"
+      );
+      setShowAdditionalCharges(hasExtra);
     }
   }, [isEdit, initialBooking]);
 
@@ -722,7 +755,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
   };
 
 
-  // ─── Auto-calculate Net Cost ────────────────────────────────────────────────
+  // ─── Auto-calculate Net Cost (Final Bill Amount) ───────────────────────────
   const totalPackageAmount = useMemo(() => {
     return formData.packages.reduce((sum, pkg) => {
       const price = typeof pkg.price === "number" ? pkg.price : Number(pkg.price) || 0;
@@ -732,7 +765,42 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
     }, 0);
   }, [formData.packages]);
 
-  const calculatedNetCost = totalPackageAmount + (Number(formData.bilty_charge) || 0);
+  const calculatedNetCost = useMemo(() => {
+    const pkgTotal = totalPackageAmount;
+    const bilty = Number(formData.bilty_charge) || 0;
+    const hamali = Number(formData.hamali_cost) || 0;
+    const pickup = Number(formData.pickup_charge) || 0;
+    const loading = Number(formData.loading_charge) || 0;
+    const delivery = Number(formData.delivery_charge) || 0;
+    const extra = Number(formData.extra_charge) || 0;
+
+    return Math.max(0, pkgTotal + bilty + hamali + pickup + loading + delivery + extra);
+  }, [
+    totalPackageAmount,
+    formData.bilty_charge,
+    formData.hamali_cost,
+    formData.pickup_charge,
+    formData.loading_charge,
+    formData.delivery_charge,
+    formData.extra_charge,
+  ]);
+
+  // ─── File Upload Handlers ──────────────────────────────────────────────────
+  const handleBillFileUpload = async (file: File) => {
+    setBillFile(file);
+    const res = await uploadFile(file, "billFile");
+    if (res?.url) {
+      setBillFileUrl(res.url);
+    }
+  };
+
+  const handleSenderProofUpload = async (file: File) => {
+    setFormData((p) => ({ ...p, sender_id_proof: file }));
+    const res = await uploadFile(file, "senderProof");
+    if (res?.url) {
+      setFormData((p) => ({ ...p, sender_id_proof_url: res.url }));
+    }
+  };
 
   // ─── Package Rows Handlers ─────────────────────────────────────────────────
   const addPackageRow = () => {
@@ -824,9 +892,67 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
   // ─── Submit (Create or Update) Mutation ─────────────────────────────────────
   const formMutation = useMutation({
     mutationFn: (data: ParcelBookingFormData) => {
-      // Exclude hamali_cost from mutation payload for now as it's hidden
-      const { hamali_cost, ...restData } = data as any;
-      const payload = { ...restData, net_cost: calculatedNetCost, status: bookingStatus };
+      const payload = {
+        fromBranchId: data.from_branch_id,
+        toBranchId: data.to_branch_id,
+        sender: {
+          mobile: data.sender.contact_no || "",
+          name: data.sender.name || "",
+          gst: data.sender.gstin || "",
+          address: data.sender.address || "",
+          city: data.sender.city || "",
+          pincode: data.sender.pincode || "",
+        },
+        receiver: {
+          mobile: data.receiver.contact_no || "",
+          name: data.receiver.name || "",
+          gst: data.receiver.gstin || "",
+          address: data.receiver.address || "",
+          city: data.receiver.city || "",
+          pincode: data.receiver.pincode || "",
+        },
+        items: data.packages.map((pkg) => {
+          const parcel = Number(pkg.qty) || 0;
+          const rate = Number(pkg.price) || 0;
+          const priceType = pkg.payment_type === "Per Package" ? "perPackage" : "direct";
+          const amount = priceType === "perPackage" ? parcel * rate : rate;
+          return {
+            parcel,
+            material: pkg.material || "",
+            packing: pkg.packing || "",
+            priceType,
+            rate,
+            amount,
+          };
+        }),
+        hamaliCost: Number(data.hamali_cost) || 0,
+        biltyCharge: Number(data.bilty_charge) || 0,
+        pickupCharge: Number(data.pickup_charge) || 0,
+        loadingCharge: Number(data.loading_charge) || 0,
+        deliveryCharge: Number(data.delivery_charge) || 0,
+        extraCharge: Number(data.extra_charge) || 0,
+        discount: 0,
+        finalBillAmount: calculatedNetCost,
+        goodsValue: Number(data.goods_value) || 500,
+        paymentMethod: data.payment_method || "To Pay",
+        senderProof: data.sender_id_proof_url || "",
+        hasBill: billType === "with_bill",
+        billNo: billType === "with_bill" ? data.bill_no : "",
+        billImage: billFileUrl || "",
+        deliveryInfo: {
+          deliveryType: data.delivery_type || "office",
+          receiverName: "",
+          receiverMobile: "",
+          deliveryProof: "",
+          deliveredAt: "",
+          deliveryRemark: "",
+        },
+        cancelReason: data.cancel_reason || "",
+        cancelRemark: data.cancel_remark || "",
+        status: bookingStatus,
+        remark: data.remark || "",
+      };
+
       if (isEdit && bookingId) {
         return updateParcelBooking(bookingId, payload);
       }
@@ -1110,10 +1236,15 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                   <FileUploadPreview
                     label="Bill"
                     fileName={billFile?.name}
-                    onFileSelect={(file) => setBillFile(file)}
-                    onRemove={() => setBillFile(null)}
+                    fileUrl={billFileUrl}
+                    isUploading={uploadingFields["billFile"]}
+                    onFileSelect={handleBillFileUpload}
+                    onRemove={() => {
+                      setBillFile(null);
+                      setBillFileUrl("");
+                    }}
                     accept="image/*,.pdf"
-                    showViewLink={false}
+                    showViewLink={true}
                   />
                 </div>
               )}
@@ -1612,8 +1743,8 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
 
         {/* ─── 4. Payment & Additional Details Section ───────────────────────── */}
         <FormCard title="Payment & Additional Details" icon={CreditCard}>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          {/* Line 1: Payment Method, Bilty Charge, Final Bill Amount, Sender Id Proof */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 items-start">
             {/* Payment Method */}
             <FormSelect
               label="Payment Method"
@@ -1630,18 +1761,19 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
             <FormInput
               label="Bilty Charge (₹)"
               type="number"
+              min="0"
               value={formData.bilty_charge}
               onChange={(e) =>
                 setFormData((p) => ({
                   ...p,
-                  bilty_charge: Number(e.target.value) || 0,
+                  bilty_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
                 }))
               }
             />
 
-            {/* Net Cost (Disabled Input Field) */}
+            {/* Final Bill Amount (Disabled Input Field) */}
             <FormInput
-              label="Net Cost (₹)"
+              label="Final Bill Amount (₹)"
               type="text"
               value={calculatedNetCost}
               disabled
@@ -1650,19 +1782,146 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
 
             {/* Sender Id Proof */}
             <div className="space-y-1">
-              <Label className="text-[11px] font-bold text-black flex items-center gap-0.5 leading-none">Sender Id Proof</Label>
+              <Label className="text-[11px] font-bold text-black flex items-center gap-0.5 leading-none">
+                Sender Id Proof
+              </Label>
               <FileUploadPreview
                 label="Sender Id Proof"
                 fileName={formData.sender_id_proof?.name}
-                onFileSelect={(file) => setFormData((p) => ({ ...p, sender_id_proof: file }))}
-                onRemove={() => setFormData((p) => ({ ...p, sender_id_proof: null }))}
+                fileUrl={formData.sender_id_proof_url}
+                isUploading={uploadingFields["senderProof"]}
+                onFileSelect={handleSenderProofUpload}
+                onRemove={() =>
+                  setFormData((p) => ({
+                    ...p,
+                    sender_id_proof: null,
+                    sender_id_proof_url: "",
+                  }))
+                }
                 accept="image/*,.pdf"
-                showViewLink={false}
+                showViewLink={true}
               />
             </div>
           </div>
 
-          {/* Remarks and Cancel Reason */}
+          {/* Line 2: Collapsible Extra Charges & Delivery Details */}
+          <div className="pt-0.5 border-t border-slate-100">
+            {!showAdditionalCharges ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                tabIndex={-1}
+                onClick={() => setShowAdditionalCharges(true)}
+                className="h-7 text-xs text-[#2980b9] border-[#2980b9]/30 hover:bg-blue-50"
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                Add Extra Charges / Delivery Details
+              </Button>
+            ) : (
+              <div className="p-2 rounded bg-slate-50 border border-slate-200/70 space-y-2 animate-in fade-in-50 duration-150">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-200/60">
+                  <h4 className="text-[11px] font-bold text-black uppercase tracking-wider">
+                    Extra Charges &amp; Delivery Details
+                  </h4>
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowAdditionalCharges(false)}
+                    className="text-slate-400 hover:text-red-600 p-0.5 transition-colors"
+                    title="Collapse extra charges"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                  {/* Delivery Type */}
+                  <FormSelect
+                    label="Delivery Type"
+                    options={DELIVERY_TYPE_OPTIONS}
+                    value={formData.delivery_type || "office"}
+                    onChange={(val) =>
+                      setFormData((p) => ({ ...p, delivery_type: val as DeliveryType }))
+                    }
+                    placeholder="Select Delivery Type"
+                  />
+
+                  {/* Hamali Cost */}
+                  <FormInput
+                    label="Hamali Cost (₹)"
+                    type="number"
+                    min="0"
+                    value={formData.hamali_cost}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        hamali_cost: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                      }))
+                    }
+                  />
+
+                  {/* Pickup Charge */}
+                  <FormInput
+                    label="Pickup Charge (₹)"
+                    type="number"
+                    min="0"
+                    value={formData.pickup_charge}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        pickup_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                      }))
+                    }
+                  />
+
+                  {/* Loading Charge */}
+                  <FormInput
+                    label="Loading Charge (₹)"
+                    type="number"
+                    min="0"
+                    value={formData.loading_charge}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        loading_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                      }))
+                    }
+                  />
+
+                  {/* Delivery Charge */}
+                  <FormInput
+                    label="Delivery Charge (₹)"
+                    type="number"
+                    min="0"
+                    value={formData.delivery_charge}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        delivery_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                      }))
+                    }
+                  />
+
+                  {/* Extra Charge */}
+                  <FormInput
+                    label="Extra Charge (₹)"
+                    type="number"
+                    min="0"
+                    value={formData.extra_charge}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        extra_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Line 3: Remarks and Cancel Reason */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
             <FormTextarea
               label="Remark"

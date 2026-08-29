@@ -179,12 +179,12 @@ export async function getBookings(filters?: {
 }
 
 /**
- * GET /bookings/:id
+ * GET /booking/:id
  * Fetch single booking by id
  */
 export async function getBookingById(id: number | string): Promise<ParcelBookingRecord | null> {
   try {
-    const response = await request<ApiResponse<ParcelBookingRecord>>(`/bookings/${id}`);
+    const response = await request<{ success: boolean; data: ParcelBookingRecord }>(`/booking/${id}`);
     return response.data;
   } catch {
     const found = MOCK_BOOKINGS.find((b) => String(b.id) === String(id));
@@ -193,64 +193,39 @@ export async function getBookingById(id: number | string): Promise<ParcelBooking
 }
 
 /**
- * POST /bookings
+ * POST /booking
  * Create a new parcel booking docket
  */
 export async function createParcelBooking(
-  data: ParcelBookingFormData
+  data: any
 ): Promise<ParcelBookingRecord> {
   try {
-    const response = await request<ApiResponse<ParcelBookingRecord>>("/bookings", {
+    const response = await request<{ success: boolean; data: ParcelBookingRecord }>("/booking", {
       method: "POST",
       body: data,
     });
     return response.data;
-  } catch {
-    // Generate mock record
-    const newRecord: ParcelBookingRecord = {
-      id: Date.now(),
-      tracking_no: `VALT-${Math.floor(100000 + Math.random() * 900000)}`,
-      docket_no: `VAR-${Date.now().toString().slice(-9)}`,
-      booking_date: formatDateTime(new Date()),
-      from_branch_id: data.from_branch_id,
-
-      to_branch_id: data.to_branch_id,
-      bill_no: data.bill_no,
-      goods_value: data.goods_value,
-      sender: data.sender,
-      receiver: data.receiver,
-      packages: data.packages,
-      payment_method: data.payment_method,
-      bilty_charge: data.bilty_charge,
-      net_cost: data.net_cost,
-      status: "Booked",
-      total_qty: data.packages.reduce((sum, p) => sum + (Number(p.qty) || 1), 0),
-      topay_amount: data.payment_method === "To Pay" ? data.net_cost : undefined,
-      paid_amount: data.payment_method === "Paid" ? data.net_cost : undefined,
-      booking_type: "Branch User",
-      booked_by: "DEEPAKBHAI",
-    };
-    return newRecord;
+  } catch (err: any) {
+    throw err;
   }
 }
 
 /**
- * PUT /bookings/:id
+ * PUT /booking/:id
  * Update an existing booking
  */
 export async function updateParcelBooking(
   id: number | string,
-  data: Partial<ParcelBookingFormData>
+  data: any
 ): Promise<ParcelBookingRecord> {
   try {
-    const response = await request<ApiResponse<ParcelBookingRecord>>(`/bookings/${id}`, {
+    const response = await request<{ success: boolean; data: ParcelBookingRecord }>(`/booking/${id}`, {
       method: "PUT",
       body: data,
     });
     return response.data;
-  } catch {
-    const found = MOCK_BOOKINGS.find((b) => String(b.id) === String(id));
-    return { ...found, ...data } as ParcelBookingRecord;
+  } catch (err: any) {
+    throw err;
   }
 }
 
