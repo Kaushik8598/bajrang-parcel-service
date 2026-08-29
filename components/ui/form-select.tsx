@@ -20,6 +20,8 @@ export interface FormSelectProps {
   options: (FormSelectOption | string | number)[];
   value: string | number;
   onChange: (value: string) => void;
+  onSearchChange?: (query: string) => void;
+  allowCustom?: boolean;
   placeholder?: string;
   searchPlaceholder?: string;
   disabled?: boolean;
@@ -38,6 +40,8 @@ export function FormSelect({
   options,
   value,
   onChange,
+  onSearchChange,
+  allowCustom = false,
   placeholder = "Select...",
   searchPlaceholder = "Search...",
   disabled = false,
@@ -181,7 +185,16 @@ export function FormSelect({
                   ref={searchInputRef}
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    onSearchChange?.(e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && allowCustom && searchQuery.trim()) {
+                      e.preventDefault();
+                      handleSelect(searchQuery.trim());
+                    }
+                  }}
                   placeholder={searchPlaceholder}
                   className="w-full h-7 pl-8 pr-2.5 bg-white border border-black rounded text-xs text-black outline-none focus:border-black transition-colors"
                 />
@@ -191,7 +204,18 @@ export function FormSelect({
 
           {/* Options list */}
           <div className="max-h-52 overflow-y-auto py-1">
-            {filteredOptions.length === 0 ? (
+            {allowCustom && searchQuery.trim() && !normalizedOptions.some((o) => o.value.toLowerCase() === searchQuery.trim().toLowerCase()) && (
+              <button
+                type="button"
+                onClick={() => handleSelect(searchQuery.trim())}
+                className="w-full px-3 py-1.5 flex items-center justify-between text-left hover:bg-blue-50 text-[#2980b9] font-semibold text-xs border-b border-slate-100 cursor-pointer"
+              >
+                <span>Use: &quot;{searchQuery.trim()}&quot;</span>
+                <span className="text-[10px] bg-blue-100 text-[#2980b9] px-1.5 py-0.5 rounded">Custom</span>
+              </button>
+            )}
+
+            {filteredOptions.length === 0 && (!allowCustom || !searchQuery.trim()) ? (
               <div className="py-3 text-center text-slate-400 text-xs">
                 No options found
               </div>

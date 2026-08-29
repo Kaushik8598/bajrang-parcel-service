@@ -37,6 +37,7 @@ export interface PackageItem {
   packing: string;
   payment_type: PaymentType;
   price: number | "";
+  ref_id?: string;
 }
 
 export interface DriverDetails {

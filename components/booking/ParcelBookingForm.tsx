@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   X,
   UserCog,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -26,14 +27,17 @@ import { FormInput, FormTextarea } from "@/components/ui/form-input";
 import { FormSelect } from "@/components/ui/form-select";
 import { FormCard } from "@/components/ui/form-card";
 import type { SearchableSelectOption } from "@/components/ui/searchable-select";
-import { useOnlyBranchList, useDrivers } from "@/lib/hooks";
+import { useOnlyBranchList, useDrivers, useDebounce } from "@/lib/hooks";
 import {
   getBookingById,
   createParcelBooking,
   updateParcelBooking,
   getLastBookedDocket,
+  getSenderCustomerSuggestions,
+  getReceiverCustomerSuggestions,
+  CustomerSuggestion,
 } from "@/lib/api/booking";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
 import { getStoredUser, getStoredUserRole } from "@/lib/api/auth";
 
 import { showToast } from "@/lib/toast";
@@ -68,6 +72,61 @@ const BILL_TYPE_OPTIONS: SearchableSelectOption[] = [
   { value: "with_bill", label: "With Bill" },
   { value: "without_bill", label: "Without Bill" },
 ];
+
+export interface ExtractedRefPackage {
+  refId: string;
+  qty: number;
+  material: string;
+  packing: string;
+  payment_type: PaymentType;
+  price: number;
+}
+
+function extractReferencePackages(items: any[] | undefined): ExtractedRefPackage[] {
+  if (!Array.isArray(items) || items.length === 0) return [];
+  const list: ExtractedRefPackage[] = [];
+
+  items.forEach((item: any, idx: number) => {
+    const nested = item.packages || item.items || item.packageDetails || item.packageInfo || item.lastItems;
+    if (Array.isArray(nested) && nested.length > 0) {
+      nested.forEach((p: any, pIdx: number) => {
+        const rawPt = String(p.priceType || p.paymentType || p.payment_type || "").toLowerCase();
+        const mappedPaymentType: PaymentType =
+          rawPt.includes("perpackage") || rawPt === "1" || rawPt === "per package"
+            ? "Per Package"
+            : "Direct";
+        const qty = Number(p.parcel ?? p.qty ?? p.quantity ?? 1) || 1;
+        const price = Number(p.rate ?? p.price ?? 0) || 0;
+        list.push({
+          refId: `ref-${idx}-${pIdx}-${p.material || ""}-${price}-${p._id || p.id || ""}`,
+          qty,
+          material: String(p.material || ""),
+          packing: String(p.packing || ""),
+          payment_type: mappedPaymentType,
+          price,
+        });
+      });
+    } else {
+      const rawPt = String(item.priceType || item.paymentType || item.payment_type || "").toLowerCase();
+      const mappedPaymentType: PaymentType =
+        rawPt.includes("perpackage") || rawPt === "1" || rawPt === "per package"
+          ? "Per Package"
+          : "Direct";
+      const qty = Number(item.parcel ?? item.qty ?? item.quantity ?? 1) || 1;
+      const price = Number(item.rate ?? item.price ?? 0) || 0;
+      list.push({
+        refId: `ref-${idx}-${item.material || ""}-${price}-${item._id || item.id || ""}`,
+        qty,
+        material: String(item.material || ""),
+        packing: String(item.packing || ""),
+        payment_type: mappedPaymentType,
+        price,
+      });
+    }
+  });
+
+  return list;
+}
 
 export interface ParcelBookingFormProps {
   bookingId?: string;
@@ -162,13 +221,6 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
       }),
     [driversList]
   );
-
-
-  const { data: lastDocketData } = useQuery({
-    queryKey: ["last-docket"],
-    queryFn: getLastBookedDocket,
-    enabled: !isEdit,
-  });
 
 
   // ─── Form State ─────────────────────────────────────────────────────────────
@@ -284,6 +336,260 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
     }
   }, [isEdit, initialBooking]);
 
+  // ─── Customer Suggestion States ──────────────────────────────────────────
+  const [senderSearch, setSenderSearch] = useState("");
+  const debouncedSenderSearch = useDebounce(senderSearch, 300);
+
+  const [receiverSearch, setReceiverSearch] = useState("");
+  const debouncedReceiverSearch = useDebounce(receiverSearch, 300);
+
+  const [lastBookingsList, setLastBookingsList] = useState<any[]>([]);
+
+  // Query Sender Suggestions via GET /booking/senderCxSuggetion (loads default list on mount, filters on search)
+  const { data: senderSugData, isLoading: isSenderLoading } = useQuery({
+    queryKey: ["sender-suggestions", debouncedSenderSearch],
+    queryFn: () => getSenderCustomerSuggestions(debouncedSenderSearch),
+    staleTime: 1000 * 30,
+  });
+
+  const senderSuggestions = useMemo(() => {
+    return senderSugData?.customers || [];
+  }, [senderSugData]);
+
+  // Query Receiver Suggestions via GET /booking/receiverCxSuggetion?senderMobile=...
+  const { data: receiverSugData, isLoading: isReceiverLoading } = useQuery({
+    queryKey: ["receiver-suggestions", formData.sender.contact_no, debouncedReceiverSearch],
+    queryFn: () =>
+      getReceiverCustomerSuggestions(formData.sender.contact_no, debouncedReceiverSearch),
+    enabled: Boolean(
+      (formData.sender.contact_no && formData.sender.contact_no.trim().length >= 1) ||
+      (debouncedReceiverSearch && debouncedReceiverSearch.trim().length >= 1)
+    ),
+    staleTime: 1000 * 30,
+  });
+
+  const receiverSuggestions = useMemo(() => {
+    return receiverSugData?.customers || [];
+  }, [receiverSugData]);
+
+  // Extract reference packages from last items
+  const referencePackages = useMemo(() => {
+    return extractReferencePackages(lastBookingsList);
+  }, [lastBookingsList]);
+
+  // ─── Sender FormSelect Options ───────────────────────────────────────────
+  const senderOptions = useMemo(() => {
+    const list: SearchableSelectOption[] = senderSuggestions.map((cust) => {
+      const parts = [cust.city, cust.gst].filter(Boolean);
+      return {
+        value: cust.mobile,
+        label: cust.mobile ? `${cust.mobile} - ${cust.name}` : cust.name,
+        subLabel: parts.length > 0 ? parts.join(" • ") : cust.address,
+      };
+    });
+
+    if (
+      formData.sender.contact_no &&
+      !list.some((o) => o.value === formData.sender.contact_no)
+    ) {
+      list.unshift({
+        value: formData.sender.contact_no,
+        label: formData.sender.name
+          ? `${formData.sender.contact_no} - ${formData.sender.name}`
+          : formData.sender.contact_no,
+        subLabel: formData.sender.city || undefined,
+      });
+    }
+
+    return list;
+  }, [senderSuggestions, formData.sender.contact_no, formData.sender.name, formData.sender.city]);
+
+  // ─── Receiver FormSelect Options ─────────────────────────────────────────
+  const receiverOptions = useMemo(() => {
+    const list: SearchableSelectOption[] = receiverSuggestions.map((cust) => {
+      const parts = [cust.city, cust.gst].filter(Boolean);
+      return {
+        value: cust.mobile,
+        label: cust.mobile ? `${cust.mobile} - ${cust.name}` : cust.name,
+        subLabel: parts.length > 0 ? parts.join(" • ") : cust.address,
+      };
+    });
+
+    if (
+      formData.receiver.contact_no &&
+      !list.some((o) => o.value === formData.receiver.contact_no)
+    ) {
+      list.unshift({
+        value: formData.receiver.contact_no,
+        label: formData.receiver.name
+          ? `${formData.receiver.contact_no} - ${formData.receiver.name}`
+          : formData.receiver.contact_no,
+        subLabel: formData.receiver.city || undefined,
+      });
+    }
+
+    return list;
+  }, [receiverSuggestions, formData.receiver.contact_no, formData.receiver.name, formData.receiver.city]);
+
+  const handleSenderSelect = (val: string) => {
+    const cust = senderSuggestions.find((c) => c.mobile === val);
+    if (cust) {
+      const hasDetails = Boolean(cust.address?.trim() || cust.city?.trim() || cust.pincode?.trim());
+      setFormData((p) => ({
+        ...p,
+        sender: {
+          contact_no: cust.mobile || "",
+          name: cust.name || "",
+          gstin: (cust.gst || "").toUpperCase(),
+          show_details: hasDetails ? true : p.sender.show_details,
+          address: cust.address || (hasDetails ? "" : p.sender.address),
+          city: cust.city || (hasDetails ? "" : p.sender.city),
+          pincode: cust.pincode || (hasDetails ? "" : p.sender.pincode),
+        },
+      }));
+
+      // Extract and set lastItems
+      const items = cust.lastItems || (cust as any).lastBookings || senderSugData?.lastBookings || [];
+      setLastBookingsList(items);
+    } else {
+      // Custom or new contact number: reset previous customer details
+      setFormData((p) => ({
+        ...p,
+        sender: {
+          contact_no: val,
+          name: "",
+          gstin: "",
+          show_details: false,
+          address: "",
+          city: "",
+          pincode: "",
+        },
+      }));
+      setLastBookingsList([]);
+    }
+
+    if (formErrors.sender_contact) {
+      setFormErrors((p) => ({ ...p, sender_contact: "" }));
+    }
+    if (formErrors.sender_name) {
+      setFormErrors((p) => ({ ...p, sender_name: "" }));
+    }
+  };
+
+  const handleReceiverSelect = (val: string) => {
+    const cust = receiverSuggestions.find((c) => c.mobile === val);
+    if (cust) {
+      const hasDetails = Boolean(cust.address?.trim() || cust.city?.trim() || cust.pincode?.trim());
+      setFormData((p) => ({
+        ...p,
+        receiver: {
+          contact_no: cust.mobile || "",
+          name: cust.name || "",
+          gstin: (cust.gst || "").toUpperCase(),
+          show_details: hasDetails ? true : p.receiver.show_details,
+          address: cust.address || (hasDetails ? "" : p.receiver.address),
+          city: cust.city || (hasDetails ? "" : p.receiver.city),
+          pincode: cust.pincode || (hasDetails ? "" : p.receiver.pincode),
+        },
+      }));
+    } else {
+      // Custom or new contact number: reset previous customer details
+      setFormData((p) => ({
+        ...p,
+        receiver: {
+          contact_no: val,
+          name: "",
+          gstin: "",
+          show_details: false,
+          address: "",
+          city: "",
+          pincode: "",
+        },
+      }));
+    }
+
+    if (formErrors.receiver_contact) {
+      setFormErrors((p) => ({ ...p, receiver_contact: "" }));
+    }
+    if (formErrors.receiver_name) {
+      setFormErrors((p) => ({ ...p, receiver_name: "" }));
+    }
+  };
+
+
+
+  const handleToggleRefPackage = (refPkg: ExtractedRefPackage, checked: boolean) => {
+    if (checked) {
+      const isFirstBlank =
+        formData.packages.length === 1 &&
+        !formData.packages[0].ref_id &&
+        !formData.packages[0].material &&
+        (!formData.packages[0].price || Number(formData.packages[0].price) === 0);
+
+      if (isFirstBlank) {
+        setFormData((p) => ({
+          ...p,
+          packages: [
+            {
+              id: p.packages[0].id,
+              qty: refPkg.qty,
+              material: refPkg.material,
+              packing: refPkg.packing,
+              payment_type: refPkg.payment_type,
+              price: refPkg.price,
+              ref_id: refPkg.refId,
+            },
+          ],
+        }));
+      } else {
+        setFormData((p) => ({
+          ...p,
+          packages: [
+            ...p.packages,
+            {
+              id: `pkg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+              qty: refPkg.qty,
+              material: refPkg.material,
+              packing: refPkg.packing,
+              payment_type: refPkg.payment_type,
+              price: refPkg.price,
+              ref_id: refPkg.refId,
+            },
+          ],
+        }));
+      }
+    } else {
+      setFormData((p) => {
+        const remaining = p.packages.filter((pkg) => pkg.ref_id !== refPkg.refId);
+        if (remaining.length === 0) {
+          return {
+            ...p,
+            packages: [
+              {
+                id: "pkg-1",
+                qty: 0,
+                material: "",
+                packing: "",
+                payment_type: "Direct",
+                price: "",
+              },
+            ],
+          };
+        }
+        return {
+          ...p,
+          packages: remaining,
+        };
+      });
+    }
+  };
+
+  const { data: lastDocketData } = useQuery({
+    queryKey: ["last-docket"],
+    queryFn: getLastBookedDocket,
+    enabled: !isEdit,
+  });
+
   // ─── Driver Selection Handler ──────────────────────────────────────────────
   const handleDriverSelect = (driverId: string) => {
     if (!driverId) {
@@ -326,7 +632,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
   const totalPackageAmount = useMemo(() => {
     return formData.packages.reduce((sum, pkg) => {
       const price = typeof pkg.price === "number" ? pkg.price : Number(pkg.price) || 0;
-      const qty = typeof pkg.qty === "number" ? pkg.qty : Number(pkg.qty) || 1;
+      const qty = typeof pkg.qty === "number" ? pkg.qty : Number(pkg.qty) || 0;
       const itemTotal = pkg.payment_type === "Per Package" ? price * qty : price;
       return sum + itemTotal;
     }, 0);
@@ -342,7 +648,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
         ...prev.packages,
         {
           id: `pkg-${Date.now()}`,
-          qty: 1,
+          qty: 0,
           material: "",
           packing: "",
           payment_type: "Direct",
@@ -753,20 +1059,17 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
           >
             {/* Sender Primary Row */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <FormInput
+              <FormSelect
                 label="Contact No"
                 required
-                placeholder="Contact Number"
+                searchable
+                allowCustom
+                options={senderOptions}
                 value={formData.sender.contact_no}
-                onChange={(e) => {
-                  setFormData((p) => ({
-                    ...p,
-                    sender: { ...p.sender, contact_no: e.target.value },
-                  }));
-                  if (formErrors.sender_contact) {
-                    setFormErrors((p) => ({ ...p, sender_contact: "" }));
-                  }
-                }}
+                onChange={handleSenderSelect}
+                onSearchChange={(val) => setSenderSearch(val)}
+                placeholder="Select / Search Contact No"
+                searchPlaceholder="Search mobile, name, city..."
                 error={formErrors.sender_contact}
               />
 
@@ -901,20 +1204,17 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
           >
             {/* Receiver Primary Row */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
-              <FormInput
+              <FormSelect
                 label="Contact No"
                 required
-                placeholder="Contact No"
+                searchable
+                allowCustom
+                options={receiverOptions}
                 value={formData.receiver.contact_no}
-                onChange={(e) => {
-                  setFormData((p) => ({
-                    ...p,
-                    receiver: { ...p.receiver, contact_no: e.target.value },
-                  }));
-                  if (formErrors.receiver_contact) {
-                    setFormErrors((p) => ({ ...p, receiver_contact: "" }));
-                  }
-                }}
+                onChange={handleReceiverSelect}
+                onSearchChange={(val) => setReceiverSearch(val)}
+                placeholder="Select / Search Contact No"
+                searchPlaceholder="Search mobile, name, city..."
                 error={formErrors.receiver_contact}
               />
 
@@ -1034,14 +1334,14 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                     label="Qty"
                     required
                     type="number"
-                    min="1"
+                    min="0"
                     placeholder="Qty"
-                    value={pkg.qty}
+                    value={pkg.qty === 0 ? "" : pkg.qty}
                     onChange={(e) =>
                       updatePackageField(
                         idx,
                         "qty",
-                        e.target.value === "" ? "" : Math.max(1, Number(e.target.value))
+                        e.target.value === "" ? "" : Math.max(0, Number(e.target.value))
                       )
                     }
                     error={formErrors[`pkg_qty_${idx}`]}
@@ -1107,7 +1407,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                   <FormInput
                     label="Total (₹)"
                     type="text"
-                    value={(Number(pkg.qty) || 1) * (Number(pkg.price) || 0)}
+                    value={(Number(pkg.qty) || 0) * (Number(pkg.price) || 0)}
                     disabled
                     readOnly
                   />
@@ -1148,6 +1448,72 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
               </div>
             ))}
           </div>
+
+          {/* Reference Packages Table from Last Bookings (Clean Table only) */}
+          {referencePackages.length > 0 && (
+            <div className="mt-3 pt-2.5 border-t border-slate-200">
+              <div className="overflow-x-auto border border-black rounded bg-white">
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead className="bg-slate-100 text-[11px] font-bold text-black border-b border-black uppercase tracking-wider">
+                    <tr>
+                      <th className="py-1 px-2.5 border-r border-black w-14 text-center">Sr No</th>
+                      <th className="py-1 px-2.5 border-r border-black">Quantity</th>
+                      <th className="py-1 px-2.5 border-r border-black">Material</th>
+                      <th className="py-1 px-2.5 border-r border-black">Packing</th>
+                      <th className="py-1 px-2.5 border-r border-black">Payment Type</th>
+                      <th className="py-1 px-2.5 border-r border-black">Price (₹)</th>
+                      <th className="py-1 px-2.5 text-center w-16">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {referencePackages.map((refPkg, rIdx) => {
+                      const isChecked = formData.packages.some((p) => p.ref_id === refPkg.refId);
+                      return (
+                        <tr
+                          key={refPkg.refId}
+                          className={cn(
+                            "transition-colors",
+                            isChecked ? "bg-blue-50/70 font-semibold" : "hover:bg-slate-50"
+                          )}
+                        >
+                          <td className="py-1.5 px-2.5 border-r border-slate-200 text-center font-mono text-slate-700">
+                            {rIdx + 1}
+                          </td>
+                          <td className="py-1.5 px-2.5 border-r border-slate-200 text-black">
+                            {refPkg.qty}
+                          </td>
+                          <td className="py-1.5 px-2.5 border-r border-slate-200 text-black">
+                            {refPkg.material || "-"}
+                          </td>
+                          <td className="py-1.5 px-2.5 border-r border-slate-200 text-black">
+                            {refPkg.packing || "-"}
+                          </td>
+                          <td className="py-1.5 px-2.5 border-r border-slate-200 text-black">
+                            {refPkg.payment_type}
+                          </td>
+                          <td className="py-1.5 px-2.5 border-r border-slate-200 font-semibold text-black">
+                            ₹{refPkg.price}
+                          </td>
+                          <td className="py-1.5 px-2.5 text-center">
+                            <input
+                              type="checkbox"
+                              tabIndex={-1}
+                              checked={isChecked}
+                              onChange={(e) =>
+                                handleToggleRefPackage(refPkg, e.target.checked)
+                              }
+                              className="w-3.5 h-3.5 text-[#2980b9] rounded border-black focus:ring-black/20 cursor-pointer"
+                              title="Auto-fill this package"
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </FormCard>
 
         {/* ─── 4. Payment & Additional Details Section ───────────────────────── */}

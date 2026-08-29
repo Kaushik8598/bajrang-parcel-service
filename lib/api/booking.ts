@@ -300,3 +300,98 @@ export async function getLastBookedDocket(): Promise<{ docket_no: string | null 
     return { docket_no: "VAR-202649348" };
   }
 }
+
+export interface LastItem {
+  parcel?: number | string;
+  qty?: number | string;
+  quantity?: number | string;
+  material?: string;
+  packing?: string;
+  priceType?: string;
+  paymentType?: string | number;
+  payment_type?: string | number;
+  rate?: number | string;
+  price?: number | string;
+}
+
+export interface CustomerSuggestion {
+  mobile: string;
+  name: string;
+  gst?: string;
+  address?: string;
+  city?: string;
+  pincode?: string;
+  lastItems?: LastItem[];
+  lastBookings?: any[];
+}
+
+export interface SenderCustomerSuggestionResponse {
+  customers: CustomerSuggestion[];
+  total: number;
+  lastBookings?: any[];
+}
+
+export interface ReceiverCustomerSuggestionResponse {
+  customers: CustomerSuggestion[];
+  total: number;
+}
+
+/**
+ * GET /booking/senderCxSuggetion
+ * Fetch sender customer suggestions and last bookings
+ */
+export async function getSenderCustomerSuggestions(search?: string): Promise<SenderCustomerSuggestionResponse> {
+  try {
+    const params: Record<string, string> = {};
+    if (search && search.trim()) {
+      params.search = search.trim();
+    }
+    const response = await request<{
+      success: boolean;
+      data: {
+        customers: CustomerSuggestion[];
+        total: number;
+        lastBookings?: any[];
+      };
+      message?: string;
+    }>("/booking/senderCxSuggetion", {
+      params,
+    });
+    return response.data || { customers: [], total: 0, lastBookings: [] };
+  } catch {
+    return { customers: [], total: 0, lastBookings: [] };
+  }
+}
+
+/**
+ * GET /booking/receiverCxSuggetion
+ * Fetch receiver customer suggestions associated with sender
+ */
+export async function getReceiverCustomerSuggestions(
+  senderMobile?: string,
+  search?: string
+): Promise<ReceiverCustomerSuggestionResponse> {
+  try {
+    const params: Record<string, string> = {};
+    if (senderMobile && senderMobile.trim()) {
+      params.senderMobile = senderMobile.trim();
+    }
+    if (search && search.trim()) {
+      params.search = search.trim();
+    }
+    const response = await request<{
+      success: boolean;
+      data: {
+        customers: CustomerSuggestion[];
+        total: number;
+      };
+      message?: string;
+    }>("/booking/receiverCxSuggetion", {
+      params,
+    });
+    return response.data || { customers: [], total: 0 };
+  } catch {
+    return { customers: [], total: 0 };
+  }
+}
+
