@@ -12,10 +12,9 @@ export function useUserBalance() {
   const query = useQuery({
     queryKey: USER_BALANCE_QUERY_KEY,
     queryFn: getUserBalance,
-    initialData: () => {
-      const stored = getStoredUser();
-      return typeof stored?.balance === "number" ? stored.balance : 0;
-    },
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    staleTime: 1000 * 30, // 30 seconds
   });
 
   return {

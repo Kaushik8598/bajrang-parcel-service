@@ -26,6 +26,8 @@ export interface FormSelectProps {
   searchPlaceholder?: string;
   disabled?: boolean;
   searchable?: boolean;
+  searchNumericOnly?: boolean;
+  searchMaxLength?: number;
   className?: string;
   containerClassName?: string;
   id?: string;
@@ -46,6 +48,8 @@ export function FormSelect({
   searchPlaceholder = "Search...",
   disabled = false,
   searchable = false,
+  searchNumericOnly = false,
+  searchMaxLength,
   className,
   containerClassName,
   id,
@@ -56,6 +60,7 @@ export function FormSelect({
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const isClickingRef = useRef(false);
 
   const hasError = Boolean(error);
   const errorMessage = typeof error === "string" ? error : undefined;
@@ -147,7 +152,47 @@ export function FormSelect({
         id={inputId}
         type="button"
         disabled={disabled}
-        onClick={() => !disabled && setIsOpen((prev) => !prev)}
+        onMouseDown={() => {
+          isClickingRef.current = true;
+        }}
+        onFocus={() => {
+          if (!disabled && !isClickingRef.current) {
+            setIsOpen(true);
+          }
+        }}
+        onClick={() => {
+          if (!disabled) {
+            setIsOpen((prev) => !prev);
+            isClickingRef.current = false;
+          }
+        }}
+        onKeyDown={(e) => {
+          if (disabled) return;
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            if (!isOpen) {
+              setIsOpen(true);
+            } else if (filteredOptions.length > 0) {
+              if (e.key === "ArrowDown") {
+                setHighlightedIndex((prev) => (prev + 1) % filteredOptions.length);
+              } else {
+                setHighlightedIndex((prev) => (prev <= 0 ? filteredOptions.length - 1 : prev - 1));
+              }
+            }
+          } else if (e.key === "Enter" && isOpen && !searchable) {
+            e.preventDefault();
+            if (filteredOptions.length > 0) {
+              const targetOpt =
+                highlightedIndex >= 0 && highlightedIndex < filteredOptions.length
+                  ? filteredOptions[highlightedIndex]
+                  : filteredOptions[0];
+              handleSelect(targetOpt.value);
+            }
+          } else if (e.key === "Escape" && isOpen) {
+            e.preventDefault();
+            setIsOpen(false);
+          }
+        }}
         className={cn(
           "w-full h-8 px-2.5 flex items-center justify-between rounded border border-black bg-white text-xs text-left transition-colors outline-none",
           hasError
@@ -191,9 +236,18 @@ export function FormSelect({
                   ref={searchInputRef}
                   type="text"
                   value={searchQuery}
+                  maxLength={searchMaxLength}
+                  inputMode={searchNumericOnly ? "numeric" : undefined}
                   onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    onSearchChange?.(e.target.value);
+                    let val = e.target.value;
+                    if (searchNumericOnly) {
+                      val = val.replace(/\D/g, "");
+                    }
+                    if (searchMaxLength && searchMaxLength > 0) {
+                      val = val.slice(0, searchMaxLength);
+                    }
+                    setSearchQuery(val);
+                    onSearchChange?.(val);
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "ArrowDown") {

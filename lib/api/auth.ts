@@ -55,14 +55,18 @@ export interface UserBalanceResponse {
 
 /**
  * Get current user balance via GET /user/balance
- * Response: { success: true, data: { balance: 19846 } }
+ * Response: { success: true, data: { balance: 0 } }
  */
 export async function getUserBalance(): Promise<number> {
   try {
-    const response = await request<ApiResponse<UserBalanceResponse>>("/user/balance", {
+    const response = await request<{
+      success: boolean;
+      data?: { balance?: number };
+    }>("/user/balance", {
       method: "GET",
     });
-    if (response?.success && response.data && typeof response.data.balance === "number") {
+
+    if (response?.data && typeof response.data.balance === "number") {
       const liveBalance = response.data.balance;
       const stored = getStoredUser();
       if (stored) {
@@ -74,11 +78,11 @@ export async function getUserBalance(): Promise<number> {
       }
       return liveBalance;
     }
-    const stored = getStoredUser();
-    return typeof stored?.balance === "number" ? stored.balance : 0;
-  } catch {
-    const stored = getStoredUser();
-    return typeof stored?.balance === "number" ? stored.balance : 0;
+
+    return 0;
+  } catch (err) {
+    console.error("getUserBalance API error:", err);
+    return 0;
   }
 }
 

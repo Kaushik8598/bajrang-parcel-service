@@ -2,7 +2,7 @@ export type GoodsValue = 500 | 1000 | 2000 | number;
 
 export type PaymentType = "Direct" | "Per Package";
 
-export type PaymentMethod = "To Pay" | "Paid" | "Not Pay";
+export type PaymentMethod = "To Pay" | "Paid" | "GPay" | "Credit" | "Not Pay" | string;
 
 export interface Branch {
   id: number | string;
@@ -59,6 +59,7 @@ export interface ParcelBookingFormData {
   payment_method: PaymentMethod;
   bilty_charge: number;
   net_cost: number;
+  hamali_cost?: number;
   sender_id_proof?: File | null;
   sender_id_proof_url?: string;
   remark?: string;

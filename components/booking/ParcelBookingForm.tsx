@@ -141,20 +141,77 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
   const [billType, setBillType] = useState<"with_bill" | "without_bill">("with_bill");
   const [billFile, setBillFile] = useState<File | null>(null);
 
-  // ─── Role & Branch Access ─────────────────────────────────────────────────
-  const currentUser = getStoredUser();
-  const currentRole = getStoredUserRole() || "";
+  // ─── Role & Branch Access (Stable references) ──────────────────────────────
+  const currentUser = useMemo(() => getStoredUser(), []);
+  const currentRole = useMemo(() => getStoredUserRole() || "", []);
   const isAdminOrSuperAdmin = ["superAdmin", "admin"].includes(currentRole);
   // user._id matches the branch _id in the branch list API response
   const ownBranchId = useMemo(() => {
     return String(currentUser?._id || currentUser?.id || "");
   }, [currentUser]);
 
-  // ─── Booking Status (from bookingPreferences) ────────────────────────────
-  const bookingStatus = useMemo(() => {
-    const prefs = (currentUser as any)?.bookingPreferences;
-    return prefs?.draftOnlyBooking === true ? "draft" : "confirmed";
+  // ─── Booking Preferences & Status ─────────────────────────────────────────
+  const bookingPreferences = useMemo(() => {
+    return (currentUser as any)?.bookingPreferences || {};
   }, [currentUser]);
+
+  const bookingStatus = useMemo(() => {
+    return bookingPreferences?.draftOnlyBooking === true ? "draft" : "confirmed";
+  }, [bookingPreferences]);
+
+  // ─── Dynamic Bill Type Options based on bookingPreferences ────────────────
+  const billTypeOptions = useMemo<SearchableSelectOption[]>(() => {
+    const list: SearchableSelectOption[] = [];
+    if (bookingPreferences.bookWithBill !== false) {
+      list.push({ value: "with_bill", label: "With Bill" });
+    }
+    if (bookingPreferences.bookWithoutBill !== false) {
+      list.push({ value: "without_bill", label: "Without Bill" });
+    }
+    if (list.length === 0) {
+      list.push({ value: "with_bill", label: "With Bill" });
+      list.push({ value: "without_bill", label: "Without Bill" });
+    }
+    return list;
+  }, [bookingPreferences]);
+
+  // Auto-sync valid billType if current selection is disabled
+  useEffect(() => {
+    if (billTypeOptions.length > 0 && !billTypeOptions.some((o) => o.value === billType)) {
+      setBillType(billTypeOptions[0].value as "with_bill" | "without_bill");
+    }
+  }, [billTypeOptions, billType]);
+
+  // ─── Dynamic Payment Method Options based on bookingPreferences ───────────
+  const paymentMethodOptions = useMemo<SearchableSelectOption[]>(() => {
+    const list: SearchableSelectOption[] = [];
+    if (bookingPreferences.allowToPayBooking !== false) {
+      list.push({ value: "To Pay", label: "To Pay" });
+    }
+    if (bookingPreferences.allowPaidBooking !== false) {
+      list.push({ value: "Paid", label: "Paid" });
+    }
+    if (bookingPreferences.allowGPayBooking === true) {
+      list.push({ value: "GPay", label: "GPay" });
+    }
+    if (bookingPreferences.allowCreditBooking === true) {
+      const pendingLimit = bookingPreferences.creditLimitPending ?? 0;
+      list.push({
+        value: "Credit",
+        label: "Credit",
+        subLabel: `Pending Limit: ₹${pendingLimit}`,
+      });
+    }
+    if (bookingPreferences.allowNotPayBooking === true) {
+      list.push({ value: "Not Pay", label: "Not Pay" });
+    }
+
+    if (list.length === 0) {
+      list.push({ value: "To Pay", label: "To Pay" });
+      list.push({ value: "Paid", label: "Paid" });
+    }
+    return list;
+  }, [bookingPreferences]);
 
   // ─── Fetch Booking by ID (for Edit mode) ────────────────────────────────────
   const { data: initialBooking, isLoading: isBookingLoading } = useQuery({
@@ -259,8 +316,9 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
       },
     ],
     payment_method: "To Pay",
-    bilty_charge: 20,
-    net_cost: 20,
+    bilty_charge: Number((currentUser as any)?.bookingPreferences?.biltyCharge ?? 20),
+    net_cost: Number((currentUser as any)?.bookingPreferences?.biltyCharge ?? 20),
+    hamali_cost: Number((currentUser as any)?.bookingPreferences?.hamaliCost ?? 0),
     remark: "",
     cancel_reason: "",
     show_driver_details: false,
@@ -272,6 +330,41 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
       license_no: "",
     },
   });
+
+  // Auto-sync default payment_method, bilty_charge, and hamali_cost from bookingPreferences in create mode
+  useEffect(() => {
+    if (!isEdit) {
+      setFormData((p) => {
+        const nextPaymentMethod =
+          paymentMethodOptions.length > 0 && !paymentMethodOptions.some((o) => o.value === p.payment_method)
+            ? (paymentMethodOptions[0].value as PaymentMethod)
+            : p.payment_method;
+        const nextBiltyCharge =
+          bookingPreferences.biltyCharge !== undefined
+            ? Number(bookingPreferences.biltyCharge) || 0
+            : p.bilty_charge;
+        const nextHamaliCost =
+          bookingPreferences.hamaliCost !== undefined
+            ? Number(bookingPreferences.hamaliCost) || 0
+            : p.hamali_cost;
+
+        if (
+          p.payment_method === nextPaymentMethod &&
+          p.bilty_charge === nextBiltyCharge &&
+          p.hamali_cost === nextHamaliCost
+        ) {
+          return p;
+        }
+
+        return {
+          ...p,
+          payment_method: nextPaymentMethod,
+          bilty_charge: nextBiltyCharge,
+          hamali_cost: nextHamaliCost,
+        };
+      });
+    }
+  }, [isEdit, paymentMethodOptions, bookingPreferences]);
 
   // Populate data in Edit mode
   useEffect(() => {
@@ -731,7 +824,9 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
   // ─── Submit (Create or Update) Mutation ─────────────────────────────────────
   const formMutation = useMutation({
     mutationFn: (data: ParcelBookingFormData) => {
-      const payload = { ...data, net_cost: calculatedNetCost, status: bookingStatus };
+      // Exclude hamali_cost from mutation payload for now as it's hidden
+      const { hamali_cost, ...restData } = data as any;
+      const payload = { ...restData, net_cost: calculatedNetCost, status: bookingStatus };
       if (isEdit && bookingId) {
         return updateParcelBooking(bookingId, payload);
       }
@@ -972,7 +1067,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
               <FormSelect
                 label="Bill Type"
                 required
-                options={BILL_TYPE_OPTIONS}
+                options={billTypeOptions}
                 value={billType}
                 onChange={(val) => {
                   setBillType(val as "with_bill" | "without_bill");
@@ -1059,12 +1154,14 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 required
                 searchable
                 allowCustom
+                searchNumericOnly
+                searchMaxLength={10}
                 options={senderOptions}
                 value={formData.sender.contact_no}
                 onChange={handleSenderSelect}
                 onSearchChange={(val) => setSenderSearch(val)}
                 placeholder="Select / Search Contact No"
-                searchPlaceholder="Search mobile, name, city..."
+                searchPlaceholder="Enter 10-digit mobile..."
                 error={formErrors.sender_contact}
               />
 
@@ -1200,12 +1297,14 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 required
                 searchable
                 allowCustom
+                searchNumericOnly
+                searchMaxLength={10}
                 options={receiverOptions}
                 value={formData.receiver.contact_no}
                 onChange={handleReceiverSelect}
                 onSearchChange={(val) => setReceiverSearch(val)}
                 placeholder="Select / Search Contact No"
-                searchPlaceholder="Search mobile, name, city..."
+                searchPlaceholder="Enter 10-digit mobile..."
                 error={formErrors.receiver_contact}
               />
 
@@ -1398,7 +1497,11 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                   <FormInput
                     label="Total (₹)"
                     type="text"
-                    value={(Number(pkg.qty) || 0) * (Number(pkg.price) || 0)}
+                    value={
+                      pkg.payment_type === "Per Package"
+                        ? (Number(pkg.qty) || 0) * (Number(pkg.price) || 0)
+                        : (Number(pkg.price) || 0)
+                    }
                     disabled
                     readOnly
                   />
@@ -1515,7 +1618,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
             <FormSelect
               label="Payment Method"
               required
-              options={PAYMENT_METHOD_OPTIONS}
+              options={paymentMethodOptions}
               value={formData.payment_method}
               onChange={(val) =>
                 setFormData((p) => ({ ...p, payment_method: val as PaymentMethod }))
