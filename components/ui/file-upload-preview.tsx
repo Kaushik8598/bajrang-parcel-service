@@ -102,7 +102,7 @@ export function FileUploadPreview({
         /* Upload Trigger Button */
         <label
           className={cn(
-            "cursor-pointer flex items-center justify-center gap-1.5 h-7 px-2 rounded border border-dashed border-slate-300 hover:border-black bg-white text-[11px] font-medium text-slate-700 transition-colors",
+            "cursor-pointer flex items-center justify-center gap-1.5 h-8 px-2.5 rounded border border-dashed border-black bg-white text-[11px] font-medium text-black transition-colors hover:bg-slate-50",
             (isUploading || disabled) && "pointer-events-none opacity-70"
           )}
         >

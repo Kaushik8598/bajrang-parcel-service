@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
@@ -34,8 +34,10 @@ import {
   getLastBookedDocket,
 } from "@/lib/api/booking";
 import { formatCurrency } from "@/lib/utils";
+import { getStoredUser, getStoredUserRole } from "@/lib/api/auth";
 
 import { showToast } from "@/lib/toast";
+import { FileUploadPreview } from "@/components/ui/file-upload-preview";
 import type {
   ParcelBookingFormData,
   PackageItem,
@@ -62,6 +64,11 @@ const PAYMENT_METHOD_OPTIONS: SearchableSelectOption[] = [
   { value: "Not Pay", label: "Not Pay", subLabel: "On credit / account" },
 ];
 
+const BILL_TYPE_OPTIONS: SearchableSelectOption[] = [
+  { value: "with_bill", label: "With Bill" },
+  { value: "without_bill", label: "Without Bill" },
+];
+
 export interface ParcelBookingFormProps {
   bookingId?: string;
   isEdit?: boolean;
@@ -71,6 +78,23 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
   const router = useRouter();
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [billType, setBillType] = useState<"with_bill" | "without_bill">("with_bill");
+  const [billFile, setBillFile] = useState<File | null>(null);
+
+  // ─── Role & Branch Access ─────────────────────────────────────────────────
+  const currentUser = getStoredUser();
+  const currentRole = getStoredUserRole() || "";
+  const isAdminOrSuperAdmin = ["superAdmin", "admin"].includes(currentRole);
+  // user._id matches the branch _id in the branch list API response
+  const ownBranchId = useMemo(() => {
+    return String(currentUser?._id || currentUser?.id || "");
+  }, [currentUser]);
+
+  // ─── Booking Status (from bookingPreferences) ────────────────────────────
+  const bookingStatus = useMemo(() => {
+    const prefs = (currentUser as any)?.bookingPreferences;
+    return prefs?.draftOnlyBooking === true ? "draft" : "confirmed";
+  }, [currentUser]);
 
   // ─── Fetch Booking by ID (for Edit mode) ────────────────────────────────────
   const { data: initialBooking, isLoading: isBookingLoading } = useQuery({
@@ -95,9 +119,10 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
   const branchOptions: SearchableSelectOption[] = useMemo(
     () =>
       branchDropdownList.map((b: any) => {
+        // API returns flat: { _id, name, code, role }
         const id = String(b._id || b.id || "");
-        const code = b.branchInfo?.branchCode || b.code || "";
-        const name = b.branchInfo?.branchName || b.name || "Branch";
+        const code = b.code || b.branchInfo?.branchCode || "";
+        const name = b.name || b.branchInfo?.branchName || "Branch";
         const label = code ? `${code} - ${name}` : name;
         return {
           value: id,
@@ -148,7 +173,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
 
   // ─── Form State ─────────────────────────────────────────────────────────────
   const [formData, setFormData] = useState<ParcelBookingFormData>({
-    from_branch_id: "",
+    from_branch_id: isAdminOrSuperAdmin ? "" : ownBranchId,
     to_branch_id: "",
     bill_no: "",
     goods_value: 500,
@@ -173,7 +198,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
     packages: [
       {
         id: "pkg-1",
-        qty: 1,
+        qty: 0,
         material: "",
         packing: "",
         payment_type: "Direct",
@@ -399,10 +424,11 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
   // ─── Submit (Create or Update) Mutation ─────────────────────────────────────
   const formMutation = useMutation({
     mutationFn: (data: ParcelBookingFormData) => {
+      const payload = { ...data, net_cost: calculatedNetCost, status: bookingStatus };
       if (isEdit && bookingId) {
-        return updateParcelBooking(bookingId, { ...data, net_cost: calculatedNetCost });
+        return updateParcelBooking(bookingId, payload);
       }
-      return createParcelBooking({ ...data, net_cost: calculatedNetCost });
+      return createParcelBooking(payload);
     },
     onSuccess: (result) => {
       const msg = isEdit
@@ -432,6 +458,82 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
       return;
     }
     formMutation.mutate(formData);
+  };
+
+  // ─── Enter = Next Field Navigation ──────────────────────────────────────────
+  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
+    if (e.key !== "Enter") return;
+
+    const target = e.target as HTMLElement;
+
+    // 1. If Enter is pressed directly on the submit button, allow normal form submission
+    if (target.tagName === "BUTTON" && (target as HTMLButtonElement).type === "submit") {
+      return;
+    }
+
+    // 2. If Enter is pressed on the cancel button, allow click execution
+    if (
+      target.tagName === "BUTTON" &&
+      (target.getAttribute("data-action") === "cancel" || target.textContent?.trim() === "Cancel")
+    ) {
+      target.click();
+      return;
+    }
+
+    // 3. In textarea, Shift+Enter makes newline; regular Enter advances to next field
+    if (target.tagName === "TEXTAREA" && e.shiftKey) {
+      return;
+    }
+
+    e.preventDefault();
+
+    const form = e.currentTarget;
+
+    // 4. Query all navigable form elements (inputs, textareas, selects, submit, cancel)
+    const allElements = Array.from(
+      form.querySelectorAll<HTMLElement>(
+        'input:not([disabled]):not([readonly]):not([type="hidden"]):not([tabindex="-1"]), ' +
+        'textarea:not([disabled]):not([readonly]):not([tabindex="-1"]), ' +
+        'button:not([disabled]):not([tabindex="-1"])'
+      )
+    );
+
+    // 5. Filter only visible elements and valid form controls/action buttons
+    const focusable = allElements.filter((el) => {
+      // Must be visible
+      if (el.offsetParent === null) return false;
+
+      // Filter buttons: only include FormSelect triggers, Submit button, and Cancel button
+      if (el.tagName === "BUTTON") {
+        const btn = el as HTMLButtonElement;
+        if (btn.type === "submit") return true;
+        if (btn.getAttribute("data-action") === "cancel" || btn.textContent?.trim() === "Cancel") return true;
+        if (btn.id && btn.id.startsWith("select-")) return true;
+        if (btn.parentElement?.classList.contains("relative") && btn.querySelector(".truncate")) return true;
+        return false;
+      }
+
+      return true;
+    });
+
+    const currentIndex = focusable.indexOf(target);
+    if (currentIndex !== -1 && currentIndex < focusable.length - 1) {
+      const nextElement = focusable[currentIndex + 1];
+      nextElement.focus();
+      if (nextElement instanceof HTMLInputElement) {
+        nextElement.select?.();
+      }
+    } else if (currentIndex === -1) {
+      // If target was not in focusable directly, find the nearest next one
+      const targetPos = target.compareDocumentPosition.bind(target);
+      const nextElement = focusable.find((el) => (targetPos(el) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0);
+      if (nextElement) {
+        nextElement.focus();
+        if (nextElement instanceof HTMLInputElement) {
+          nextElement.select?.();
+        }
+      }
+    }
   };
 
   if (isEdit && isBookingLoading) {
@@ -503,12 +605,13 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-1">
+      <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="space-y-1">
         {/* ─── 1. Destination & Transport Section ────────────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
           {/* Destination Card */}
           <FormCard title="Destination" icon={MapPin}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              {/* From Branch — admin/superadmin editable; others see their own branch locked */}
               <FormSelect
                 label="Select From Branch"
                 required
@@ -523,12 +626,13 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 placeholder="Select From Branch"
                 searchPlaceholder="Search branch..."
                 error={formErrors.from_branch_id}
+                disabled={!isAdminOrSuperAdmin}
               />
 
               <FormSelect
                 label="Select To Branch"
                 required
-                options={branchOptions}
+                options={branchOptions.filter((b) => b.value !== formData.from_branch_id)}
                 value={formData.to_branch_id}
                 onChange={(val) => {
                   setFormData((p) => ({ ...p, to_branch_id: val }));
@@ -545,24 +649,74 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
 
           {/* Transport Card */}
           <FormCard title="Transport" icon={Truck}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-              <FormInput
-                label="Bill No"
-                placeholder="Bill No / LR No"
-                value={formData.bill_no}
-                onChange={(e) => setFormData((p) => ({ ...p, bill_no: e.target.value }))}
+            <div className="space-y-1.5">
+              {/* Bill Type Dropdown */}
+              <FormSelect
+                label="Bill Type"
+                required
+                options={BILL_TYPE_OPTIONS}
+                value={billType}
+                onChange={(val) => {
+                  setBillType(val as "with_bill" | "without_bill");
+                  if (val === "without_bill") {
+                    setFormData((p) => ({ ...p, bill_no: "" }));
+                    setBillFile(null);
+                  }
+                }}
+                placeholder="Select Bill Type"
               />
 
-              <FormSelect
-                label="Goods Value"
-                options={GOODS_VALUE_OPTIONS}
-                value={String(formData.goods_value)}
-                onChange={(val) =>
-                  setFormData((p) => ({ ...p, goods_value: Number(val) as GoodsValue }))
-                }
-                placeholder="Select Goods Value"
-                searchPlaceholder="Search goods value..."
-              />
+              {/* With Bill: Bill No + Goods Value + Bill Upload in one row */}
+              {billType === "with_bill" && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                  <FormInput
+                    label="Bill No"
+                    required
+                    placeholder="Bill No / LR No"
+                    value={formData.bill_no}
+                    onChange={(e) => setFormData((p) => ({ ...p, bill_no: e.target.value }))}
+                  />
+
+                  <FormSelect
+                    label="Goods Value"
+                    required
+                    options={GOODS_VALUE_OPTIONS}
+                    value={String(formData.goods_value)}
+                    onChange={(val) =>
+                      setFormData((p) => ({ ...p, goods_value: Number(val) as GoodsValue }))
+                    }
+                    placeholder="Select Goods Value"
+                    searchPlaceholder="Search goods value..."
+                  />
+
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-bold text-black flex items-center gap-0.5 leading-none">Bill Upload</Label>
+                    <FileUploadPreview
+                      label="Bill"
+                      fileName={billFile?.name}
+                      onFileSelect={(file) => setBillFile(file)}
+                      onRemove={() => setBillFile(null)}
+                      accept="image/*,.pdf"
+                      showViewLink={false}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Without Bill: Goods Value only */}
+              {billType === "without_bill" && (
+                <FormSelect
+                  label="Goods Value"
+                  required
+                  options={GOODS_VALUE_OPTIONS}
+                  value={String(formData.goods_value)}
+                  onChange={(val) =>
+                    setFormData((p) => ({ ...p, goods_value: Number(val) as GoodsValue }))
+                  }
+                  placeholder="Select Goods Value"
+                  searchPlaceholder="Search goods value..."
+                />
+              )}
             </div>
           </FormCard>
         </div>
@@ -578,6 +732,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 <Button
                   type="button"
                   size="sm"
+                  tabIndex={-1}
                   onClick={() =>
                     setFormData((p) => ({
                       ...p,
@@ -655,6 +810,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                   </span>
                   <button
                     type="button"
+                    tabIndex={-1}
                     onClick={() =>
                       setFormData((p) => ({
                         ...p,
@@ -724,6 +880,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 <Button
                   type="button"
                   size="sm"
+                  tabIndex={-1}
                   onClick={() =>
                     setFormData((p) => ({
                       ...p,
@@ -801,6 +958,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                   </span>
                   <button
                     type="button"
+                    tabIndex={-1}
                     onClick={() =>
                       setFormData((p) => ({
                         ...p,
@@ -963,6 +1121,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                       <Button
                         type="button"
                         size="sm"
+                        tabIndex={-1}
                         onClick={addPackageRow}
                         className="h-8 w-7 p-0 bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-none"
                         title="Add row"
@@ -975,6 +1134,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                       <Button
                         type="button"
                         size="sm"
+                        tabIndex={-1}
                         variant="destructive"
                         onClick={() => removePackageRow(idx)}
                         className="h-8 w-7 p-0 bg-[#e74c3c] hover:bg-[#c0392b] text-white shadow-none"
@@ -1030,29 +1190,15 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
 
             {/* Sender Id Proof */}
             <div className="space-y-1">
-              <Label className="text-[11px] font-bold text-black leading-none">Sender Id Proof:</Label>
-              <div className="relative">
-                <input
-                  type="file"
-                  id="sender-id-proof"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] || null;
-                    setFormData((p) => ({ ...p, sender_id_proof: file }));
-                  }}
-                />
-                <label
-                  htmlFor="sender-id-proof"
-                  className="h-8 px-2.5 flex items-center justify-between border border-black rounded text-xs text-black bg-white hover:bg-slate-50 cursor-pointer transition-colors"
-                >
-                  <span className="truncate max-w-[140px]">
-                    {formData.sender_id_proof
-                      ? formData.sender_id_proof.name
-                      : "Choose file..."}
-                  </span>
-                  <Upload className="w-3 h-3 text-slate-500 flex-shrink-0 ml-1" />
-                </label>
-              </div>
+              <Label className="text-[11px] font-bold text-black flex items-center gap-0.5 leading-none">Sender Id Proof</Label>
+              <FileUploadPreview
+                label="Sender Id Proof"
+                fileName={formData.sender_id_proof?.name}
+                onFileSelect={(file) => setFormData((p) => ({ ...p, sender_id_proof: file }))}
+                onRemove={() => setFormData((p) => ({ ...p, sender_id_proof: null }))}
+                accept="image/*,.pdf"
+                showViewLink={false}
+              />
             </div>
           </div>
 
@@ -1080,6 +1226,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 type="button"
                 variant="outline"
                 size="sm"
+                tabIndex={-1}
                 onClick={() =>
                   setFormData((p) => ({ ...p, show_driver_details: true }))
                 }
@@ -1099,6 +1246,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                   </div>
                   <button
                     type="button"
+                    tabIndex={-1}
                     onClick={() =>
                       setFormData((p) => ({
                         ...p,
@@ -1210,6 +1358,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
 
           <Button
             type="button"
+            data-action="cancel"
             variant="outline"
             onClick={() => router.push("/reports/booking")}
             className="h-8 px-5 text-xs text-slate-600 border-slate-200 hover:bg-slate-50"
