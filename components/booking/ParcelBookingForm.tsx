@@ -17,6 +17,9 @@ import {
   Loader2,
   X,
   UserCog,
+  Check,
+  Printer,
+  Barcode,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -24,6 +27,14 @@ import { Label } from "@/components/ui/label";
 import { FormInput, FormTextarea } from "@/components/ui/form-input";
 import { FormSelect, type FormSelectOption } from "@/components/ui/form-select";
 import { FormCard } from "@/components/ui/form-card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useOnlyBranchList, useDrivers, useDebounce, useUpload } from "@/lib/hooks";
 import {
   getBookingById,
@@ -122,6 +133,13 @@ export interface ParcelBookingFormProps {
   isEdit?: boolean;
 }
 
+export interface SuccessModalState {
+  isOpen: boolean;
+  docketNo1?: string;
+  docketNo2?: string;
+  message?: string;
+}
+
 export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelBookingFormProps) {
   const router = useRouter();
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -129,6 +147,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
   const [billFile, setBillFile] = useState<File | null>(null);
   const [billFileUrl, setBillFileUrl] = useState<string>("");
   const [showAdditionalCharges, setShowAdditionalCharges] = useState(false);
+  const [successModal, setSuccessModal] = useState<SuccessModalState | null>(null);
   const { uploadFile, uploadingFields } = useUpload();
 
   // ─── Role & Branch Access (Stable references) ──────────────────────────────
@@ -945,9 +964,14 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
         showToast("success", apiMessage);
       }
       setFormErrors({});
-      setTimeout(() => {
-        router.push("/reports/booking");
-      }, 1000);
+      const docketNo1 = result?.data?.docketNo1 || result?.docketNo1 || "";
+      const docketNo2 = result?.data?.docketNo2 || result?.docketNo2 || "";
+      setSuccessModal({
+        isOpen: true,
+        docketNo1,
+        docketNo2,
+        message: apiMessage || (isEdit ? "Booking Updated Successfully!" : "Booking Created Successfully!"),
+      });
     },
     onError: (err: any) => {
       const apiErrorMessage =
@@ -2071,6 +2095,100 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
           </Button>
         </div>
       </form>
+
+      {/* ─── Success Confirmation Dialog (shadcn/ui) ────────────────────────── */}
+      <Dialog
+        open={Boolean(successModal?.isOpen)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSuccessModal(null);
+            router.push("/reports/booking");
+          }
+        }}
+      >
+        <DialogContent
+          showCloseButton={true}
+          className="bg-white rounded-2xl border border-slate-100 shadow-2xl max-w-sm w-full p-6 text-center space-y-4 outline-none"
+        >
+          {/* Checkmark Icon badge */}
+          <div className="flex justify-center pt-2">
+            <div className="relative flex items-center justify-center w-16 h-16 rounded-full bg-emerald-50 border-4 border-emerald-100 shadow-inner">
+              <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow-sm shadow-emerald-500/30">
+                <Check className="w-6 h-6 stroke-[3]" />
+              </div>
+            </div>
+          </div>
+
+          {/* Dialog Header */}
+          <DialogHeader className="space-y-1 text-center items-center">
+            <DialogTitle className="text-xl font-bold text-slate-900 tracking-tight">
+              Success!
+            </DialogTitle>
+            <DialogDescription className="text-xs font-semibold text-slate-600">
+              {successModal?.message || "Booking Created Successfully!"}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Docket No & Tracking No Box */}
+          <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3.5 text-xs space-y-1.5 text-slate-700 font-medium">
+            <div className="flex items-center justify-center gap-1.5">
+              <span className="text-slate-500 font-semibold">Docket No:</span>
+              {successModal?.docketNo1 && (
+                <span className="font-mono font-bold text-slate-900 text-sm">
+                  {successModal.docketNo1}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center justify-center gap-1.5">
+              <span className="text-slate-500 font-semibold">Tracking No:</span>
+              {successModal?.docketNo2 && (
+                <span className="font-mono font-bold text-slate-900 text-sm">
+                  {successModal.docketNo2}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Dialog Footer with Action Buttons */}
+          <DialogFooter className="flex items-center justify-between gap-2 border-t border-slate-200 bg-slate-50/60 p-3 -mx-4 -mb-4 rounded-b-xl sm:flex-row sm:justify-between">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                onClick={() => {
+                  showToast("info", "Print Slip will be available soon.");
+                }}
+                className="bg-[#2980b9] hover:bg-[#2471a3] text-white h-8 px-3 text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print Slip</span>
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  showToast("info", "Print Barcode will be available soon.");
+                }}
+                className="h-8 px-3 text-xs font-semibold text-slate-700 border-slate-300 hover:bg-slate-100 flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Barcode className="w-3.5 h-3.5" />
+                <span>Print Barcode</span>
+              </Button>
+            </div>
+
+            <Button
+              type="button"
+              onClick={() => {
+                setSuccessModal(null);
+                router.push("/reports/booking");
+              }}
+              className="bg-[#2980b9] hover:bg-[#2471a3] text-white h-8 px-5 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            >
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
