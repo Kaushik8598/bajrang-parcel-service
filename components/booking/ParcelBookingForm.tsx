@@ -921,6 +921,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
               <FormSelect
                 label="Select From Branch"
                 required
+                searchable
                 options={branchOptions}
                 value={formData.from_branch_id}
                 onChange={(val) => {
@@ -938,6 +939,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
               <FormSelect
                 label="Select To Branch"
                 required
+                searchable
                 options={branchOptions.filter((b) => b.value !== formData.from_branch_id)}
                 value={formData.to_branch_id}
                 onChange={(val) => {
@@ -953,10 +955,10 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
             </div>
           </FormCard>
 
-          {/* Transport Card */}
+          {/* Transport Card - 2x2 Grid */}
           <FormCard title="Transport" icon={Truck}>
-            <div className="space-y-1.5">
-              {/* Bill Type Dropdown */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              {/* Row 1, Col 1: Bill Type */}
               <FormSelect
                 label="Bill Type"
                 required
@@ -972,56 +974,43 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 placeholder="Select Bill Type"
               />
 
-              {/* With Bill: Bill No + Goods Value + Bill Upload in one row */}
+              {/* Row 1, Col 2: Goods Value */}
+              <FormSelect
+                label="Goods Value"
+                required
+                options={GOODS_VALUE_OPTIONS}
+                value={String(formData.goods_value)}
+                onChange={(val) =>
+                  setFormData((p) => ({ ...p, goods_value: Number(val) as GoodsValue }))
+                }
+                placeholder="Select Goods Value"
+                searchPlaceholder="Search goods value..."
+              />
+
+              {/* Row 2, Col 1: Bill No (when with_bill) */}
               {billType === "with_bill" && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
-                  <FormInput
-                    label="Bill No"
-                    required
-                    placeholder="Bill No / LR No"
-                    value={formData.bill_no}
-                    onChange={(e) => setFormData((p) => ({ ...p, bill_no: e.target.value }))}
-                  />
-
-                  <FormSelect
-                    label="Goods Value"
-                    required
-                    options={GOODS_VALUE_OPTIONS}
-                    value={String(formData.goods_value)}
-                    onChange={(val) =>
-                      setFormData((p) => ({ ...p, goods_value: Number(val) as GoodsValue }))
-                    }
-                    placeholder="Select Goods Value"
-                    searchPlaceholder="Search goods value..."
-                  />
-
-                  <div className="space-y-1">
-                    <Label className="text-[11px] font-bold text-black flex items-center gap-0.5 leading-none">Bill Upload</Label>
-                    <FileUploadPreview
-                      label="Bill"
-                      fileName={billFile?.name}
-                      onFileSelect={(file) => setBillFile(file)}
-                      onRemove={() => setBillFile(null)}
-                      accept="image/*,.pdf"
-                      showViewLink={false}
-                    />
-                  </div>
-                </div>
+                <FormInput
+                  label="Bill No"
+                  required
+                  placeholder="Bill No / LR No"
+                  value={formData.bill_no}
+                  onChange={(e) => setFormData((p) => ({ ...p, bill_no: e.target.value }))}
+                />
               )}
 
-              {/* Without Bill: Goods Value only */}
-              {billType === "without_bill" && (
-                <FormSelect
-                  label="Goods Value"
-                  required
-                  options={GOODS_VALUE_OPTIONS}
-                  value={String(formData.goods_value)}
-                  onChange={(val) =>
-                    setFormData((p) => ({ ...p, goods_value: Number(val) as GoodsValue }))
-                  }
-                  placeholder="Select Goods Value"
-                  searchPlaceholder="Search goods value..."
-                />
+              {/* Row 2, Col 2: Bill Upload (when with_bill) */}
+              {billType === "with_bill" && (
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-bold text-black flex items-center gap-0.5 leading-none">Bill Upload</Label>
+                  <FileUploadPreview
+                    label="Bill"
+                    fileName={billFile?.name}
+                    onFileSelect={(file) => setBillFile(file)}
+                    onRemove={() => setBillFile(null)}
+                    accept="image/*,.pdf"
+                    showViewLink={false}
+                  />
+                </div>
               )}
             </div>
           </FormCard>
@@ -1050,11 +1039,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                   <Plus className="w-2.5 h-2.5 mr-0.5" />
                   Add Details
                 </Button>
-              ) : (
-                <span className="text-[9px] text-green-700 font-semibold bg-green-50 px-1.5 py-0.5 rounded">
-                  Address Details Active
-                </span>
-              )
+              ) : null
             }
           >
             {/* Sender Primary Row */}
@@ -1195,11 +1180,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                   <Plus className="w-2.5 h-2.5 mr-0.5" />
                   Add Details
                 </Button>
-              ) : (
-                <span className="text-[9px] text-green-700 font-semibold bg-green-50 px-1.5 py-0.5 rounded">
-                  Address Details Active
-                </span>
-              )
+              ) : null
             }
           >
             {/* Receiver Primary Row */}

@@ -52,6 +52,7 @@ export function FormSelect({
 }: FormSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -82,6 +83,11 @@ export function FormSelect({
       (opt.subLabel && opt.subLabel.toLowerCase().includes(q))
     );
   });
+
+  // Reset highlightedIndex when search query or open state changes
+  useEffect(() => {
+    setHighlightedIndex(0);
+  }, [searchQuery, isOpen]);
 
   // Close on outside click
   useEffect(() => {
@@ -125,7 +131,7 @@ export function FormSelect({
   };
 
   return (
-    <div ref={containerRef} className={cn("space-y-1 w-full relative", containerClassName)}>
+    <div ref={containerRef} className={cn("space-y-1 relative", containerClassName)}>
       {label && (
         <Label
           htmlFor={inputId}
@@ -190,9 +196,33 @@ export function FormSelect({
                     onSearchChange?.(e.target.value);
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && allowCustom && searchQuery.trim()) {
+                    if (e.key === "ArrowDown") {
                       e.preventDefault();
-                      handleSelect(searchQuery.trim());
+                      if (filteredOptions.length > 0) {
+                        setHighlightedIndex((prev) => (prev + 1) % filteredOptions.length);
+                      }
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      if (filteredOptions.length > 0) {
+                        setHighlightedIndex((prev) =>
+                          prev <= 0 ? filteredOptions.length - 1 : prev - 1
+                        );
+                      }
+                    } else if (e.key === "Enter") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (filteredOptions.length > 0) {
+                        const targetOpt =
+                          highlightedIndex >= 0 && highlightedIndex < filteredOptions.length
+                            ? filteredOptions[highlightedIndex]
+                            : filteredOptions[0];
+                        handleSelect(targetOpt.value);
+                      } else if (allowCustom && searchQuery.trim()) {
+                        handleSelect(searchQuery.trim());
+                      }
+                    } else if (e.key === "Escape") {
+                      e.preventDefault();
+                      setIsOpen(false);
                     }
                   }}
                   placeholder={searchPlaceholder}
@@ -220,16 +250,20 @@ export function FormSelect({
                 No options found
               </div>
             ) : (
-              filteredOptions.map((opt) => {
+              filteredOptions.map((opt, optIdx) => {
                 const isSelected = String(opt.value) === String(value);
+                const isHighlighted = optIdx === highlightedIndex;
                 return (
                   <button
                     key={opt.value}
                     type="button"
+                    onMouseEnter={() => setHighlightedIndex(optIdx)}
                     onClick={() => handleSelect(opt.value)}
                     className={cn(
-                      "w-full px-3 py-2 flex items-center justify-between text-left hover:bg-slate-100 transition-colors cursor-pointer",
-                      isSelected && "bg-slate-100 font-semibold"
+                      "w-full px-3 py-2 flex items-center justify-between text-left transition-colors cursor-pointer",
+                      (isSelected || isHighlighted)
+                        ? "bg-slate-100 font-semibold"
+                        : "hover:bg-slate-50"
                     )}
                   >
                     <div>
