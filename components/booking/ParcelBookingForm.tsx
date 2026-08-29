@@ -1028,8 +1028,9 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
 
     // 5. Filter only visible elements and valid form controls/action buttons
     const focusable = allElements.filter((el) => {
-      // Must be visible
+      // Must be visible and not inside floating dropdown popup
       if (el.offsetParent === null) return false;
+      if (el.closest(".form-select-dropdown") || el.closest(".z-\\[9999\\]")) return false;
 
       // Filter buttons: only include FormSelect triggers, Submit button, and Cancel button
       if (el.tagName === "BUTTON") {
@@ -1044,22 +1045,36 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
       return true;
     });
 
-    const currentIndex = focusable.indexOf(target);
+    // 6. Resolve effective target (if target is search input inside select dropdown)
+    let effectiveTarget: HTMLElement = target;
+    const selectContainer = target.closest(".relative");
+    if (selectContainer && (target.closest(".form-select-dropdown") || target.closest(".z-\\[9999\\]"))) {
+      const selectBtn = selectContainer.querySelector<HTMLButtonElement>("button");
+      if (selectBtn) {
+        effectiveTarget = selectBtn;
+      }
+    }
+
+    const currentIndex = focusable.indexOf(effectiveTarget);
     if (currentIndex !== -1 && currentIndex < focusable.length - 1) {
       const nextElement = focusable[currentIndex + 1];
-      nextElement.focus();
-      if (nextElement instanceof HTMLInputElement) {
-        nextElement.select?.();
-      }
-    } else if (currentIndex === -1) {
-      // If target was not in focusable directly, find the nearest next one
-      const targetPos = target.compareDocumentPosition.bind(target);
-      const nextElement = focusable.find((el) => (targetPos(el) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0);
-      if (nextElement) {
+      setTimeout(() => {
         nextElement.focus();
         if (nextElement instanceof HTMLInputElement) {
           nextElement.select?.();
         }
+      }, 50);
+    } else if (currentIndex === -1) {
+      // If target was not in focusable directly, find the nearest next one
+      const targetPos = effectiveTarget.compareDocumentPosition.bind(effectiveTarget);
+      const nextElement = focusable.find((el) => (targetPos(el) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0);
+      if (nextElement) {
+        setTimeout(() => {
+          nextElement.focus();
+          if (nextElement instanceof HTMLInputElement) {
+            nextElement.select?.();
+          }
+        }, 50);
       }
     }
   };
@@ -1142,7 +1157,12 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
         </div>
       )}
 
-      <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="space-y-1">
+      <form
+        data-booking-form="true"
+        onSubmit={handleSubmit}
+        onKeyDown={handleFormKeyDown}
+        className="parcel-booking-form space-y-1"
+      >
         {/* ─── 1. Destination & Transport Section ────────────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
           {/* Destination Card */}

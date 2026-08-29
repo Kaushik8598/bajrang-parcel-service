@@ -180,7 +180,6 @@ export function FormSelect({
               }
             }
           } else if (e.key === "Enter" && isOpen && !searchable) {
-            e.preventDefault();
             if (filteredOptions.length > 0) {
               const targetOpt =
                 highlightedIndex >= 0 && highlightedIndex < filteredOptions.length
@@ -225,7 +224,7 @@ export function FormSelect({
       {isOpen && (
         <div
           ref={dropdownRef}
-          className="absolute z-[9999] left-0 right-0 mt-1 rounded border border-black bg-white shadow-xl text-xs overflow-hidden animate-in fade-in-0 zoom-in-95 duration-100"
+          className="form-select-dropdown absolute z-[9999] left-0 right-0 mt-1 rounded border border-black bg-white shadow-xl text-xs overflow-hidden animate-in fade-in-0 zoom-in-95 duration-100"
         >
           {/* Optional search bar when searchable=true */}
           {searchable && (
@@ -263,8 +262,6 @@ export function FormSelect({
                         );
                       }
                     } else if (e.key === "Enter") {
-                      e.preventDefault();
-                      e.stopPropagation();
                       if (filteredOptions.length > 0) {
                         const targetOpt =
                           highlightedIndex >= 0 && highlightedIndex < filteredOptions.length
