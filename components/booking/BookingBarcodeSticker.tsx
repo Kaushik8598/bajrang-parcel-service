@@ -20,21 +20,33 @@ export function getBookingBarcodeStickerHtml(props: BookingBarcodeStickerProps):
   const fromBranchObj = booking?.fromBranch || props.fromBranch || {};
   const toBranchObj = booking?.toBranch || props.toBranch || {};
 
-  const fromName = fromBranchObj?.name
-    ? `${fromBranchObj.name}${fromBranchObj.code ? ` (${fromBranchObj.code})` : ""}`
+  const fromBranchName = fromBranchObj?.branchName || "";
+  const fromBranchCode = fromBranchObj?.branchCode || "";
+  const fromName = fromBranchName
+    ? `${fromBranchName}${fromBranchCode ? ` (${fromBranchCode})` : ""}`
     : "";
-  const toName = toBranchObj?.name
-    ? `${toBranchObj.name}${toBranchObj.code ? ` (${toBranchObj.code})` : ""}`
+
+  const toBranchName = toBranchObj?.branchName || "";
+  const toBranchCode = toBranchObj?.branchCode || "";
+  const toName = toBranchName
+    ? `${toBranchName}${toBranchCode ? ` (${toBranchCode})` : ""}`
     : "";
 
   const fromPhone = fromBranchObj?.mobile1 || fromBranchObj?.mobile2 || "";
   const toPhone = toBranchObj?.mobile1 || toBranchObj?.mobile2 || "";
 
-  const items = Array.isArray(booking?.items) ? booking.items : [];
-  const totalParcels = items.reduce(
-    (sum: number, item: any) => sum + (Number(item?.parcel) || 1),
-    0
-  );
+  const items = Array.isArray(booking?.items) && booking.items.length > 0
+    ? booking.items
+    : Array.isArray(booking?.packages) && booking.packages.length > 0
+      ? booking.packages
+      : [];
+
+  const totalParcels = items.length > 0
+    ? items.reduce(
+      (sum: number, item: any) => sum + (Number(item?.parcel ?? item?.qty) || 1),
+      0
+    )
+    : (Number(booking?.parcel) || 1);
 
   const count = totalParcels > 0 ? totalParcels : 1;
   const stickersHtmlList: string[] = [];

@@ -34,13 +34,19 @@ export function getBookingPrintSlipHtml(props: BookingPrintSlipProps): string {
   // Branch Details (from response object)
   const fromBranchObj = booking?.fromBranch || props.fromBranch || {};
   const toBranchObj = booking?.toBranch || props.toBranch || {};
+  console.log("fromBranchObj", booking);
 
   // Branch Name with Code (e.g. SARTHANA (SRTN))
-  const fromName = fromBranchObj?.name
-    ? `${fromBranchObj.name}${fromBranchObj.code ? ` (${fromBranchObj.code})` : ""}`
+  const fromBranchName = fromBranchObj?.branchName || "";
+  const fromBranchCode = fromBranchObj?.branchCode || "";
+  const fromName = fromBranchName
+    ? `${fromBranchName}${fromBranchCode ? ` (${fromBranchCode})` : ""}`
     : "";
-  const toName = toBranchObj?.name
-    ? `${toBranchObj.name}${toBranchObj.code ? ` (${toBranchObj.code})` : ""}`
+
+  const toBranchName = toBranchObj?.branchName || "";
+  const toBranchCode = toBranchObj?.branchCode || "";
+  const toName = toBranchName
+    ? `${toBranchName}${toBranchCode ? ` (${toBranchCode})` : ""}`
     : "";
 
   // Branch Mobiles
@@ -81,9 +87,21 @@ export function getBookingPrintSlipHtml(props: BookingPrintSlipProps): string {
   const billNo = booking?.billNo || "";
 
   // Items & Packages
-  const items = Array.isArray(booking?.items) ? booking.items : [];
+  const items = Array.isArray(booking?.items) && booking.items.length > 0
+    ? booking.items
+    : Array.isArray(booking?.packages) && booking.packages.length > 0
+      ? booking.packages
+      : [{
+        parcel: Number(booking?.parcel) || 1,
+        material: "General Goods",
+        packing: "Carton",
+        priceType: "direct",
+        rate: booking?.finalBillAmount,
+        amount: booking?.finalBillAmount,
+      }];
+
   const packagesDesc = items
-    .map((it: any) => `${it?.parcel || ""}-${(it?.material || "").toUpperCase()}-${(it?.packing || "").toUpperCase()}`)
+    .map((it: any) => `${it?.parcel ?? it?.qty ?? ""}-${(it?.material || "").toUpperCase()}-${(it?.packing || "").toUpperCase()}`)
     .join(", ");
 
   // Charges

@@ -10,6 +10,7 @@ import {
   Filter,
   Eye,
   FileText,
+  Barcode,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import DataTable from "@/components/DataTable/DataTable";
@@ -21,6 +22,8 @@ import AppModal from "@/components/ui/AppModal";
 import { showToast } from "@/lib/toast";
 import { useBookingReports, useOnlyBranchList, useModulePermissions } from "@/lib/hooks";
 import { getStoredUserRole, getStoredUser } from "@/lib/api/auth";
+import { printBookingSlip } from "@/components/booking/BookingPrintSlip";
+import { printBookingBarcode } from "@/components/booking/BookingBarcodeSticker";
 import type { BranchDropdownItem } from "@/lib/api/branch";
 import type { ParcelBookingReportItem } from "@/lib/api/reports";
 import { getCurrentDateTime } from "@/lib/utils";
@@ -650,8 +653,7 @@ export default function ManageParcelBookingReportsPage() {
     {
       key: "action",
       label: "Action",
-
-      width: "w-52",
+      width: "w-80",
       render: (_, row) => {
         const isDeliveredRow = String(row.status || "").toLowerCase() === "delivered";
         return (
@@ -695,18 +697,47 @@ export default function ManageParcelBookingReportsPage() {
                 Cancel
               </Button>
             )}
-          {permissions.canPrint && (
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => printBiltyReceipt(row)}
-              className="h-7 px-2.5 text-xs bg-[#2c3e50] hover:bg-[#1a252f] text-white shadow-xs transition-colors"
-              title="Print Bilty"
-            >
-              <Printer className="w-3 h-3 mr-1" />
-              Print
-            </Button>
-          )}
+            {permissions.canPrint && (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    const currentUser = getStoredUser();
+                    printBookingSlip({
+                      booking: row,
+                      fromBranch: row.fromBranch,
+                      toBranch: row.toBranch,
+                      user: currentUser,
+                    });
+                  }}
+                  className="h-7 px-2 text-xs bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Print Slip"
+                >
+                  <Printer className="w-3 h-3" />
+                  <span>Slip</span>
+                </Button>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    const currentUser = getStoredUser();
+                    printBookingBarcode({
+                      booking: row,
+                      fromBranch: row.fromBranch,
+                      toBranch: row.toBranch,
+                      user: currentUser,
+                    });
+                  }}
+                  className="h-7 px-2 text-xs bg-[#2c3e50] hover:bg-[#1a252f] text-white shadow-xs transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Print Barcode"
+                >
+                  <Barcode className="w-3 h-3" />
+                  <span>Barcode</span>
+                </Button>
+              </>
+            )}
           </div>
         );
       },
