@@ -1118,7 +1118,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
               </span>
             </div>
           ) : (
-            <span className="text-xs font-semibold text-red-600 tracking-wide flex items-center gap-1 flex-wrap">
+            <span className="text-base font-semibold text-red-600 tracking-wide flex items-center gap-1 flex-wrap">
               {isLastDocketLoading ? (
                 <>
                   <span>Last Booked Docket :</span>
