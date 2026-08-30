@@ -236,3 +236,24 @@ export async function updateTruck(
     }
   );
 }
+
+export interface OnlyTruckItem {
+  truckNumber: string;
+  driverName?: string;
+  [key: string]: unknown;
+}
+
+export interface OnlyTruckApiResponse {
+  success: boolean;
+  message?: string;
+  data: OnlyTruckItem[];
+}
+
+/**
+ * Fetch Only Truck list for dropdown via GET /user/onlytruck
+ */
+export async function getOnlyTruckList(): Promise<OnlyTruckApiResponse> {
+  return await request<OnlyTruckApiResponse>("/user/onlytruck", {
+    method: "GET",
+  });
+}

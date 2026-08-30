@@ -203,7 +203,7 @@ export default function CustomerDiscountReportPage() {
   const columns: ColumnDef<ParcelBookingReportItem>[] = [
     {
       key: "docketNo1",
-      label: "Tracking No",
+      label: "Docket No",
       sortable: true,
       width: "w-32",
       sortValue: (row) => row.docketNo1 || "",
@@ -215,7 +215,7 @@ export default function CustomerDiscountReportPage() {
     },
     {
       key: "docketNo2",
-      label: "Docket No",
+      label: "Tracking No",
       sortable: true,
       width: "w-36",
       sortValue: (row) => row.docketNo2 || "",

@@ -44,8 +44,8 @@ export interface DeliveryInfoRef {
 
 export interface ParcelBookingReportItem {
   _id: string;
-  docketNo1?: string; // Tracking No
-  docketNo2?: string; // Docket No
+  docketNo1?: string; // Docket No
+  docketNo2?: string; // Tracking No
   fromBranch?: BranchRef;
   toBranch?: BranchRef;
   sender?: PartyRef;

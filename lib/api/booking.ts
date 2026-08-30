@@ -217,3 +217,61 @@ export async function getReceiverCustomerSuggestions(
   }
 }
 
+export interface LoadableBookingItem {
+  _id: string;
+  docketNo1?: string;
+  docketNo2?: string;
+  fromBranch?: string;
+  fromBranchCode?: string;
+  toBranch?: string;
+  toBranchCode?: string;
+  parcelCount?: number;
+  paymentMethod?: string;
+  trackingStatus?: string;
+  pieceDetails?: string[];
+  [key: string]: any;
+}
+
+export interface BranchGroupItem {
+  branchName: string;
+  count: number;
+  parcels?: number;
+}
+
+export interface LoadableParcelSummary {
+  totalBookings?: number;
+  totalParcels?: number;
+}
+
+export interface LoadableParcelData {
+  bookings: LoadableBookingItem[];
+  summary?: LoadableParcelSummary;
+  senderBranchGroup: BranchGroupItem[];
+  receiverBranchGroup: BranchGroupItem[];
+}
+
+export interface LoadableParcelApiResponse {
+  success: boolean;
+  message?: string;
+  data: LoadableParcelData;
+  pagination?: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
+}
+
+/**
+ * GET /booking/loadablParcel
+ * Fetch loadable parcels, sender branch group, and receiver branch group (without params)
+ */
+export async function getLoadableParcels(): Promise<LoadableParcelApiResponse> {
+  return await request<LoadableParcelApiResponse>("/booking/loadablParcel", {
+    method: "GET",
+  });
+}
+
+

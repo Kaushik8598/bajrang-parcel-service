@@ -11,3 +11,4 @@ export * from "./useDebounce";
 export * from "./useUpload";
 export * from "./useUserById";
 export * from "./useUsers";
+export * from "./useLoadParcel";

@@ -64,7 +64,7 @@ function printBiltyReceipt(booking: ParcelBookingReportItem) {
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Bilty - ${booking.docketNo2 || booking.docketNo1 || "Receipt"}</title>
+  <title>Bilty - ${booking.docketNo1 || booking.docketNo2 || "Receipt"}</title>
   <style>
     @media print {
       body { margin: 0; padding: 10px; font-family: 'Segoe UI', Arial, sans-serif; }
@@ -103,11 +103,11 @@ function printBiltyReceipt(booking: ParcelBookingReportItem) {
     <div class="meta-grid">
       <div>
         <div><strong>Date/Time:</strong> ${formattedBookingDate}</div>
-        <div><strong>Tracking No:</strong> ${booking.docketNo1 || "—"}</div>
+        <div><strong>Docket No:</strong> ${booking.docketNo1 || "—"}</div>
         <div><strong>Bill / LR No:</strong> ${booking.billNo || "—"}</div>
       </div>
       <div style="text-align:right;">
-        <div class="badge-docket">DOCKET: ${booking.docketNo2 || booking.docketNo1 || "—"}</div>
+        <div class="badge-docket">TRACKING: ${booking.docketNo2 || booking.docketNo1 || "—"}</div>
         <div style="margin-top:4px;"><strong>Route:</strong> ${fromName} → ${toName}</div>
       </div>
     </div>
@@ -337,7 +337,7 @@ export default function ManageParcelBookingReportsPage() {
       );
       showToast(
         "success",
-        `Booking "${bookingToCancel.docketNo2 || bookingToCancel.docketNo1 || "docket"}" cancelled successfully.`
+        `Booking "${bookingToCancel.docketNo1 || bookingToCancel.docketNo2 || "docket"}" cancelled successfully.`
       );
       queryClient.invalidateQueries({ queryKey: ["booking-reports-list"] });
       setCancelDialogOpen(false);
@@ -396,7 +396,7 @@ export default function ManageParcelBookingReportsPage() {
   const columns: ColumnDef<ParcelBookingReportItem>[] = [
     {
       key: "docketNo1",
-      label: "Tracking No",
+      label: "Docket No",
       sortable: true,
       width: "w-32",
       sortValue: (row) => row.docketNo1 || "",
@@ -408,7 +408,7 @@ export default function ManageParcelBookingReportsPage() {
     },
     {
       key: "docketNo2",
-      label: "Docket No",
+      label: "Tracking No",
       sortable: true,
       width: "w-36",
       sortValue: (row) => row.docketNo2 || "",
@@ -957,7 +957,7 @@ export default function ManageParcelBookingReportsPage() {
         isLoading={isCancelling}
         title="Cancel Booking"
         confirmText="Confirm Cancel"
-        description={`Are you sure you want to cancel booking "${bookingToCancel?.docketNo2 || bookingToCancel?.docketNo1 || "this docket"}"? Please provide cancellation details below.`}
+        description={`Are you sure you want to cancel booking "${bookingToCancel?.docketNo1 || bookingToCancel?.docketNo2 || "this docket"}"? Please provide cancellation details below.`}
       >
         <div className="space-y-3 pt-1">
           <FormInput
