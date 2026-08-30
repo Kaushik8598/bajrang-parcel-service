@@ -155,6 +155,10 @@ function SidebarItem({
   depth = 0,
   isCollapsed,
   onExpand,
+  openMenuId,
+  onToggleSubmenu,
+  onCloseMobile,
+  isMobile,
 }: {
   item: MenuItem;
   user: User | null;
@@ -162,10 +166,13 @@ function SidebarItem({
   depth?: number;
   isCollapsed: boolean;
   onExpand: () => void;
+  openMenuId: string | null;
+  onToggleSubmenu: (id: string) => void;
+  onCloseMobile: () => void;
+  isMobile: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [expanded, setExpanded] = useState(false);
   const hasChildren = !!(item.children && item.children.length > 0);
   const Icon = ICON_MAP[item.id] || Settings;
 
@@ -177,9 +184,7 @@ function SidebarItem({
     c.path ? pathname === c.path || pathname.startsWith(c.path + "/") : false
   );
 
-  useEffect(() => {
-    if (hasActiveChild) setExpanded(true);
-  }, [hasActiveChild]);
+  const expanded = openMenuId === item.id;
 
   if (!isMenuVisible(item, user, permissions)) return null;
 
@@ -204,7 +209,15 @@ function SidebarItem({
       <Tooltip>
         <TooltipTrigger
           id={hasChildren ? `sidebar-icon-${item.id}` : `sidebar-icon-link-${item.id}`}
-          onClick={hasChildren ? onExpand : () => router.push(item.path || "#")}
+          onClick={() => {
+            if (hasChildren) {
+              onExpand();
+              onToggleSubmenu(item.id);
+            } else {
+              router.push(item.path || "#");
+              if (isMobile) onCloseMobile();
+            }
+          }}
           className="w-full py-1 flex justify-center cursor-pointer"
           aria-label={item.label}
         >
@@ -227,7 +240,7 @@ function SidebarItem({
         <button
           type="button"
           id={`sidebar-toggle-${item.id}`}
-          onClick={() => setExpanded((prev) => !prev)}
+          onClick={() => onToggleSubmenu(item.id)}
           className={cn(
             "w-full flex items-center gap-3 px-3 py-2.5 text-[13px] font-medium rounded-lg transition-all duration-150 cursor-pointer",
             "text-white/80 hover:bg-white/10 hover:text-white",
@@ -250,7 +263,6 @@ function SidebarItem({
             expanded ? "max-h-[800px] opacity-100" : "max-h-0 opacity-0"
           )}
         >
-
           <div className="ml-5 border-l border-white/10 pl-2 py-0.5 space-y-0.5">
             {visibleChildren.map((child: MenuItem) => (
               <SidebarItem
@@ -261,6 +273,10 @@ function SidebarItem({
                 depth={depth + 1}
                 isCollapsed={false}
                 onExpand={onExpand}
+                openMenuId={openMenuId}
+                onToggleSubmenu={onToggleSubmenu}
+                onCloseMobile={onCloseMobile}
+                isMobile={isMobile}
               />
             ))}
           </div>
@@ -273,6 +289,11 @@ function SidebarItem({
     <Link
       id={`sidebar-link-${item.id}`}
       href={item.path || "#"}
+      onClick={() => {
+        if (isMobile) {
+          onCloseMobile();
+        }
+      }}
       className={cn(
         "flex items-center gap-3 px-3 py-2.5 text-[13px] rounded-lg transition-all duration-150",
         depth === 0 ? "font-medium" : "font-normal text-white/70",
@@ -297,10 +318,16 @@ function SidebarItem({
 
 // ─── Main Sidebar ─────────────────────────────────────────────────────────────
 export default function Sidebar({ isOpen, onClose, onExpand }: SidebarProps) {
+  const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [permissions, setPermissions] = useState<UserPermissions | null>(null);
   const [menu, setMenu] = useState<MenuItem[]>(DEFAULT_MENU);
   const [isMobile, setIsMobile] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  const handleToggleSubmenu = (id: string) => {
+    setOpenMenuId((prev) => (prev === id ? null : id));
+  };
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 1024);
@@ -320,6 +347,25 @@ export default function Sidebar({ isOpen, onClose, onExpand }: SidebarProps) {
     }
     if (storedPerms) setPermissions(storedPerms);
   }, []);
+
+  // Automatically keep the active route's parent submenu open
+  useEffect(() => {
+    const activeParent = menu.find((item) =>
+      item.children?.some((c: MenuItem) =>
+        c.path ? pathname === c.path || pathname.startsWith(c.path + "/") : false
+      )
+    );
+    if (activeParent) {
+      setOpenMenuId(activeParent.id);
+    }
+  }, [pathname, menu]);
+
+  // Auto-close mobile drawer whenever pathname changes
+  useEffect(() => {
+    if (isMobile) {
+      onClose();
+    }
+  }, [pathname, isMobile]);
 
   const isDesktop = !isMobile;
   // Desktop: isOpen=true → expanded(256px), isOpen=false → icon-only(64px)
@@ -427,6 +473,10 @@ export default function Sidebar({ isOpen, onClose, onExpand }: SidebarProps) {
                 permissions={permissions}
                 isCollapsed={isCollapsed}
                 onExpand={onExpand}
+                openMenuId={openMenuId}
+                onToggleSubmenu={handleToggleSubmenu}
+                onCloseMobile={onClose}
+                isMobile={isMobile}
               />
             ))}
           </nav>
