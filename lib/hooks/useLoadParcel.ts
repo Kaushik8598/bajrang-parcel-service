@@ -39,6 +39,7 @@ export function useLoadParcelsMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: LOADABLE_PARCELS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ONLY_TRUCK_DROPDOWN_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ["UNLOADABLE_TRUCKS"] });
     },
   });
 }

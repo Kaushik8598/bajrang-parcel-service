@@ -487,7 +487,6 @@ export default function LoadParcelPage() {
         setTableSearch("");
         setLoadedPiecesMap({});
         setSelectedAvailableIds(new Set());
-        refetchParcels();
       } else {
         showToast("error", res?.message || "Failed to confirm load.");
       }
@@ -783,22 +782,6 @@ export default function LoadParcelPage() {
             </p>
           </div>
         </div>
-
-        {selectedTruck && (
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => refetchParcels()}
-              disabled={isParcelsFetching}
-              className="h-8 px-3 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer"
-            >
-              <RotateCcw className={`w-3.5 h-3.5 mr-1 ${isParcelsFetching ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
-          </div>
-        )}
       </div>
 
       {/* ─── Truck & Route Selection Bar ─────────────────────────────────────── */}
