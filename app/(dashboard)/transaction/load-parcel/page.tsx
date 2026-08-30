@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   Truck,
   Package,
@@ -9,6 +9,7 @@ import {
   RotateCcw,
   Search,
   CheckCircle2,
+  Camera,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { FormSelect, type FormSelectOption } from "@/components/ui/form-select";
 import { Checkbox } from "@/components/ui/checkbox";
 import SimpleDataTable from "@/components/DataTable/SimpleDataTable";
+import BarcodeScannerModal from "@/components/scanner/BarcodeScannerModal";
 import { showToast } from "@/lib/toast";
 import { useOnlyTruckList, useLoadableParcels } from "@/lib/hooks";
 import type { LoadableBookingItem } from "@/lib/api/booking";
@@ -30,6 +32,43 @@ export default function LoadParcelPage() {
   const [selectedToBranch, setSelectedToBranch] = useState<string>("");
   const [tableSearch, setTableSearch] = useState<string>("");
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // ─── Camera Scanner States ──────────────────────────────────────────────────
+  const [hasCamera, setHasCamera] = useState<boolean>(true);
+  const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
+
+  // Check if camera device is available on client
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if (navigator?.mediaDevices?.enumerateDevices) {
+      navigator.mediaDevices
+        .enumerateDevices()
+        .then((devices) => {
+          if (Array.isArray(devices) && devices.length > 0) {
+            const hasVideo = devices.some((d) => d.kind === "videoinput");
+            const hasAudio = devices.some((d) => d.kind === "audioinput");
+            if (!hasVideo && hasAudio) {
+              setHasCamera(false);
+            } else {
+              setHasCamera(true);
+            }
+          } else {
+            setHasCamera(true);
+          }
+        })
+        .catch(() => {
+          setHasCamera(true);
+        });
+    } else {
+      const hasAnyMediaSupport = Boolean(
+        navigator?.mediaDevices ||
+          (navigator as unknown as { getUserMedia?: unknown }).getUserMedia ||
+          (navigator as unknown as { webkitGetUserMedia?: unknown }).webkitGetUserMedia
+      );
+      setHasCamera(hasAnyMediaSupport);
+    }
+  }, []);
 
   // Map of loaded piece barcodes by original booking ID: { [bookingId]: string[] }
   const [loadedPiecesMap, setLoadedPiecesMap] = useState<Record<string, string[]>>({});
@@ -198,42 +237,66 @@ export default function LoadParcelPage() {
     return list;
   }, [serverBookings, loadedPiecesMap]);
 
-  // ─── Search Bar onKeyDown (Enter = Move matching piece/parcel to Load) ─────
-  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== "Enter") return;
-    if (!tableSearch.trim()) return;
+  // ─── Process Barcode / Code Logic (Used by Scanner & Keyboard Enter) ───────
+  const processBarcodeScan = (scannedText: string): boolean => {
+    if (!scannedText.trim()) return false;
+    const q = scannedText.trim().toLowerCase();
 
-    const q = tableSearch.trim().toLowerCase();
+    // Parse piece index if scanned text contains "__" (e.g. "UDH20260025__01")
+    let scannedDocketPart = "";
+    let scannedIndexPart = "";
+    if (q.includes("__")) {
+      const parts = q.split("__");
+      scannedDocketPart = parts[0] || "";
+      scannedIndexPart = parts[1] || "";
+    }
 
-    // 1. Check if an exact or specific piece barcode matches across any booking
+    // 1. Check if specific piece barcode matches across any booking
     for (const b of serverBookings) {
       const allPieces = getBookingOriginalPieces(b._id);
       const loadedPieces = loadedPiecesMap[b._id] || [];
       const remainingPieces = allPieces.filter((p) => !loadedPieces.includes(p));
 
-      // Check if already loaded
-      const alreadyLoaded = loadedPieces.find((p) => p.toLowerCase() === q);
-      if (alreadyLoaded) {
-        showToast("warning", `Piece "${alreadyLoaded}" is already in loaded list.`);
-        setTableSearch("");
-        return;
+      const d1 = (b.docketNo1 || "").toLowerCase();
+      const d2 = (b.docketNo2 || "").toLowerCase();
+
+      // Case A: Direct piece string match (e.g. "VAPI0004__01" or "UDH20260025__01")
+      let matchingPiece = remainingPieces.find((p) => p.toLowerCase() === q);
+      let alreadyLoadedPiece = loadedPieces.find((p) => p.toLowerCase() === q);
+
+      // Case B: If scanned with docketNo2/docketNo1 prefix with index (e.g. "UDH20260025__01")
+      if (!matchingPiece && !alreadyLoadedPiece && scannedDocketPart && scannedIndexPart) {
+        if (scannedDocketPart === d2 || scannedDocketPart === d1) {
+          const idxNum = parseInt(scannedIndexPart, 10);
+          if (!isNaN(idxNum) && idxNum >= 1 && idxNum <= allPieces.length) {
+            const targetPiece = allPieces[idxNum - 1];
+            if (loadedPieces.includes(targetPiece)) {
+              alreadyLoadedPiece = targetPiece;
+            } else if (remainingPieces.includes(targetPiece)) {
+              matchingPiece = targetPiece;
+            }
+          }
+        }
       }
 
-      // Check if matching piece is available
-      const matchingPiece = remainingPieces.find((p) => p.toLowerCase() === q);
+      // If already loaded
+      if (alreadyLoadedPiece) {
+        showToast("warning", `Piece "${alreadyLoadedPiece}" (${b.docketNo2 || b.docketNo1}) is already loaded.`);
+        return false;
+      }
+
+      // If found in remaining available pieces
       if (matchingPiece) {
-        // Load ONLY that specific piece!
         setLoadedPiecesMap((prev) => ({
           ...prev,
           [b._id]: [...(prev[b._id] || []), matchingPiece],
         }));
-        setTableSearch("");
-        showToast("success", `Piece "${matchingPiece}" added to loaded list.`);
-        return;
+        showToast("success", `Piece "${matchingPiece}" (${b.docketNo2 || b.docketNo1}) loaded successfully!`);
+        return true;
       }
     }
 
-    // 2. If not a specific piece, check if docket matches
+    // 2. Check if whole docket matches (by docketNo2 Tracking No or docketNo1 Docket No)
     for (const b of serverBookings) {
       const allPieces = getBookingOriginalPieces(b._id);
       const loadedPieces = loadedPiecesMap[b._id] || [];
@@ -244,8 +307,7 @@ export default function LoadParcelPage() {
       const d1 = (b.docketNo1 || "").toLowerCase();
       const d2 = (b.docketNo2 || "").toLowerCase();
 
-      if (d1 === q || d2 === q || d1.includes(q) || d2.includes(q)) {
-        // Load all remaining pieces for this docket
+      if (d2 === q || d1 === q || d2.includes(q) || d1.includes(q)) {
         setLoadedPiecesMap((prev) => ({
           ...prev,
           [b._id]: Array.from(new Set([...(prev[b._id] || []), ...allPieces])),
@@ -255,13 +317,24 @@ export default function LoadParcelPage() {
           next.delete(b._id);
           return next;
         });
-        setTableSearch("");
-        showToast("success", `Docket "${b.docketNo1 || b.docketNo2}" added to load.`);
-        return;
+        showToast("success", `Tracking No "${b.docketNo2 || b.docketNo1}" loaded successfully!`);
+        return true;
       }
     }
 
-    showToast("warning", `No matching available parcel or piece found for "${tableSearch}".`);
+    showToast("error", `No matching parcel found for barcode "${scannedText}".`);
+    return false;
+  };
+
+  // Search input on Enter
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    if (!tableSearch.trim()) return;
+
+    const handled = processBarcodeScan(tableSearch);
+    if (handled) {
+      setTableSearch("");
+    }
   };
 
   // ─── Checkbox Selection Handlers ───────────────────────────────────────────
@@ -772,7 +845,7 @@ export default function LoadParcelPage() {
                     onChange={(e) => setTableSearch(e.target.value)}
                     onKeyDown={handleSearchKeyDown}
                     placeholder="Search / Scan Barcode (Press Enter)..."
-                    className="h-7 pl-8 pr-7 text-xs bg-white border border-slate-300 rounded shadow-2xs focus-visible:border-[#2980b9] focus-visible:ring-1 focus-visible:ring-[#2980b9]/30 w-56 sm:w-64"
+                    className="h-7 pl-8 pr-7 text-xs bg-white border border-slate-300 rounded shadow-2xs focus-visible:border-[#2980b9] focus-visible:ring-1 focus-visible:ring-[#2980b9]/30 w-52 sm:w-60"
                     title="Type piece barcode or docket and press Enter to load"
                   />
                   {tableSearch && (
@@ -785,6 +858,21 @@ export default function LoadParcelPage() {
                     </button>
                   )}
                 </div>
+
+                {/* Camera Scanner Button (Rendered only if device has a camera) */}
+                {hasCamera && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsScannerOpen(true)}
+                    className="h-7 px-2.5 text-xs text-black border-slate-300 hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer"
+                    title="Open Camera Barcode Scanner"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-[#2980b9]" />
+                    <span className="hidden sm:inline">Camera</span>
+                  </Button>
+                )}
 
                 {/* Add to Load Button */}
                 <Button
@@ -850,7 +938,7 @@ export default function LoadParcelPage() {
               showSrNo={true}
               srNoLabel="#"
               isLoading={false}
-              emptyMessage="No parcels loaded in truck yet. Select rows in the table above and click 'Add to Load', or scan barcode and press Enter."
+              emptyMessage="No parcels loaded in truck yet. Select rows in the table above and click 'Add to Load', or scan barcode."
               showPagination={false}
               maxHeight="max-h-[350px]"
             />
@@ -885,6 +973,18 @@ export default function LoadParcelPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* ─── Camera Barcode Scanner Modal ────────────────────────────────────── */}
+      {hasCamera && isScannerOpen && (
+        <BarcodeScannerModal
+          open={isScannerOpen}
+          onOpenChange={setIsScannerOpen}
+          onScan={(scannedCode) => {
+            processBarcodeScan(scannedCode);
+          }}
+          title="Scan Parcel Barcode"
+        />
       )}
     </div>
   );

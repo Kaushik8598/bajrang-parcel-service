@@ -16,7 +16,7 @@ export interface BookingBarcodeStickerProps {
 export function getBookingBarcodeStickerHtml(props: BookingBarcodeStickerProps): string {
   const { booking } = props;
 
-  const docketNo = booking?.docketNo1 || "";
+  const docketNo = booking?.docketNo2 || booking?.docketNo || "";
   const fromBranchObj = booking?.fromBranch || props.fromBranch || {};
   const toBranchObj = booking?.toBranch || props.toBranch || {};
 
@@ -40,7 +40,7 @@ export function getBookingBarcodeStickerHtml(props: BookingBarcodeStickerProps):
   const stickersHtmlList: string[] = [];
 
   for (let i = 1; i <= count; i++) {
-    const barcodeValue = `${docketNo}__${i}`;
+    const barcodeValue = `${docketNo}__${String(i).padStart(2, "0")}`;
     const barcodeSvg = generateBarcodeSvg(barcodeValue, {
       height: 72,
       barWidth: 2.2,
