@@ -12,9 +12,9 @@ export function useUserBalance() {
   const query = useQuery({
     queryKey: USER_BALANCE_QUERY_KEY,
     queryFn: getUserBalance,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: true,
-    staleTime: 1000 * 30, // 30 seconds
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    staleTime: 1000 * 60, // 60 seconds
     retry: 1,
   });
 

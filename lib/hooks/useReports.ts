@@ -51,6 +51,8 @@ export function useBookingReports(params: GetBookingReportsParams = {}) {
         hasBill,
       }),
     placeholderData: (previousData) => previousData,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -95,6 +97,8 @@ export function useParcelPendingReports(params: GetBookingReportsParams = {}) {
         hasBill,
       }),
     placeholderData: (previousData) => previousData,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -139,6 +143,8 @@ export function useParcelDeliveredReports(params: GetBookingReportsParams = {}) 
         hasBill,
       }),
     placeholderData: (previousData) => previousData,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -183,6 +189,8 @@ export function useCancelBookingReports(params: GetBookingReportsParams = {}) {
         hasBill,
       }),
     placeholderData: (previousData) => previousData,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -227,6 +235,8 @@ export function useCustomerDiscountReports(params: GetBookingReportsParams = {})
         hasBill,
       }),
     placeholderData: (previousData) => previousData,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -271,6 +281,8 @@ export function usePendingDeliveryReports(params: GetBookingReportsParams = {}) 
         hasBill,
       }),
     placeholderData: (previousData) => previousData,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -315,6 +327,8 @@ export function useCustomerBookingReports(params: GetBookingReportsParams = {}) 
         hasBill,
       }),
     placeholderData: (previousData) => previousData,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 

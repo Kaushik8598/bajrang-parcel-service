@@ -10,6 +10,16 @@ export interface BookingPrintSlipProps {
   user?: any;
 }
 
+function maskMobileNumber(mobile?: string): string {
+  if (!mobile) return "";
+  const str = String(mobile).trim();
+  if (str.length <= 4) return str;
+  const first2 = str.slice(0, 2);
+  const last2 = str.slice(-2);
+  const stars = "*".repeat(str.length - 4);
+  return `${first2}${stars}${last2}`;
+}
+
 /**
  * Generates exact A4 Half-page Bilty Slip HTML matching the official Bajrang Parcel Slip format.
  */
@@ -41,13 +51,13 @@ export function getBookingPrintSlipHtml(props: BookingPrintSlipProps): string {
   // Sender Details
   const sender = booking?.sender || {};
   const senderName = sender?.name || "";
-  const senderMobile = sender?.mobile || "";
+  const senderMobile = maskMobileNumber(sender?.mobile || "");
   const senderGst = sender?.gst || "";
 
   // Receiver Details
   const receiver = booking?.receiver || {};
   const receiverName = receiver?.name || "";
-  const receiverMobile = receiver?.mobile || "";
+  const receiverMobile = maskMobileNumber(receiver?.mobile || "");
   const receiverGst = receiver?.gst || "";
 
   // Delivery Address: toBranch destination address + mobile

@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   MapPin,
   Truck,
@@ -36,6 +36,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useOnlyBranchList, useDrivers, useDebounce, useUpload } from "@/lib/hooks";
+import { USER_BALANCE_QUERY_KEY } from "@/lib/hooks/useUserBalance";
+import {
+  BOOKING_REPORTS_QUERY_KEY,
+  PARCEL_PENDING_REPORTS_QUERY_KEY,
+  CUSTOMER_BOOKING_REPORTS_QUERY_KEY,
+} from "@/lib/hooks/useReports";
 import {
   getBookingById,
   createParcelBooking,
@@ -45,7 +51,7 @@ import {
   getReceiverCustomerSuggestions,
 } from "@/lib/api/booking";
 import { cn } from "@/lib/utils";
-import { getStoredUser, getStoredUserRole } from "@/lib/api/auth";
+import { getStoredUser, getStoredUserRole, getUserBalance } from "@/lib/api/auth";
 import { showToast } from "@/lib/toast";
 import { FileUploadPreview } from "@/components/ui/file-upload-preview";
 import { printBookingSlip } from "@/components/booking/BookingPrintSlip";
@@ -145,6 +151,7 @@ export interface SuccessModalState {
 
 export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelBookingFormProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [billType, setBillType] = useState<"with_bill" | "without_bill">("with_bill");
   const [billFile, setBillFile] = useState<File | null>(null);
@@ -967,6 +974,18 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
         showToast("success", apiMessage);
       }
       setFormErrors({});
+
+      // 1. Invalidate user balance query
+      queryClient.invalidateQueries({ queryKey: USER_BALANCE_QUERY_KEY });
+
+      // 2. Invalidate all booking reports & list queries
+      queryClient.invalidateQueries({ queryKey: BOOKING_REPORTS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: PARCEL_PENDING_REPORTS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: CUSTOMER_BOOKING_REPORTS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ["booking-reports-list"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["last-docket"] });
+
       const fullBookingData = result?.data || result;
       const docketNo1 = fullBookingData?.docketNo1 || fullBookingData?.docketNo || "";
       const docketNo2 = fullBookingData?.docketNo2 || fullBookingData?.tracking_no || "";
@@ -997,6 +1016,78 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
       return;
     }
     formMutation.mutate(formData);
+  };
+
+  const handleCloseSuccessModal = () => {
+    setSuccessModal(null);
+    if (!isEdit) {
+      setFormData({
+        from_branch_id: isAdminOrSuperAdmin ? "" : ownBranchId,
+        to_branch_id: "",
+        bill_no: "",
+        goods_value: 500,
+        sender: {
+          contact_no: "",
+          gstin: "",
+          name: "",
+          show_details: false,
+          address: "",
+          city: "",
+          pincode: "",
+        },
+        receiver: {
+          contact_no: "",
+          gstin: "",
+          name: "",
+          show_details: false,
+          address: "",
+          city: "",
+          pincode: "",
+        },
+        packages: [
+          {
+            id: `pkg-${Date.now()}`,
+            qty: 0,
+            material: "",
+            packing: "",
+            payment_type: "Direct",
+            price: "",
+          },
+        ],
+        payment_method:
+          paymentMethodOptions.length > 0
+            ? (paymentMethodOptions[0].value as PaymentMethod)
+            : "To Pay",
+        delivery_type: "office",
+        bilty_charge: Number((currentUser as any)?.bookingPreferences?.biltyCharge ?? 20),
+        hamali_cost: Number((currentUser as any)?.bookingPreferences?.hamaliCost ?? 0),
+        pickup_charge: 0,
+        loading_charge: 0,
+        delivery_charge: 0,
+        extra_charge: 0,
+        net_cost: Number((currentUser as any)?.bookingPreferences?.biltyCharge ?? 20),
+        remark: "",
+        cancel_reason: "",
+        cancel_remark: "",
+        show_driver_details: false,
+        driver: {
+          driver_id: "",
+          driver_name: "",
+          driver_mobile: "",
+          vehicle_no: "",
+          license_no: "",
+        },
+      });
+      setFormErrors({});
+      setBillFile(null);
+      setBillFileUrl("");
+      setShowAdditionalCharges(false);
+      setSenderSearch("");
+      setReceiverSearch("");
+      setLastBookingsList([]);
+      queryClient.invalidateQueries({ queryKey: ["last-docket"] });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   // ─── Enter = Next Field Navigation ──────────────────────────────────────────
@@ -1110,15 +1201,15 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
 
           {isEdit ? (
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-semibold bg-blue-50 text-[#2980b9] border border-blue-200 px-2 py-0.5 rounded">
+              <span className="text-base sm:text-lg font-semibold bg-blue-50 text-[#2980b9] border border-blue-200 px-2 py-0.5 rounded">
                 Docket: {initialBooking?.docketNo || `#${bookingId}`}
               </span>
-              <span className="text-[11px] font-semibold text-slate-500">
+              <span className="text-base sm:text-lg font-semibold text-slate-500">
                 Tracking: {initialBooking?.tracking_no || "—"}
               </span>
             </div>
           ) : (
-            <span className="text-base font-semibold text-red-600 tracking-wide flex items-center gap-1 flex-wrap">
+            <span className="text-base sm:text-lg font-semibold text-red-600 tracking-wide flex items-center gap-1 flex-wrap">
               {isLastDocketLoading ? (
                 <>
                   <span>Last Booked Docket :</span>
@@ -1127,10 +1218,10 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
               ) : lastDocketData?.docketNo ? (
                 <>
                   <span>Last Booked Docket :</span>
-                  <span className="text-slate-800 underline font-mono font-bold">
+                  <span className="font-mono font-bold">
                     {lastDocketData.docketNo}
                     {lastDocketData.bookingDate && (
-                      <span className="text-slate-500 font-normal no-underline ml-1 text-[11px]">
+                      <span className="font-normal no-underline ml-2">
                         ({lastDocketData.bookingDate}{lastDocketData.bookingTime ? ` ${lastDocketData.bookingTime}` : ""})
                       </span>
                     )}
@@ -1143,7 +1234,11 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
 
         <Button
           type="button"
-          onClick={() => router.push("/reports/booking")}
+          onClick={() => {
+            queryClient.invalidateQueries({ queryKey: BOOKING_REPORTS_QUERY_KEY });
+            queryClient.invalidateQueries({ queryKey: USER_BALANCE_QUERY_KEY });
+            router.push("/reports/booking");
+          }}
           className="bg-[#2980b9] hover:bg-[#2471a3] text-white h-7 px-3 text-xs font-semibold shadow-xs transition-colors"
         >
           <ArrowLeft className="w-3 h-3 mr-1" />
@@ -2106,8 +2201,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
         open={Boolean(successModal?.isOpen)}
         onOpenChange={(open) => {
           if (!open) {
-            setSuccessModal(null);
-            router.push("/reports/booking");
+            handleCloseSuccessModal();
           }
         }}
       >
@@ -2215,10 +2309,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
 
             <Button
               type="button"
-              onClick={() => {
-                setSuccessModal(null);
-                router.push("/reports/booking");
-              }}
+              onClick={handleCloseSuccessModal}
               className="bg-[#2980b9] hover:bg-[#2471a3] text-white h-8 px-5 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
             >
               OK
