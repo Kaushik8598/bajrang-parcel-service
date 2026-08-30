@@ -155,7 +155,7 @@ export interface SuccessModalState {
 export default function ParcelBookingForm({
   bookingId,
   isEdit = false,
-  isView = false,
+  isView: propIsView = false,
   prefetchedBooking,
   hideHeader = false,
 }: ParcelBookingFormProps) {
@@ -173,6 +173,7 @@ export default function ParcelBookingForm({
   const currentUser = useMemo(() => getStoredUser(), []);
   const currentRole = useMemo(() => getStoredUserRole() || "", []);
   const isAdminOrSuperAdmin = ["superAdmin", "admin"].includes(currentRole);
+  const isNonAdminEdit = !isAdminOrSuperAdmin && isEdit;
   // user._id matches the branch _id in the branch list API response
   const ownBranchId = useMemo(() => {
     return String(currentUser?._id || currentUser?.id || "");
@@ -242,13 +243,24 @@ export default function ParcelBookingForm({
   }, [bookingPreferences]);
 
   // ─── Fetch Booking by ID (for Edit mode or View mode) ──────────────────────
-  const { data: fetchedBooking, isLoading: isBookingLoading } = useQuery({
+  const { data: fetchedBooking, isLoading: isBookingLoading } = useQuery<any>({
     queryKey: ["booking", bookingId],
     queryFn: () => getBookingById(bookingId!),
-    enabled: Boolean((isEdit || isView) && bookingId && !prefetchedBooking),
+    enabled: Boolean((isEdit || propIsView) && bookingId && !prefetchedBooking),
   });
 
-  const initialBooking = prefetchedBooking || fetchedBooking;
+  const initialBooking: any = prefetchedBooking || fetchedBooking;
+  console.log("initialBooking", initialBooking?.booking);
+
+  const isDelivered: boolean = useMemo(() => {
+    if (!initialBooking) return false;
+    const bObj: any = initialBooking?.booking;
+    const status = String(bObj?.status || "").toLowerCase();
+    if (status === "delivered") return true;
+    return false;
+  }, [initialBooking]);
+
+  const isView: boolean = propIsView || isDelivered;
 
   // ─── Fetch Branches (via GET /user/onlyBranch) ──────────────────────────────
   const { data: branchDropdownRes } = useOnlyBranchList();
@@ -451,21 +463,21 @@ export default function ParcelBookingForm({
         packages:
           Array.isArray((bObj as any).items) && (bObj as any).items.length > 0
             ? (bObj as any).items.map((it: any, idx: number) => ({
-                id: it._id || `pkg-${idx + 1}`,
-                qty: it.parcel ?? it.qty ?? 1,
-                material: it.material || "",
-                packing: it.packing || "",
-                payment_type:
-                  it.priceType === "perPackage"
-                    ? "Per Package"
-                    : it.priceType === "direct"
+              id: it._id || `pkg-${idx + 1}`,
+              qty: it.parcel ?? it.qty ?? 1,
+              material: it.material || "",
+              packing: it.packing || "",
+              payment_type:
+                it.priceType === "perPackage"
+                  ? "Per Package"
+                  : it.priceType === "direct"
                     ? "Direct"
                     : "Direct",
-                price: it.rate ?? it.amount ?? 0,
-              }))
+              price: it.rate ?? it.amount ?? 0,
+            }))
             : bObj.packages && bObj.packages.length > 0
-            ? bObj.packages
-            : [
+              ? bObj.packages
+              : [
                 {
                   id: "pkg-1",
                   qty: bObj.total_qty || 1,
@@ -769,7 +781,6 @@ export default function ParcelBookingForm({
   const { data: lastDocketData, isLoading: isLastDocketLoading } = useQuery({
     queryKey: ["last-docket"],
     queryFn: getLastBookedDocket,
-    enabled: !isEdit,
   });
 
   // ─── Driver Selection Handler ──────────────────────────────────────────────
@@ -1242,40 +1253,35 @@ export default function ParcelBookingForm({
         <div className="bg-white rounded border border-slate-200/80 shadow-2xs px-3 py-2 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="text-base sm:text-lg font-bold text-black tracking-tight">
-              {isEdit ? "Edit Parcel Booking" : isView ? "View Parcel Booking" : "Add Parcel Booking"}
+              {isDelivered
+                ? "View Parcel Booking (Delivered)"
+                : isEdit
+                  ? "Edit Parcel Booking"
+                  : isView
+                    ? "View Parcel Booking"
+                    : "Add Parcel Booking"}
             </h1>
 
-            {isEdit || isView ? (
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-base sm:text-lg font-semibold bg-blue-50 text-[#2980b9] border border-blue-200 px-2 py-0.5 rounded">
-                  Docket: {initialBooking?.docketNo || (initialBooking as any)?.docketNo1 || `#${bookingId}`}
-                </span>
-                <span className="text-base sm:text-lg font-semibold text-slate-500">
-                  Tracking: {initialBooking?.tracking_no || (initialBooking as any)?.docketNo2 || "—"}
-                </span>
-              </div>
-            ) : (
-              <span className="text-base sm:text-lg font-semibold text-red-600 tracking-wide flex items-center gap-1 flex-wrap">
-                {isLastDocketLoading ? (
-                  <>
-                    <span>Last Booked Docket :</span>
-                    <Skeleton className="h-4 w-28 inline-block bg-slate-200 animate-pulse rounded" />
-                  </>
-                ) : lastDocketData?.docketNo ? (
-                  <>
-                    <span>Last Booked Docket :</span>
-                    <span className="font-mono font-bold">
-                      {lastDocketData.docketNo}
-                      {lastDocketData.bookingDate && (
-                        <span className="font-normal no-underline ml-2">
-                          ({lastDocketData.bookingDate}{lastDocketData.bookingTime ? ` ${lastDocketData.bookingTime}` : ""})
-                        </span>
-                      )}
-                    </span>
-                  </>
-                ) : null}
-              </span>
-            )}
+            <span className="text-base sm:text-lg font-semibold text-red-600 tracking-wide flex items-center gap-1 flex-wrap">
+              {isLastDocketLoading ? (
+                <>
+                  <span>Last Booked Docket :</span>
+                  <Skeleton className="h-4 w-28 inline-block bg-slate-200 animate-pulse rounded" />
+                </>
+              ) : lastDocketData?.docketNo ? (
+                <>
+                  <span>Last Booked Docket :</span>
+                  <span className="font-mono font-bold">
+                    {lastDocketData.docketNo}
+                    {lastDocketData.bookingDate && (
+                      <span className="font-normal no-underline ml-2">
+                        ({lastDocketData.bookingDate}{lastDocketData.bookingTime ? ` ${lastDocketData.bookingTime}` : ""})
+                      </span>
+                    )}
+                  </span>
+                </>
+              ) : null}
+            </span>
           </div>
 
           <Button
@@ -1293,6 +1299,14 @@ export default function ParcelBookingForm({
         </div>
       )}
 
+      {/* ─── Delivered Status Notice Banner ──────────────────────────────────── */}
+      {isDelivered && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs px-3 py-2 rounded flex items-center gap-2 font-medium">
+          <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>This parcel is <strong>Delivered</strong> and is strictly in read-only view mode. Editing is not permitted.</span>
+        </div>
+      )}
+
       <form
         data-booking-form="true"
         onSubmit={handleSubmit}
@@ -1300,835 +1314,830 @@ export default function ParcelBookingForm({
         className="parcel-booking-form space-y-1"
       >
         <fieldset disabled={isView} className={`contents space-y-1 ${isView ? "pointer-events-none select-text" : ""}`}>
-        {/* ─── 1. Destination & Transport Section ────────────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
-          {/* Destination Card */}
-          <FormCard title="Destination" icon={MapPin}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-              {/* From Branch — admin/superadmin editable; others see their own branch locked */}
-              <FormSelect
-                label="Select From Branch"
-                required
-                searchable
-                options={branchOptions}
-                value={formData.from_branch_id}
-                onChange={(val) => {
-                  setFormData((p) => ({ ...p, from_branch_id: val }));
-                  if (formErrors.from_branch_id) {
-                    setFormErrors((p) => ({ ...p, from_branch_id: "" }));
-                  }
-                }}
-                placeholder="Select From Branch"
-                searchPlaceholder="Search branch..."
-                error={formErrors.from_branch_id}
-                disabled={!isAdminOrSuperAdmin}
-              />
-
-              <FormSelect
-                label="Select To Branch"
-                required
-                searchable
-                options={branchOptions.filter((b) => b.value !== formData.from_branch_id)}
-                value={formData.to_branch_id}
-                onChange={(val) => {
-                  setFormData((p) => ({ ...p, to_branch_id: val }));
-                  if (formErrors.to_branch_id) {
-                    setFormErrors((p) => ({ ...p, to_branch_id: "" }));
-                  }
-                }}
-                placeholder="Select To Branch"
-                searchPlaceholder="Search branch..."
-                error={formErrors.to_branch_id}
-              />
-            </div>
-          </FormCard>
-
-          {/* Transport Card - 2x2 Grid */}
-          <FormCard title="Transport" icon={Truck}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-              {/* Row 1, Col 1: Bill Type */}
-              <FormSelect
-                label="Bill Type"
-                required
-                options={billTypeOptions}
-                value={billType}
-                onChange={(val) => {
-                  setBillType(val as "with_bill" | "without_bill");
-                  if (val === "without_bill") {
-                    setFormData((p) => ({ ...p, bill_no: "" }));
-                    setBillFile(null);
-                  }
-                }}
-                placeholder="Select Bill Type"
-              />
-
-              {/* Row 1, Col 2: Goods Value */}
-              <FormSelect
-                label="Goods Value"
-                required
-                options={GOODS_VALUE_OPTIONS}
-                value={String(formData.goods_value)}
-                onChange={(val) =>
-                  setFormData((p) => ({ ...p, goods_value: Number(val) as GoodsValue }))
-                }
-                placeholder="Select Goods Value"
-                searchPlaceholder="Search goods value..."
-              />
-
-              {/* Row 2, Col 1: Bill No (when with_bill) */}
-              {billType === "with_bill" && (
-                <FormInput
-                  label="Bill No"
+          {/* ─── 1. Destination & Transport Section ────────────────────────────── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+            {/* Destination Card */}
+            <FormCard title="Destination" icon={MapPin}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {/* From Branch — admin/superadmin editable; others see their own branch locked */}
+                <FormSelect
+                  label="Select From Branch"
                   required
-                  placeholder="Bill No / LR No"
-                  value={formData.bill_no}
-                  onChange={(e) => setFormData((p) => ({ ...p, bill_no: e.target.value }))}
+                  searchable
+                  options={branchOptions}
+                  value={formData.from_branch_id}
+                  onChange={(val) => {
+                    setFormData((p) => ({ ...p, from_branch_id: val }));
+                    if (formErrors.from_branch_id) {
+                      setFormErrors((p) => ({ ...p, from_branch_id: "" }));
+                    }
+                  }}
+                  placeholder="Select From Branch"
+                  searchPlaceholder="Search branch..."
+                  error={formErrors.from_branch_id}
+                  disabled={!isAdminOrSuperAdmin || isEdit || isView}
                 />
-              )}
 
-              {/* Row 2, Col 2: Bill Upload (when with_bill) */}
-              {billType === "with_bill" && (
-                <div className="space-y-1">
-                  <Label className="text-[11px] font-bold text-black flex items-center gap-0.5 leading-none">Bill Upload</Label>
-                  <FileUploadPreview
-                    label="Bill"
-                    fileName={billFile?.name}
-                    fileUrl={billFileUrl}
-                    disabled={isView}
-                    isUploading={uploadingFields["billFile"]}
-                    onFileSelect={handleBillFileUpload}
-                    onRemove={() => {
+                <FormSelect
+                  label="Select To Branch"
+                  required
+                  searchable
+                  options={branchOptions.filter((b) => b.value !== formData.from_branch_id)}
+                  value={formData.to_branch_id}
+                  onChange={(val) => {
+                    setFormData((p) => ({ ...p, to_branch_id: val }));
+                    if (formErrors.to_branch_id) {
+                      setFormErrors((p) => ({ ...p, to_branch_id: "" }));
+                    }
+                  }}
+                  placeholder="Select To Branch"
+                  searchPlaceholder="Search branch..."
+                  error={formErrors.to_branch_id}
+                  disabled={isEdit || isView}
+                />
+              </div>
+            </FormCard>
+
+            {/* Transport Card - 2x2 Grid */}
+            <FormCard title="Transport" icon={Truck}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {/* Row 1, Col 1: Bill Type */}
+                <FormSelect
+                  label="Bill Type"
+                  required
+                  options={billTypeOptions}
+                  value={billType}
+                  onChange={(val) => {
+                    setBillType(val as "with_bill" | "without_bill");
+                    if (val === "without_bill") {
+                      setFormData((p) => ({ ...p, bill_no: "" }));
                       setBillFile(null);
-                      setBillFileUrl("");
-                    }}
-                    accept="image/*,.pdf"
-                    showViewLink={true}
-                  />
-                </div>
-              )}
-            </div>
-          </FormCard>
-        </div>
-
-        {/* ─── 2. Sender & Receiver Section ──────────────────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
-          {/* Sender Details */}
-          <FormCard
-            title="Sender"
-            icon={User}
-            action={
-              !isView && !formData.sender.show_details ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  tabIndex={-1}
-                  onClick={() =>
-                    setFormData((p) => ({
-                      ...p,
-                      sender: { ...p.sender, show_details: true },
-                    }))
-                  }
-                  className="h-6 px-2 text-[10px] font-semibold bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-none"
-                >
-                  <Plus className="w-2.5 h-2.5 mr-0.5" />
-                  Add Details
-                </Button>
-              ) : null
-            }
-          >
-            {/* Sender Primary Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <FormSelect
-                label="Contact No"
-                required
-                searchable
-                allowCustom
-                searchNumericOnly
-                searchMaxLength={10}
-                options={senderOptions}
-                value={formData.sender.contact_no}
-                onChange={handleSenderSelect}
-                onSearchChange={(val) => setSenderSearch(val)}
-                placeholder="Select / Search Contact No"
-                searchPlaceholder="Enter 10-digit mobile..."
-                error={formErrors.sender_contact}
-              />
-
-              <FormInput
-                label="GSTIN"
-                placeholder="GST NO"
-                uppercase
-                value={formData.sender.gstin}
-                onChange={(e) =>
-                  setFormData((p) => ({
-                    ...p,
-                    sender: { ...p.sender, gstin: e.target.value.toUpperCase() },
-                  }))
-                }
-              />
-
-              <FormInput
-                label="Name"
-                required
-                placeholder="Customer Name"
-                value={formData.sender.name}
-                onChange={(e) => {
-                  setFormData((p) => ({
-                    ...p,
-                    sender: { ...p.sender, name: e.target.value },
-                  }));
-                  if (formErrors.sender_name) {
-                    setFormErrors((p) => ({ ...p, sender_name: "" }));
-                  }
-                }}
-                error={formErrors.sender_name}
-              />
-            </div>
-
-            {/* Sender Collapsible Address Block */}
-            {formData.sender.show_details && (
-              <div className="relative p-2 rounded-md bg-slate-50 border border-slate-200/70 space-y-2 animate-in fade-in-50 duration-150">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
-                    Sender Address Details
-                  </span>
-                  {!isView && (
-                    <button
-                      type="button"
-                      tabIndex={-1}
-                      onClick={() =>
-                        setFormData((p) => ({
-                          ...p,
-                          sender: {
-                            ...p.sender,
-                            show_details: false,
-                            address: "",
-                            city: "",
-                            pincode: "",
-                          },
-                        }))
-                      }
-                      className="p-0.5 rounded text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
-                      title="Remove address details"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                <FormInput
-                  label="Address"
-                  placeholder="Enter street / area address"
-                  value={formData.sender.address || ""}
-                  onChange={(e) =>
-                    setFormData((p) => ({
-                      ...p,
-                      sender: { ...p.sender, address: e.target.value },
-                    }))
-                  }
+                    }
+                  }}
+                  placeholder="Select Bill Type"
                 />
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <FormInput
-                    label="City"
-                    placeholder="City Name"
-                    value={formData.sender.city || ""}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        sender: { ...p.sender, city: e.target.value },
-                      }))
-                    }
-                  />
-
-                  <FormInput
-                    label="Pincode"
-                    placeholder="Pincode"
-                    value={formData.sender.pincode || ""}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        sender: { ...p.sender, pincode: e.target.value },
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-            )}
-          </FormCard>
-
-          {/* Receiver Details */}
-          <FormCard
-            title="Receiver"
-            icon={UserCheck}
-            action={
-              !isView && !formData.receiver.show_details ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  tabIndex={-1}
-                  onClick={() =>
-                    setFormData((p) => ({
-                      ...p,
-                      receiver: { ...p.receiver, show_details: true },
-                    }))
+                {/* Row 1, Col 2: Goods Value */}
+                <FormSelect
+                  label="Goods Value"
+                  required
+                  options={GOODS_VALUE_OPTIONS}
+                  value={String(formData.goods_value)}
+                  onChange={(val) =>
+                    setFormData((p) => ({ ...p, goods_value: Number(val) as GoodsValue }))
                   }
-                  className="h-6 px-2 text-[10px] font-semibold bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-none"
-                >
-                  <Plus className="w-2.5 h-2.5 mr-0.5" />
-                  Add Details
-                </Button>
-              ) : null
-            }
-          >
-            {/* Receiver Primary Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
-              <FormSelect
-                label="Contact No"
-                required
-                searchable
-                allowCustom
-                searchNumericOnly
-                searchMaxLength={10}
-                options={receiverOptions}
-                value={formData.receiver.contact_no}
-                onChange={handleReceiverSelect}
-                onSearchChange={(val) => setReceiverSearch(val)}
-                placeholder="Select / Search Contact No"
-                searchPlaceholder="Enter 10-digit mobile..."
-                error={formErrors.receiver_contact}
-              />
-
-              <FormInput
-                label="GSTIN"
-                placeholder="GST NO"
-                uppercase
-                value={formData.receiver.gstin}
-                onChange={(e) =>
-                  setFormData((p) => ({
-                    ...p,
-                    receiver: { ...p.receiver, gstin: e.target.value.toUpperCase() },
-                  }))
-                }
-              />
-
-              <FormInput
-                label="Name"
-                required
-                placeholder="Customer Name"
-                value={formData.receiver.name}
-                onChange={(e) => {
-                  setFormData((p) => ({
-                    ...p,
-                    receiver: { ...p.receiver, name: e.target.value },
-                  }));
-                  if (formErrors.receiver_name) {
-                    setFormErrors((p) => ({ ...p, receiver_name: "" }));
-                  }
-                }}
-                error={formErrors.receiver_name}
-              />
-            </div>
-
-            {/* Receiver Collapsible Address Block */}
-            {formData.receiver.show_details && (
-              <div className="relative p-2 rounded bg-slate-50 border border-slate-200/70 space-y-1.5 animate-in fade-in-50 duration-150">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
-                    Receiver Address Details
-                  </span>
-                  {!isView && (
-                    <button
-                      type="button"
-                      tabIndex={-1}
-                      onClick={() =>
-                        setFormData((p) => ({
-                          ...p,
-                          receiver: {
-                            ...p.receiver,
-                            show_details: false,
-                            address: "",
-                            city: "",
-                            pincode: "",
-                          },
-                        }))
-                      }
-                      className="p-0.5 rounded text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
-                      title="Hide address details"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                <FormInput
-                  label="Address"
-                  placeholder="Address Line"
-                  value={formData.receiver.address || ""}
-                  onChange={(e) =>
-                    setFormData((p) => ({
-                      ...p,
-                      receiver: { ...p.receiver, address: e.target.value },
-                    }))
-                  }
+                  placeholder="Select Goods Value"
+                  searchPlaceholder="Search goods value..."
                 />
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {/* Row 2, Col 1: Bill No (when with_bill) */}
+                {billType === "with_bill" && (
                   <FormInput
-                    label="City"
-                    placeholder="City"
-                    value={formData.receiver.city || ""}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        receiver: { ...p.receiver, city: e.target.value },
-                      }))
-                    }
-                  />
-
-                  <FormInput
-                    label="Pincode"
-                    placeholder="Pincode"
-                    value={formData.receiver.pincode || ""}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        receiver: { ...p.receiver, pincode: e.target.value },
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-            )}
-          </FormCard>
-        </div>
-
-        {/* ─── 3. Package Items Section ──────────────────────────────────────── */}
-        <FormCard title="Package Details" icon={Package}>
-          <div className="space-y-1">
-            {formData.packages.map((pkg, idx) => (
-              <div
-                key={pkg.id}
-                className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-12 gap-1.5 items-start p-2 rounded bg-slate-50/70 border border-slate-200/60 transition-colors"
-              >
-                {/* Qty (span 1) */}
-                <div className="lg:col-span-1">
-                  <FormInput
-                    label="Qty"
+                    label="Bill No"
                     required
-                    type="number"
-                    min="0"
-                    placeholder="Qty"
-                    value={pkg.qty === 0 ? "" : pkg.qty}
-                    onChange={(e) =>
-                      updatePackageField(
-                        idx,
-                        "qty",
-                        e.target.value === "" ? "" : Math.max(0, Number(e.target.value))
-                      )
-                    }
-                    error={formErrors[`pkg_qty_${idx}`]}
+                    placeholder="Bill No / LR No"
+                    value={formData.bill_no}
+                    onChange={(e) => setFormData((p) => ({ ...p, bill_no: e.target.value }))}
                   />
-                </div>
+                )}
 
-                {/* Material (span 2) */}
-                <div className="lg:col-span-2">
-                  <FormInput
-                    label="Material"
-                    placeholder="e.g. Cotton Box"
-                    value={pkg.material}
-                    onChange={(e) => updatePackageField(idx, "material", e.target.value)}
-                  />
-                </div>
-
-                {/* Packing (span 2) */}
-                <div className="lg:col-span-2">
-                  <FormInput
-                    label="Packing"
-                    placeholder="e.g. Carton"
-                    value={pkg.packing}
-                    onChange={(e) => updatePackageField(idx, "packing", e.target.value)}
-                  />
-                </div>
-
-                {/* Payment Type (span 2) */}
-                <div className="lg:col-span-2">
-                  <FormSelect
-                    label="Payment Type"
-                    required
-                    options={PAYMENT_TYPE_OPTIONS}
-                    value={pkg.payment_type}
-                    onChange={(val) =>
-                      updatePackageField(idx, "payment_type", val as PaymentType)
-                    }
-                    placeholder="Select Type"
-                  />
-                </div>
-
-                {/* Price (span 2) */}
-                <div className="lg:col-span-2">
-                  <FormInput
-                    label="Price (₹)"
-                    required
-                    type="number"
-                    min="0"
-                    placeholder="Price"
-                    value={pkg.price}
-                    onChange={(e) =>
-                      updatePackageField(
-                        idx,
-                        "price",
-                        e.target.value === "" ? "" : Math.max(0, Number(e.target.value))
-                      )
-                    }
-                    error={formErrors[`pkg_price_${idx}`]}
-                  />
-                </div>
-
-                {/* Total (span 2 or 3 in view mode) */}
-                <div className={isView ? "lg:col-span-3" : "lg:col-span-2"}>
-                  <FormInput
-                    label="Total (₹)"
-                    type="text"
-                    value={
-                      pkg.payment_type === "Per Package"
-                        ? (Number(pkg.qty) || 0) * (Number(pkg.price) || 0)
-                        : (Number(pkg.price) || 0)
-                    }
-                    disabled
-                    readOnly
-                  />
-                </div>
-
-                {/* Action buttons (span 1 - Plus only on last row, Remove on all if length > 1) */}
-                {!isView && (
-                  <div className="lg:col-span-1 space-y-1">
-                    <span className="text-[11px] font-bold invisible select-none leading-none block">&nbsp;</span>
-                    <div className="flex items-center justify-end sm:justify-center gap-1 h-8">
-                      {idx === formData.packages.length - 1 && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          tabIndex={-1}
-                          onClick={addPackageRow}
-                          className="h-8 w-7 p-0 bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-none"
-                          title="Add row"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </Button>
-                      )}
-
-                      {formData.packages.length > 1 && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          tabIndex={-1}
-                          variant="destructive"
-                          onClick={() => removePackageRow(idx)}
-                          className="h-8 w-7 p-0 bg-[#e74c3c] hover:bg-[#c0392b] text-white shadow-none"
-                          title="Remove row"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      )}
-                    </div>
+                {/* Row 2, Col 2: Bill Upload (when with_bill) */}
+                {billType === "with_bill" && (
+                  <div className="space-y-1">
+                    <Label className="text-[11px] font-bold text-black flex items-center gap-0.5 leading-none">Bill Upload</Label>
+                    <FileUploadPreview
+                      label="Bill"
+                      fileName={billFile?.name}
+                      fileUrl={billFileUrl}
+                      disabled={isView}
+                      isUploading={uploadingFields["billFile"]}
+                      onFileSelect={handleBillFileUpload}
+                      onRemove={() => {
+                        setBillFile(null);
+                        setBillFileUrl("");
+                      }}
+                      accept="image/*,.pdf"
+                      showViewLink={true}
+                    />
                   </div>
                 )}
               </div>
-            ))}
+            </FormCard>
           </div>
 
-          {/* Reference Packages Table from Last Bookings (Clean Table only) */}
-          {!isView && referencePackages.length > 0 && (
-            <div className="mt-3 pt-2.5 border-t border-slate-200">
-              <div className="overflow-x-auto border border-black rounded bg-white">
-                <table className="w-full text-xs text-left border-collapse">
-                  <thead className="bg-slate-100 text-[11px] font-bold text-black border-b border-black uppercase tracking-wider">
-                    <tr>
-                      <th className="py-1 px-2.5 border-r border-black w-14 text-center">Sr No</th>
-                      <th className="py-1 px-2.5 border-r border-black">Quantity</th>
-                      <th className="py-1 px-2.5 border-r border-black">Material</th>
-                      <th className="py-1 px-2.5 border-r border-black">Packing</th>
-                      <th className="py-1 px-2.5 border-r border-black">Payment Type</th>
-                      <th className="py-1 px-2.5 border-r border-black">Price (₹)</th>
-                      <th className="py-1 px-2.5 text-center w-16">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {referencePackages.map((refPkg, rIdx) => {
-                      const isChecked = formData.packages.some((p) => p.ref_id === refPkg.refId);
-                      return (
-                        <tr
-                          key={refPkg.refId}
-                          className={cn(
-                            "transition-colors",
-                            isChecked ? "bg-blue-50/70 font-semibold" : "hover:bg-slate-50"
-                          )}
-                        >
-                          <td className="py-1.5 px-2.5 border-r border-slate-200 text-center font-mono text-slate-700">
-                            {rIdx + 1}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-200 text-black">
-                            {refPkg.qty}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-200 text-black">
-                            {refPkg.material || "-"}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-200 text-black">
-                            {refPkg.packing || "-"}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-200 text-black">
-                            {refPkg.payment_type}
-                          </td>
-                          <td className="py-1.5 px-2.5 border-r border-slate-200 font-semibold text-black">
-                            ₹{refPkg.price}
-                          </td>
-                          <td className="py-1.5 px-2.5 text-center">
-                            <input
-                              type="checkbox"
-                              tabIndex={-1}
-                              checked={isChecked}
-                              onChange={(e) =>
-                                handleToggleRefPackage(refPkg, e.target.checked)
-                              }
-                              className="w-3.5 h-3.5 text-[#2980b9] rounded border-black focus:ring-black/20 cursor-pointer"
-                              title="Auto-fill this package"
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </FormCard>
-
-        {/* ─── 4. Payment & Additional Details Section ───────────────────────── */}
-        <FormCard title="Payment & Additional Details" icon={CreditCard}>
-          {/* Line 1: Payment Method, Bilty Charge, Final Bill Amount, Sender Id Proof */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 items-start">
-            {/* Payment Method */}
-            <FormSelect
-              label="Payment Method"
-              required
-              options={paymentMethodOptions}
-              value={formData.payment_method}
-              onChange={(val) =>
-                setFormData((p) => ({ ...p, payment_method: val as PaymentMethod }))
-              }
-              placeholder="Select Payment Method"
-            />
-
-            {/* Bilty Charge */}
-            <FormInput
-              label="Bilty Charge (₹)"
-              type="number"
-              min="0"
-              value={formData.bilty_charge}
-              onChange={(e) =>
-                setFormData((p) => ({
-                  ...p,
-                  bilty_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
-                }))
-              }
-            />
-
-            {/* Final Bill Amount (Disabled Input Field) */}
-            <FormInput
-              label="Final Bill Amount (₹)"
-              type="text"
-              value={calculatedNetCost}
-              disabled
-              readOnly
-            />
-
-            {/* Sender Id Proof */}
-            <div className="space-y-1">
-              <Label className="text-[11px] font-bold text-black flex items-center gap-0.5 leading-none">
-                Sender Id Proof
-              </Label>
-              <FileUploadPreview
-                label="Sender Id Proof"
-                fileName={formData.sender_id_proof?.name}
-                fileUrl={formData.sender_id_proof_url}
-                disabled={isView}
-                isUploading={uploadingFields["senderProof"]}
-                onFileSelect={handleSenderProofUpload}
-                onRemove={() =>
-                  setFormData((p) => ({
-                    ...p,
-                    sender_id_proof: null,
-                    sender_id_proof_url: "",
-                  }))
-                }
-                accept="image/*,.pdf"
-                showViewLink={true}
-              />
-            </div>
-          </div>
-
-          {/* Line 2: Collapsible Extra Charges & Delivery Details */}
-          {(showAdditionalCharges || !isView) && (
-            <div className="pt-0.5 border-t border-slate-100">
-              {!showAdditionalCharges ? (
-                !isView && (
+          {/* ─── 2. Sender & Receiver Section ──────────────────────────────────── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+            {/* Sender Details */}
+            <FormCard
+              title="Sender"
+              icon={User}
+              action={
+                !isView && !formData.sender.show_details ? (
                   <Button
                     type="button"
-                    variant="outline"
                     size="sm"
                     tabIndex={-1}
-                    onClick={() => setShowAdditionalCharges(true)}
-                    className="h-7 text-xs text-[#2980b9] border-[#2980b9]/30 hover:bg-blue-50"
+                    onClick={() =>
+                      setFormData((p) => ({
+                        ...p,
+                        sender: { ...p.sender, show_details: true },
+                      }))
+                    }
+                    className="h-6 px-2 text-[10px] font-semibold bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-none"
                   >
-                    <Plus className="w-3 h-3 mr-1" />
-                    Add Extra Charges / Delivery Details
+                    <Plus className="w-2.5 h-2.5 mr-0.5" />
+                    Add Details
                   </Button>
-                )
-              ) : (
-                <div className="p-2 rounded bg-slate-50 border border-slate-200/70 space-y-2 animate-in fade-in-50 duration-150">
-                  <div className="flex items-center justify-between pb-1 border-b border-slate-200/60">
-                    <h4 className="text-[11px] font-bold text-black uppercase tracking-wider">
-                      Extra Charges &amp; Delivery Details
-                    </h4>
+                ) : null
+              }
+            >
+              {/* Sender Primary Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <FormSelect
+                  label="Contact No"
+                  required
+                  searchable
+                  allowCustom
+                  searchNumericOnly
+                  searchMaxLength={10}
+                  options={senderOptions}
+                  value={formData.sender.contact_no}
+                  onChange={handleSenderSelect}
+                  onSearchChange={(val) => setSenderSearch(val)}
+                  placeholder="Select / Search Contact No"
+                  searchPlaceholder="Enter 10-digit mobile..."
+                  error={formErrors.sender_contact}
+                />
+
+                <FormInput
+                  label="GSTIN"
+                  placeholder="GST NO"
+                  uppercase
+                  value={formData.sender.gstin}
+                  onChange={(e) =>
+                    setFormData((p) => ({
+                      ...p,
+                      sender: { ...p.sender, gstin: e.target.value.toUpperCase() },
+                    }))
+                  }
+                />
+
+                <FormInput
+                  label="Name"
+                  required
+                  placeholder="Customer Name"
+                  value={formData.sender.name}
+                  onChange={(e) => {
+                    setFormData((p) => ({
+                      ...p,
+                      sender: { ...p.sender, name: e.target.value },
+                    }));
+                    if (formErrors.sender_name) {
+                      setFormErrors((p) => ({ ...p, sender_name: "" }));
+                    }
+                  }}
+                  error={formErrors.sender_name}
+                />
+              </div>
+
+              {/* Sender Collapsible Address Block */}
+              {formData.sender.show_details && (
+                <div className="relative p-2 rounded-md bg-slate-50 border border-slate-200/70 space-y-2 animate-in fade-in-50 duration-150">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                      Sender Address Details
+                    </span>
                     {!isView && (
                       <button
                         type="button"
                         tabIndex={-1}
-                        onClick={() => setShowAdditionalCharges(false)}
-                        className="text-slate-400 hover:text-red-600 p-0.5 transition-colors"
-                        title="Collapse extra charges"
+                        onClick={() =>
+                          setFormData((p) => ({
+                            ...p,
+                            sender: {
+                              ...p.sender,
+                              show_details: false,
+                              address: "",
+                              city: "",
+                              pincode: "",
+                            },
+                          }))
+                        }
+                        className="p-0.5 rounded text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
+                        title="Remove address details"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-                    {/* Delivery Type */}
-                    <FormSelect
-                      label="Delivery Type"
-                      options={DELIVERY_TYPE_OPTIONS}
-                      value={formData.delivery_type || "office"}
-                      onChange={(val) =>
-                        setFormData((p) => ({ ...p, delivery_type: val as DeliveryType }))
-                      }
-                      placeholder="Select Delivery Type"
-                    />
+                  <FormInput
+                    label="Address"
+                    placeholder="Enter street / area address"
+                    value={formData.sender.address || ""}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        sender: { ...p.sender, address: e.target.value },
+                      }))
+                    }
+                  />
 
-                    {/* Hamali Cost */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <FormInput
-                      label="Hamali Cost (₹)"
-                      type="number"
-                      min="0"
-                      value={formData.hamali_cost}
+                      label="City"
+                      placeholder="City Name"
+                      value={formData.sender.city || ""}
                       onChange={(e) =>
                         setFormData((p) => ({
                           ...p,
-                          hamali_cost: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                          sender: { ...p.sender, city: e.target.value },
                         }))
                       }
                     />
 
-                    {/* Pickup Charge */}
                     <FormInput
-                      label="Pickup Charge (₹)"
-                      type="number"
-                      min="0"
-                      value={formData.pickup_charge}
+                      label="Pincode"
+                      placeholder="Pincode"
+                      value={formData.sender.pincode || ""}
                       onChange={(e) =>
                         setFormData((p) => ({
                           ...p,
-                          pickup_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
-                        }))
-                      }
-                    />
-
-                    {/* Loading Charge */}
-                    <FormInput
-                      label="Loading Charge (₹)"
-                      type="number"
-                      min="0"
-                      value={formData.loading_charge}
-                      onChange={(e) =>
-                        setFormData((p) => ({
-                          ...p,
-                          loading_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
-                        }))
-                      }
-                    />
-
-                    {/* Delivery Charge */}
-                    <FormInput
-                      label="Delivery Charge (₹)"
-                      type="number"
-                      min="0"
-                      value={formData.delivery_charge}
-                      onChange={(e) =>
-                        setFormData((p) => ({
-                          ...p,
-                          delivery_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
-                        }))
-                      }
-                    />
-
-                    {/* Extra Charge */}
-                    <FormInput
-                      label="Extra Charge (₹)"
-                      type="number"
-                      min="0"
-                      value={formData.extra_charge}
-                      onChange={(e) =>
-                        setFormData((p) => ({
-                          ...p,
-                          extra_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                          sender: { ...p.sender, pincode: e.target.value },
                         }))
                       }
                     />
                   </div>
                 </div>
               )}
-            </div>
-          )}
+            </FormCard>
 
-          {/* Line 3: Remarks and Cancel Reason */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-            <FormTextarea
-              label="Remark"
-              placeholder="Optional remarks or notes..."
-              value={formData.remark}
-              onChange={(e) => setFormData((p) => ({ ...p, remark: e.target.value }))}
-            />
-
-            <FormTextarea
-              label="Cancel Reason"
-              placeholder="Reason if cancelled..."
-              value={formData.cancel_reason}
-              onChange={(e) => setFormData((p) => ({ ...p, cancel_reason: e.target.value }))}
-            />
-          </div>
-
-          {/* Driver Details Toggle */}
-          {(formData.show_driver_details || !isView) && (
-            <div className="pt-0.5 border-t border-slate-100">
-              {!formData.show_driver_details ? (
-                !isView && (
+            {/* Receiver Details */}
+            <FormCard
+              title="Receiver"
+              icon={UserCheck}
+              action={
+                !isView && !formData.receiver.show_details ? (
                   <Button
                     type="button"
-                    variant="outline"
                     size="sm"
                     tabIndex={-1}
                     onClick={() =>
-                      setFormData((p) => ({ ...p, show_driver_details: true }))
+                      setFormData((p) => ({
+                        ...p,
+                        receiver: { ...p.receiver, show_details: true },
+                      }))
                     }
-                    className="h-7 text-xs text-[#2980b9] border-[#2980b9]/30 hover:bg-blue-50"
+                    className="h-6 px-2 text-[10px] font-semibold bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-none"
                   >
-                    <Plus className="w-3 h-3 mr-1" />
-                    Add Driver Details
+                    <Plus className="w-2.5 h-2.5 mr-0.5" />
+                    Add Details
                   </Button>
-                )
-              ) : (
+                ) : null
+              }
+            >
+              {/* Receiver Primary Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                <FormSelect
+                  label="Contact No"
+                  required
+                  searchable
+                  allowCustom
+                  searchNumericOnly
+                  searchMaxLength={10}
+                  options={receiverOptions}
+                  value={formData.receiver.contact_no}
+                  onChange={handleReceiverSelect}
+                  onSearchChange={(val) => setReceiverSearch(val)}
+                  placeholder="Select / Search Contact No"
+                  searchPlaceholder="Enter 10-digit mobile..."
+                  error={formErrors.receiver_contact}
+                />
+
+                <FormInput
+                  label="GSTIN"
+                  placeholder="GST NO"
+                  uppercase
+                  value={formData.receiver.gstin}
+                  onChange={(e) =>
+                    setFormData((p) => ({
+                      ...p,
+                      receiver: { ...p.receiver, gstin: e.target.value.toUpperCase() },
+                    }))
+                  }
+                />
+
+                <FormInput
+                  label="Name"
+                  required
+                  placeholder="Customer Name"
+                  value={formData.receiver.name}
+                  onChange={(e) => {
+                    setFormData((p) => ({
+                      ...p,
+                      receiver: { ...p.receiver, name: e.target.value },
+                    }));
+                    if (formErrors.receiver_name) {
+                      setFormErrors((p) => ({ ...p, receiver_name: "" }));
+                    }
+                  }}
+                  error={formErrors.receiver_name}
+                />
+              </div>
+
+              {/* Receiver Collapsible Address Block */}
+              {formData.receiver.show_details && (
+                <div className="relative p-2 rounded bg-slate-50 border border-slate-200/70 space-y-1.5 animate-in fade-in-50 duration-150">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                      Receiver Address Details
+                    </span>
+                    {!isView && (
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        onClick={() =>
+                          setFormData((p) => ({
+                            ...p,
+                            receiver: {
+                              ...p.receiver,
+                              show_details: false,
+                              address: "",
+                              city: "",
+                              pincode: "",
+                            },
+                          }))
+                        }
+                        className="p-0.5 rounded text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
+                        title="Hide address details"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <FormInput
+                    label="Address"
+                    placeholder="Address Line"
+                    value={formData.receiver.address || ""}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        receiver: { ...p.receiver, address: e.target.value },
+                      }))
+                    }
+                  />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    <FormInput
+                      label="City"
+                      placeholder="City"
+                      value={formData.receiver.city || ""}
+                      onChange={(e) =>
+                        setFormData((p) => ({
+                          ...p,
+                          receiver: { ...p.receiver, city: e.target.value },
+                        }))
+                      }
+                    />
+
+                    <FormInput
+                      label="Pincode"
+                      placeholder="Pincode"
+                      value={formData.receiver.pincode || ""}
+                      onChange={(e) =>
+                        setFormData((p) => ({
+                          ...p,
+                          receiver: { ...p.receiver, pincode: e.target.value },
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+            </FormCard>
+          </div>
+
+          {/* ─── 3. Package Items Section ──────────────────────────────────────── */}
+          <FormCard title="Package Details" icon={Package}>
+            <div className="space-y-1">
+              {formData.packages.map((pkg, idx) => (
+                <div
+                  key={pkg.id}
+                  className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-12 gap-1.5 items-start p-2 rounded bg-slate-50/70 border border-slate-200/60 transition-colors"
+                >
+                  {/* Qty (span 1) */}
+                  <div className="lg:col-span-1">
+                    <FormInput
+                      label="Qty"
+                      required
+                      type="number"
+                      min="0"
+                      placeholder="Qty"
+                      value={pkg.qty === 0 ? "" : pkg.qty}
+                      disabled={isView || isNonAdminEdit}
+                      onChange={(e) =>
+                        updatePackageField(
+                          idx,
+                          "qty",
+                          e.target.value === "" ? "" : Math.max(0, Number(e.target.value))
+                        )
+                      }
+                      error={formErrors[`pkg_qty_${idx}`]}
+                    />
+                  </div>
+
+                  {/* Material (span 2) */}
+                  <div className="lg:col-span-2">
+                    <FormInput
+                      label="Material"
+                      placeholder="e.g. Cotton Box"
+                      value={pkg.material}
+                      onChange={(e) => updatePackageField(idx, "material", e.target.value)}
+                    />
+                  </div>
+
+                  {/* Packing (span 2) */}
+                  <div className="lg:col-span-2">
+                    <FormInput
+                      label="Packing"
+                      placeholder="e.g. Carton"
+                      value={pkg.packing}
+                      onChange={(e) => updatePackageField(idx, "packing", e.target.value)}
+                    />
+                  </div>
+
+                  {/* Payment Type (span 2) */}
+                  <div className="lg:col-span-2">
+                    <FormSelect
+                      label="Payment Type"
+                      required
+                      options={PAYMENT_TYPE_OPTIONS}
+                      value={pkg.payment_type}
+                      disabled={isView || isNonAdminEdit}
+                      onChange={(val) =>
+                        updatePackageField(idx, "payment_type", val as PaymentType)
+                      }
+                      placeholder="Select Type"
+                    />
+                  </div>
+
+                  {/* Price (span 2) */}
+                  <div className="lg:col-span-2">
+                    <FormInput
+                      label="Price (₹)"
+                      required
+                      type="number"
+                      min="0"
+                      placeholder="Price"
+                      value={pkg.price}
+                      disabled={isView || isNonAdminEdit}
+                      onChange={(e) =>
+                        updatePackageField(
+                          idx,
+                          "price",
+                          e.target.value === "" ? "" : Math.max(0, Number(e.target.value))
+                        )
+                      }
+                      error={formErrors[`pkg_price_${idx}`]}
+                    />
+                  </div>
+
+                  {/* Total (span 2 or 3 in view/non-admin edit mode) */}
+                  <div className={isView || isNonAdminEdit ? "lg:col-span-3" : "lg:col-span-2"}>
+                    <FormInput
+                      label="Total (₹)"
+                      type="text"
+                      value={
+                        pkg.payment_type === "Per Package"
+                          ? (Number(pkg.qty) || 0) * (Number(pkg.price) || 0)
+                          : (Number(pkg.price) || 0)
+                      }
+                      disabled
+                      readOnly
+                    />
+                  </div>
+
+                  {/* Action buttons (span 1 - Plus only on last row, Remove on all if length > 1) */}
+                  {!isView && !isNonAdminEdit && (
+                    <div className="lg:col-span-1 space-y-1">
+                      <span className="text-[11px] font-bold invisible select-none leading-none block">&nbsp;</span>
+                      <div className="flex items-center justify-end sm:justify-center gap-1 h-8">
+                        {idx === formData.packages.length - 1 && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            tabIndex={-1}
+                            onClick={addPackageRow}
+                            className="h-8 w-7 p-0 bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-none"
+                            title="Add row"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+
+                        {formData.packages.length > 1 && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            tabIndex={-1}
+                            variant="destructive"
+                            onClick={() => removePackageRow(idx)}
+                            className="h-8 w-7 p-0 bg-[#e74c3c] hover:bg-[#c0392b] text-white shadow-none"
+                            title="Remove row"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Reference Packages Table from Last Bookings (Clean Table only) */}
+            {!isView && !isNonAdminEdit && referencePackages.length > 0 && (
+              <div className="mt-3 pt-2.5 border-t border-slate-200">
+                <div className="overflow-x-auto border border-black rounded bg-white">
+                  <table className="w-full text-xs text-left border-collapse">
+                    <thead className="bg-slate-100 text-[11px] font-bold text-black border-b border-black uppercase tracking-wider">
+                      <tr>
+                        <th className="py-1 px-2.5 border-r border-black w-14 text-center">Sr No</th>
+                        <th className="py-1 px-2.5 border-r border-black">Quantity</th>
+                        <th className="py-1 px-2.5 border-r border-black">Material</th>
+                        <th className="py-1 px-2.5 border-r border-black">Packing</th>
+                        <th className="py-1 px-2.5 border-r border-black">Payment Type</th>
+                        <th className="py-1 px-2.5 border-r border-black">Price (₹)</th>
+                        <th className="py-1 px-2.5 text-center w-16">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {referencePackages.map((refPkg, rIdx) => {
+                        const isChecked = formData.packages.some((p) => p.ref_id === refPkg.refId);
+                        return (
+                          <tr
+                            key={refPkg.refId}
+                            className={cn(
+                              "transition-colors",
+                              isChecked ? "bg-blue-50/70 font-semibold" : "hover:bg-slate-50"
+                            )}
+                          >
+                            <td className="py-1.5 px-2.5 border-r border-slate-200 text-center font-mono text-slate-700">
+                              {rIdx + 1}
+                            </td>
+                            <td className="py-1.5 px-2.5 border-r border-slate-200 text-black">
+                              {refPkg.qty}
+                            </td>
+                            <td className="py-1.5 px-2.5 border-r border-slate-200 text-black">
+                              {refPkg.material || "-"}
+                            </td>
+                            <td className="py-1.5 px-2.5 border-r border-slate-200 text-black">
+                              {refPkg.packing || "-"}
+                            </td>
+                            <td className="py-1.5 px-2.5 border-r border-slate-200 text-black">
+                              {refPkg.payment_type}
+                            </td>
+                            <td className="py-1.5 px-2.5 border-r border-slate-200 font-semibold text-black">
+                              ₹{refPkg.price}
+                            </td>
+                            <td className="py-1.5 px-2.5 text-center">
+                              <input
+                                type="checkbox"
+                                tabIndex={-1}
+                                checked={isChecked}
+                                onChange={(e) =>
+                                  handleToggleRefPackage(refPkg, e.target.checked)
+                                }
+                                className="w-3.5 h-3.5 text-[#2980b9] rounded border-black focus:ring-black/20 cursor-pointer"
+                                title="Auto-fill this package"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </FormCard>
+
+          {/* ─── 4. Payment & Additional Details Section ───────────────────────── */}
+          <FormCard title="Payment & Additional Details" icon={CreditCard}>
+            {/* Line 1: Payment Method, Bilty Charge, Final Bill Amount, Sender Id Proof */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 items-start">
+              {/* Payment Method */}
+              <FormSelect
+                label="Payment Method"
+                required
+                options={paymentMethodOptions}
+                value={formData.payment_method}
+                disabled={isView || isNonAdminEdit}
+                onChange={(val) =>
+                  setFormData((p) => ({ ...p, payment_method: val as PaymentMethod }))
+                }
+                placeholder="Select Payment Method"
+              />
+
+              {/* Bilty Charge */}
+              <FormInput
+                label="Bilty Charge (₹)"
+                type="number"
+                min="0"
+                value={formData.bilty_charge}
+                disabled={isView || isNonAdminEdit}
+                onChange={(e) =>
+                  setFormData((p) => ({
+                    ...p,
+                    bilty_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                  }))
+                }
+              />
+
+              {/* Final Bill Amount (Disabled Input Field) */}
+              <FormInput
+                label="Final Bill Amount (₹)"
+                type="text"
+                value={calculatedNetCost}
+                disabled
+                readOnly
+              />
+
+              {/* Sender Id Proof */}
+              <div className="space-y-1">
+                <Label className="text-[11px] font-bold text-black flex items-center gap-0.5 leading-none">
+                  Sender Id Proof
+                </Label>
+                <FileUploadPreview
+                  label="Sender Id Proof"
+                  fileName={formData.sender_id_proof?.name}
+                  fileUrl={formData.sender_id_proof_url}
+                  disabled={isView}
+                  isUploading={uploadingFields["senderProof"]}
+                  onFileSelect={handleSenderProofUpload}
+                  onRemove={() =>
+                    setFormData((p) => ({
+                      ...p,
+                      sender_id_proof: null,
+                      sender_id_proof_url: "",
+                    }))
+                  }
+                  accept="image/*,.pdf"
+                  showViewLink={true}
+                />
+              </div>
+            </div>
+
+            {/* Line 2: Collapsible Extra Charges & Delivery Details */}
+            {(showAdditionalCharges || !isView) && (
+              <div className="pt-0.5 border-t border-slate-100">
+                {!showAdditionalCharges ? (
+                  !isView && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      tabIndex={-1}
+                      onClick={() => setShowAdditionalCharges(true)}
+                      className="h-7 text-xs text-[#2980b9] border-[#2980b9]/30 hover:bg-blue-50"
+                    >
+                      <Plus className="w-3 h-3 mr-1" />
+                      Add Extra Charges / Delivery Details
+                    </Button>
+                  )
+                ) : (
+                  <div className="p-2 rounded bg-slate-50 border border-slate-200/70 space-y-2 animate-in fade-in-50 duration-150">
+                    <div className="flex items-center justify-between pb-1 border-b border-slate-200/60">
+                      <h4 className="text-[11px] font-bold text-black uppercase tracking-wider">
+                        Extra Charges &amp; Delivery Details
+                      </h4>
+                      {!isView && (
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          onClick={() => setShowAdditionalCharges(false)}
+                          className="text-slate-400 hover:text-red-600 p-0.5 transition-colors"
+                          title="Collapse extra charges"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                      {/* Delivery Type */}
+                      <FormSelect
+                        label="Delivery Type"
+                        options={DELIVERY_TYPE_OPTIONS}
+                        value={formData.delivery_type || "office"}
+                        disabled={isView}
+                        onChange={(val) =>
+                          setFormData((p) => ({ ...p, delivery_type: val as DeliveryType }))
+                        }
+                        placeholder="Select Delivery Type"
+                      />
+
+                      {/* Hamali Cost */}
+                      <FormInput
+                        label="Hamali Cost (₹)"
+                        type="number"
+                        min="0"
+                        value={formData.hamali_cost}
+                        disabled={isView || isNonAdminEdit}
+                        onChange={(e) =>
+                          setFormData((p) => ({
+                            ...p,
+                            hamali_cost: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                          }))
+                        }
+                      />
+
+                      {/* Pickup Charge */}
+                      <FormInput
+                        label="Pickup Charge (₹)"
+                        type="number"
+                        min="0"
+                        value={formData.pickup_charge}
+                        disabled={isView || isNonAdminEdit}
+                        onChange={(e) =>
+                          setFormData((p) => ({
+                            ...p,
+                            pickup_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                          }))
+                        }
+                      />
+
+                      {/* Loading Charge */}
+                      <FormInput
+                        label="Loading Charge (₹)"
+                        type="number"
+                        min="0"
+                        value={formData.loading_charge}
+                        disabled={isView || isNonAdminEdit}
+                        onChange={(e) =>
+                          setFormData((p) => ({
+                            ...p,
+                            loading_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                          }))
+                        }
+                      />
+
+                      {/* Delivery Charge */}
+                      <FormInput
+                        label="Delivery Charge (₹)"
+                        type="number"
+                        min="0"
+                        value={formData.delivery_charge}
+                        disabled={isView || isNonAdminEdit}
+                        onChange={(e) =>
+                          setFormData((p) => ({
+                            ...p,
+                            delivery_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                          }))
+                        }
+                      />
+
+                      {/* Extra Charge */}
+                      <FormInput
+                        label="Extra Charge (₹)"
+                        type="number"
+                        min="0"
+                        value={formData.extra_charge}
+                        disabled={isView || isNonAdminEdit}
+                        onChange={(e) =>
+                          setFormData((p) => ({
+                            ...p,
+                            extra_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Line 3: Remarks and Cancel Reason */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              <FormTextarea
+                label="Remark"
+                placeholder="Optional remarks or notes..."
+                value={formData.remark}
+                onChange={(e) => setFormData((p) => ({ ...p, remark: e.target.value }))}
+              />
+
+              <FormTextarea
+                label="Cancel Reason"
+                placeholder="Reason if cancelled..."
+                value={formData.cancel_reason}
+                onChange={(e) => setFormData((p) => ({ ...p, cancel_reason: e.target.value }))}
+              />
+            </div>
+
+            {/* Driver Details Section (Hidden per user request) */}
+            {formData.show_driver_details && (
+              <div className="pt-0.5 border-t border-slate-100">
                 <div className="p-2 rounded bg-slate-50 border border-slate-200/70 space-y-1.5 animate-in fade-in-50 duration-150">
                   <div className="flex items-center justify-between pb-1 border-b border-slate-200/60">
                     <div className="flex items-center gap-1.5">
@@ -2162,75 +2171,74 @@ export default function ParcelBookingForm({
                     )}
                   </div>
 
-                {/* Searchable Driver Select Dropdown */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                  <FormSelect
-                    label="Select Driver"
-                    options={driverOptions}
-                    value={formData.driver?.driver_id || ""}
-                    onChange={handleDriverSelect}
-                    placeholder="Search & select driver..."
-                    searchPlaceholder="Search name, vehicle..."
-                  />
-                </div>
+                  {/* Searchable Driver Select Dropdown */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    <FormSelect
+                      label="Select Driver"
+                      options={driverOptions}
+                      value={formData.driver?.driver_id || ""}
+                      onChange={handleDriverSelect}
+                      placeholder="Search & select driver..."
+                      searchPlaceholder="Search name, vehicle..."
+                    />
+                  </div>
 
-                {/* Auto-populated & Editable Driver Details */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 pt-0.5">
-                  <FormInput
-                    label="Driver Name"
-                    placeholder="Driver Name"
-                    value={formData.driver?.driver_name || ""}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        driver: { ...p.driver, driver_name: e.target.value },
-                      }))
-                    }
-                  />
+                  {/* Auto-populated & Editable Driver Details */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 pt-0.5">
+                    <FormInput
+                      label="Driver Name"
+                      placeholder="Driver Name"
+                      value={formData.driver?.driver_name || ""}
+                      onChange={(e) =>
+                        setFormData((p) => ({
+                          ...p,
+                          driver: { ...p.driver, driver_name: e.target.value },
+                        }))
+                      }
+                    />
 
-                  <FormInput
-                    label="Driver Mobile"
-                    placeholder="Driver Mobile No"
-                    value={formData.driver?.driver_mobile || ""}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        driver: { ...p.driver, driver_mobile: e.target.value },
-                      }))
-                    }
-                  />
+                    <FormInput
+                      label="Driver Mobile"
+                      placeholder="Driver Mobile No"
+                      value={formData.driver?.driver_mobile || ""}
+                      onChange={(e) =>
+                        setFormData((p) => ({
+                          ...p,
+                          driver: { ...p.driver, driver_mobile: e.target.value },
+                        }))
+                      }
+                    />
 
-                  <FormInput
-                    label="Vehicle No"
-                    placeholder="GJ-05-XX-1234"
-                    uppercase
-                    value={formData.driver?.vehicle_no || ""}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        driver: { ...p.driver, vehicle_no: e.target.value.toUpperCase() },
-                      }))
-                    }
-                  />
+                    <FormInput
+                      label="Vehicle No"
+                      placeholder="GJ-05-XX-1234"
+                      uppercase
+                      value={formData.driver?.vehicle_no || ""}
+                      onChange={(e) =>
+                        setFormData((p) => ({
+                          ...p,
+                          driver: { ...p.driver, vehicle_no: e.target.value.toUpperCase() },
+                        }))
+                      }
+                    />
 
-                  <FormInput
-                    label="License No"
-                    placeholder="License Number"
-                    uppercase
-                    value={formData.driver?.license_no || ""}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        driver: { ...p.driver, license_no: e.target.value.toUpperCase() },
-                      }))
-                    }
-                  />
+                    <FormInput
+                      label="License No"
+                      placeholder="License Number"
+                      uppercase
+                      value={formData.driver?.license_no || ""}
+                      onChange={(e) =>
+                        setFormData((p) => ({
+                          ...p,
+                          driver: { ...p.driver, license_no: e.target.value.toUpperCase() },
+                        }))
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             )}
-          </div>
-        )}
-        </FormCard>
+          </FormCard>
 
         </fieldset>
 

@@ -652,34 +652,49 @@ export default function ManageParcelBookingReportsPage() {
       label: "Action",
 
       width: "w-52",
-      render: (_, row) => (
-        <div className="flex items-center gap-1.5 py-0.5">
-          {permissions.canEdit && (
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => router.push(`/transaction/booking/edit/${row._id || row.id}`)}
-              className="h-7 px-2.5 text-xs bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-xs transition-colors"
-              title="Edit Booking"
-            >
-              <Pencil className="w-3 h-3 mr-1" />
-              Edit
-            </Button>
-          )}
-          {permissions.canDelete && (
-            <Button
-              type="button"
-              size="sm"
-              variant="destructive"
-              disabled={isCancelling && bookingToCancel?._id === row._id}
-              onClick={() => handleCancelClick(row)}
-              className="h-7 px-2.5 text-xs bg-[#e74c3c] hover:bg-[#c0392b] text-white shadow-xs transition-colors"
-              title="Cancel Booking"
-            >
-              <Trash2 className="w-3 h-3 mr-1" />
-              Cancel
-            </Button>
-          )}
+      render: (_, row) => {
+        const isDeliveredRow = String(row.status || "").toLowerCase() === "delivered";
+        return (
+          <div className="flex items-center gap-1.5 py-0.5">
+            {permissions.canEdit && !isDeliveredRow && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => router.push(`/transaction/booking/edit/${row.docketNo1 || row._id || row.id}`)}
+                className="h-7 px-2.5 text-xs bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-xs transition-colors"
+                title="Edit Booking"
+              >
+                <Pencil className="w-3 h-3 mr-1" />
+                Edit
+              </Button>
+            )}
+            {isDeliveredRow && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => router.push(`/transaction/booking/edit/${row.docketNo1 || row._id || row.id}`)}
+                className="h-7 px-2.5 text-xs text-slate-700 border-slate-300 hover:bg-slate-50 transition-colors"
+                title="View Booking (Delivered)"
+              >
+                <Eye className="w-3 h-3 mr-1" />
+                View
+              </Button>
+            )}
+            {permissions.canDelete && !isDeliveredRow && (
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                disabled={isCancelling && bookingToCancel?._id === row._id}
+                onClick={() => handleCancelClick(row)}
+                className="h-7 px-2.5 text-xs bg-[#e74c3c] hover:bg-[#c0392b] text-white shadow-xs transition-colors"
+                title="Cancel Booking"
+              >
+                <Trash2 className="w-3 h-3 mr-1" />
+                Cancel
+              </Button>
+            )}
           {permissions.canPrint && (
             <Button
               type="button"
@@ -692,8 +707,9 @@ export default function ManageParcelBookingReportsPage() {
               Print
             </Button>
           )}
-        </div>
-      ),
+          </div>
+        );
+      },
     },
   ];
 
