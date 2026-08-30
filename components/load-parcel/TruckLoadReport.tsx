@@ -1,0 +1,259 @@
+"use client";
+
+import React from "react";
+import moment from "moment";
+import type { LoadParcelResponseData } from "@/lib/api/booking";
+
+export interface TruckLoadReportProps {
+  data: LoadParcelResponseData;
+  userName?: string;
+  branchName?: string;
+  message?: string;
+}
+
+/**
+ * Returns clean Black & White HTML string for printing official Truck Loading Manifest / Load Report.
+ */
+export function getTruckLoadReportHtml(props: TruckLoadReportProps): string {
+  const { data, userName = "Admin", branchName = "" } = props;
+  const truckInfo = data?.truckInfo || { truckNumber: "—", driverName: "—" };
+  const pieceDetails = Array.isArray(data?.pieceDetails) ? data.pieceDetails : [];
+
+  const totalDockets = pieceDetails.length;
+  const totalPieces = pieceDetails.reduce(
+    (sum, item) => sum + (Array.isArray(item.pieceNumber) ? item.pieceNumber.length : 1),
+    0
+  );
+
+  // Set report date & time from first item's loadedAt date
+  const firstLoadedAt = pieceDetails[0]?.loadedAt;
+  const printTimestamp = firstLoadedAt
+    ? moment(firstLoadedAt).format("DD/MM/YYYY hh:mm A")
+    : moment().format("DD/MM/YYYY hh:mm A");
+
+  const rowsHtml = pieceDetails
+    .map((item, idx) => {
+      const pcsCount = Array.isArray(item.pieceNumber) ? item.pieceNumber.length : 1;
+      const pieceCodesStr = Array.isArray(item.pieceNumber) ? item.pieceNumber.join(", ") : "—";
+      const loadedTimeStr = item.loadedAt
+        ? moment(item.loadedAt).format("DD/MM/YYYY hh:mm A")
+        : printTimestamp;
+
+      return `
+        <tr>
+          <td style="text-align: center;">${idx + 1}</td>
+          <td>${item.docketNo1 || "—"}</td>
+          <td>${item.docketNo2 || "—"}</td>
+          <td style="text-align: center;">${pcsCount}</td>
+          <td style="word-break: break-all;">${pieceCodesStr}</td>
+          <td style="text-align: center;">${loadedTimeStr}</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Truck Load Report - ${truckInfo.truckNumber}</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 10mm;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      color: #000000;
+      background: #ffffff;
+      padding: 10px;
+      font-size: 11px;
+      line-height: 1.35;
+    }
+    .report-container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #ffffff;
+    }
+    .brand-header {
+      text-align: center;
+      margin-bottom: 12px;
+    }
+    .brand-name {
+      font-size: 18px;
+      font-weight: bold;
+      color: #000000;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .report-title {
+      font-size: 12px;
+      font-weight: bold;
+      color: #000000;
+      text-transform: uppercase;
+      margin-top: 3px;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      border: 1px solid #000000;
+      padding: 10px;
+      margin-bottom: 12px;
+      font-size: 11px;
+    }
+    .info-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .info-label {
+      font-size: 11px;
+      font-weight: bold;
+      color: #000000;
+      text-transform: uppercase;
+    }
+    .info-value {
+      font-size: 11px;
+      color: #000000;
+    }
+    .table-wrap {
+      width: 100%;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      color: #000000;
+    }
+    th, td {
+      border: 1px solid #000000;
+      padding: 6px 8px;
+      text-align: left;
+      font-size: 11px;
+    }
+    th {
+      font-weight: bold;
+      color: #000000;
+      text-transform: uppercase;
+      background: #ffffff;
+    }
+    .total-row {
+      font-weight: bold;
+      border-top: 2px solid #000000;
+    }
+    @media print {
+      body {
+        padding: 0;
+      }
+      .report-container {
+        border: none;
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="report-container">
+    <!-- Company Branding & Report Title -->
+    <div class="brand-header">
+      <div class="brand-name">BAJRANG ROAD LINES & PARCEL SERVICE</div>
+      <div class="report-title">LOAD PARCEL REPORT</div>
+    </div>
+
+    <!-- Info Metadata Grid -->
+    <div class="info-grid">
+      <div class="info-item">
+        <span class="info-label">TRUCK NUMBER:</span>
+        <span class="info-value">${truckInfo.truckNumber}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">ASSIGNED DRIVER:</span>
+        <span class="info-value">${truckInfo.driverName || "—"}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">REPORT DATE & TIME:</span>
+        <span class="info-value">${printTimestamp}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">GENERATED BY:</span>
+        <span class="info-value">${userName}${branchName ? ` (${branchName})` : ""}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">TOTAL DOCKETS:</span>
+        <span class="info-value">${totalDockets} Dockets</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">TOTAL PIECES:</span>
+        <span class="info-value">${totalPieces} Pieces</span>
+      </div>
+    </div>
+
+    <!-- Table of Loaded Pieces -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align: center; width: 35px;">#</th>
+            <th style="width: 110px;">DOCKET NO</th>
+            <th style="width: 120px;">TRACKING NO</th>
+            <th style="text-align: center; width: 55px;">PCS</th>
+            <th>PIECE BARCODES</th>
+            <th style="text-align: center; width: 130px;">LOADED TIME</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+        <tfoot>
+          <tr class="total-row">
+            <td colspan="3" style="text-align: right; font-weight: bold;">GRAND TOTAL:</td>
+            <td style="text-align: center; font-weight: bold;">${totalPieces}</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    window.onload = function() {
+      setTimeout(function() {
+        window.print();
+      }, 250);
+    };
+  </script>
+</body>
+</html>`;
+}
+
+/**
+ * Triggers the browser print dialog for the Truck Load Report.
+ */
+export function printTruckLoadReport(props: TruckLoadReportProps): void {
+  const html = getTruckLoadReportHtml(props);
+  const printWindow = window.open("", "_blank", "width=1000,height=750");
+  if (!printWindow) {
+    alert("Please allow popups to print the truck load report.");
+    return;
+  }
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+}
+
+export default function TruckLoadReport(props: TruckLoadReportProps) {
+  return (
+    <div
+      className="w-full overflow-auto bg-slate-100 p-4 flex justify-center"
+      dangerouslySetInnerHTML={{ __html: getTruckLoadReportHtml(props) }}
+    />
+  );
+}

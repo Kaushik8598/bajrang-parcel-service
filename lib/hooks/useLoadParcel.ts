@@ -1,6 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getOnlyTruckList } from "@/lib/api/truck";
-import { getLoadableParcels } from "@/lib/api/booking";
+import { getLoadableParcels, loadParcels, type LoadParcelPayload } from "@/lib/api/booking";
 
 export const ONLY_TRUCK_DROPDOWN_QUERY_KEY = ["only-truck-dropdown-list"] as const;
 export const LOADABLE_PARCELS_QUERY_KEY = ["loadable-parcels-list"] as const;
@@ -26,6 +26,20 @@ export function useLoadableParcels(enabled: boolean = true) {
     enabled: Boolean(enabled),
     staleTime: 30 * 1000,
     placeholderData: (previousData) => previousData,
+  });
+}
+
+/**
+ * Custom React Query mutation hook to load parcels into a truck via POST /booking/loadParcel
+ */
+export function useLoadParcelsMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: LoadParcelPayload) => loadParcels(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: LOADABLE_PARCELS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ONLY_TRUCK_DROPDOWN_QUERY_KEY });
+    },
   });
 }
 

@@ -10,6 +10,7 @@ import {
   Search,
   CheckCircle2,
   Camera,
+  Loader2,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,13 +20,18 @@ import { FormSelect, type FormSelectOption } from "@/components/ui/form-select";
 import { Checkbox } from "@/components/ui/checkbox";
 import SimpleDataTable from "@/components/DataTable/SimpleDataTable";
 import BarcodeScannerModal from "@/components/scanner/BarcodeScannerModal";
+import { printTruckLoadReport } from "@/components/load-parcel/TruckLoadReport";
 import { showToast } from "@/lib/toast";
-import { useOnlyTruckList, useLoadableParcels } from "@/lib/hooks";
+import { getStoredUser } from "@/lib/api/auth";
+import { useOnlyTruckList, useLoadableParcels, useLoadParcelsMutation } from "@/lib/hooks";
 import type { LoadableBookingItem } from "@/lib/api/booking";
 import type { OnlyTruckItem } from "@/lib/api/truck";
 import type { ColumnDef } from "@/lib/types/common";
 
 export default function LoadParcelPage() {
+  // ─── Current User ───────────────────────────────────────────────────────────
+  const currentUser = useMemo(() => getStoredUser(), []);
+
   // ─── Selected Truck & Filter States ─────────────────────────────────────────
   const [selectedTruck, setSelectedTruck] = useState<string>("");
   const [selectedFromBranch, setSelectedFromBranch] = useState<string>("");
@@ -63,8 +69,8 @@ export default function LoadParcelPage() {
     } else {
       const hasAnyMediaSupport = Boolean(
         navigator?.mediaDevices ||
-          (navigator as unknown as { getUserMedia?: unknown }).getUserMedia ||
-          (navigator as unknown as { webkitGetUserMedia?: unknown }).webkitGetUserMedia
+        (navigator as unknown as { getUserMedia?: unknown }).getUserMedia ||
+        (navigator as unknown as { webkitGetUserMedia?: unknown }).webkitGetUserMedia
       );
       setHasCamera(hasAnyMediaSupport);
     }
@@ -108,6 +114,9 @@ export default function LoadParcelPage() {
     refetch: refetchParcels,
   } = useLoadableParcels(Boolean(selectedTruck));
 
+  // Mutation for confirming load via POST /booking/loadParcel
+  const loadParcelsMutation = useLoadParcelsMutation();
+
   // Raw server bookings
   const serverBookings: LoadableBookingItem[] = useMemo(() => {
     const rawData = loadableRes?.data?.bookings;
@@ -120,10 +129,15 @@ export default function LoadParcelPage() {
     const groups = loadableRes?.data?.senderBranchGroup;
     if (!Array.isArray(groups)) return [];
     return groups.map((g) => {
-      const parcelInfo = g.parcels !== undefined ? ` / ${g.parcels} Pcs` : "";
+      const isAll = g.branchName === "ALL" || g.branchCode === "ALL";
+      const label = isAll
+        ? "ALL"
+        : g.branchCode && g.branchCode !== g.branchName
+          ? `${g.branchName} (${g.branchCode})`
+          : g.branchName;
       return {
         value: g.branchName,
-        label: `${g.branchName} (${g.count} Bookings${parcelInfo})`,
+        label,
       };
     });
   }, [loadableRes]);
@@ -133,10 +147,15 @@ export default function LoadParcelPage() {
     const groups = loadableRes?.data?.receiverBranchGroup;
     if (!Array.isArray(groups)) return [];
     return groups.map((g) => {
-      const parcelInfo = g.parcels !== undefined ? ` / ${g.parcels} Pcs` : "";
+      const isAll = g.branchName === "ALL" || g.branchCode === "ALL";
+      const label = isAll
+        ? "ALL"
+        : g.branchCode && g.branchCode !== g.branchName
+          ? `${g.branchName} (${g.branchCode})`
+          : g.branchName;
       return {
         value: g.branchName,
-        label: `${g.branchName} (${g.count} Bookings${parcelInfo})`,
+        label,
       };
     });
   }, [loadableRes]);
@@ -159,7 +178,7 @@ export default function LoadParcelPage() {
       return b.pieceDetails;
     }
     const count = Number(b.parcelCount) || 1;
-    const prefix = b.docketNo1 || b._id;
+    const prefix = b.docketNo2 || b.docketNo1 || b._id;
     return Array.from({ length: count }, (_, i) => `${prefix}__${String(i + 1).padStart(2, "0")}`);
   };
 
@@ -400,7 +419,7 @@ export default function LoadParcelPage() {
       next.delete(item._id);
       return next;
     });
-    showToast("success", `Docket "${item.docketNo1 || item.docketNo2}" added to load.`);
+    showToast("success", `Tracking No "${item.docketNo2 || item.docketNo1}" added to load.`);
   };
 
   // ─── Remove from Loaded (Move Back to Available) ───────────────────────────
@@ -417,6 +436,67 @@ export default function LoadParcelPage() {
     if (loadedParcels.length === 0) return;
     setLoadedPiecesMap({});
     showToast("info", "All loaded parcels returned to available list.");
+  };
+
+  // ─── Confirm Load API Submission (POST /booking/loadParcel) ─────────────────
+  const handleConfirmLoad = async () => {
+    if (!selectedTruck) {
+      showToast("warning", "Please select a truck first.");
+      return;
+    }
+
+    // Collect all loaded piece codes into a single flat array
+    const allLoadedPieceNumbers: string[] = [];
+    Object.values(loadedPiecesMap).forEach((pieces) => {
+      if (Array.isArray(pieces)) {
+        allLoadedPieceNumbers.push(...pieces);
+      }
+    });
+
+    if (allLoadedPieceNumbers.length === 0) {
+      showToast("warning", "No parcels loaded in truck to confirm. Please add parcels first.");
+      return;
+    }
+
+    try {
+      const res = await loadParcelsMutation.mutateAsync({
+        pieceNumbers: allLoadedPieceNumbers,
+        truckNumber: selectedTruck,
+      });
+
+      if (res && res.success !== false) {
+        showToast(
+          "success",
+          res.message || `${allLoadedPieceNumbers.length} parcel(s) successfully loaded into truck ${selectedTruck}!`
+        );
+
+        // Directly open print view with the loaded manifest report
+        if (res.data) {
+          printTruckLoadReport({
+            data: res.data,
+            userName: currentUserName,
+            branchName: currentBranchName,
+            message: res.message,
+          });
+        }
+
+        // Immediately reset all form & table states
+        setSelectedTruck("");
+        setSelectedFromBranch("");
+        setSelectedToBranch("");
+        setTableSearch("");
+        setLoadedPiecesMap({});
+        setSelectedAvailableIds(new Set());
+        refetchParcels();
+      } else {
+        showToast("error", res?.message || "Failed to confirm load.");
+      }
+    } catch (err: unknown) {
+      const errorObj = err as { response?: { data?: { message?: string } }; message?: string };
+      const msg =
+        errorObj?.response?.data?.message || errorObj?.message || "Failed to confirm load. Please try again.";
+      showToast("error", msg);
+    }
   };
 
   // ─── Summary Calculations ──────────────────────────────────────────────────
@@ -668,6 +748,19 @@ export default function LoadParcelPage() {
     []
   );
 
+  const currentUserName = useMemo(() => {
+    if (!currentUser) return "Admin";
+    return String(currentUser.name || (currentUser as any).username || "Admin");
+  }, [currentUser]);
+
+  const currentBranchName = useMemo(() => {
+    if (!currentUser) return "";
+    const bInfo = (currentUser as any).branchInfo || (currentUser as any).branch;
+    if (typeof bInfo === "string") return bInfo;
+    if (bInfo && typeof bInfo === "object" && "name" in bInfo) return String((bInfo as any).name);
+    return String((currentUser as any).branchName || "");
+  }, [currentUser]);
+
   return (
     <div className="w-full space-y-3 pb-8">
       {/* ─── Top Header Card ─────────────────────────────────────────────────── */}
@@ -846,7 +939,7 @@ export default function LoadParcelPage() {
                     onKeyDown={handleSearchKeyDown}
                     placeholder="Search / Scan Barcode (Press Enter)..."
                     className="h-7 pl-8 pr-7 text-xs bg-white border border-slate-300 rounded shadow-2xs focus-visible:border-[#2980b9] focus-visible:ring-1 focus-visible:ring-[#2980b9]/30 w-52 sm:w-60"
-                    title="Type piece barcode or docket and press Enter to load"
+                    title="Type piece barcode or tracking number and press Enter to load"
                   />
                   {tableSearch && (
                     <button
@@ -859,20 +952,18 @@ export default function LoadParcelPage() {
                   )}
                 </div>
 
-                {/* Camera Scanner Button (Rendered only if device has a camera) */}
-                {hasCamera && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsScannerOpen(true)}
-                    className="h-7 px-2.5 text-xs text-black border-slate-300 hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer"
-                    title="Open Camera Barcode Scanner"
-                  >
-                    <Camera className="w-3.5 h-3.5 text-[#2980b9]" />
-                    <span className="hidden sm:inline">Camera</span>
-                  </Button>
-                )}
+                {/* Camera Scanner Button */}
+                {hasCamera && <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsScannerOpen(true)}
+                  className="h-7 px-2.5 text-xs text-black border-slate-300 hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer"
+                  title="Open Camera Barcode Scanner"
+                >
+                  <Camera className="w-3.5 h-3.5 text-[#2980b9]" />
+                  <span className="hidden sm:inline">Camera</span>
+                </Button>}
 
                 {/* Add to Load Button */}
                 <Button
@@ -960,13 +1051,21 @@ export default function LoadParcelPage() {
                 <div className="flex items-center gap-2">
                   <Button
                     type="button"
-                    onClick={() => {
-                      showToast("success", `${loadedParcels.length} parcel booking(s) loaded successfully into truck ${selectedTruck}!`);
-                    }}
-                    className="bg-[#2980b9] hover:bg-[#2471a3] text-white h-8 px-4 text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                    onClick={handleConfirmLoad}
+                    disabled={loadParcelsMutation.isPending}
+                    className="bg-[#2980b9] hover:bg-[#2471a3] text-white h-8 px-4 text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
                   >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Save / Confirm Load</span>
+                    {loadParcelsMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Confirming Load...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Save / Confirm Load</span>
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
@@ -976,7 +1075,7 @@ export default function LoadParcelPage() {
       )}
 
       {/* ─── Camera Barcode Scanner Modal ────────────────────────────────────── */}
-      {hasCamera && isScannerOpen && (
+      {isScannerOpen && (
         <BarcodeScannerModal
           open={isScannerOpen}
           onOpenChange={setIsScannerOpen}

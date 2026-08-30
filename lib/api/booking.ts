@@ -80,7 +80,7 @@ export async function updateBookingStatus(
   id: number | string,
   status: string = "cancelled",
   body?: CancelBookingBody
-): Promise<{ success: boolean; message?: string; [key: string]: unknown }> {
+): Promise<{ success: boolean; message?: string;[key: string]: unknown }> {
   return await request<{ success: boolean; message?: string }>(`/booking/${id}/${status}`, {
     method: "POST",
     body,
@@ -234,8 +234,7 @@ export interface LoadableBookingItem {
 
 export interface BranchGroupItem {
   branchName: string;
-  count: number;
-  parcels?: number;
+  branchCode: string;
 }
 
 export interface LoadableParcelSummary {
@@ -271,6 +270,45 @@ export interface LoadableParcelApiResponse {
 export async function getLoadableParcels(): Promise<LoadableParcelApiResponse> {
   return await request<LoadableParcelApiResponse>("/booking/loadablParcel", {
     method: "GET",
+  });
+}
+
+export interface LoadParcelPayload {
+  pieceNumbers: string[];
+  truckNumber: string;
+}
+
+export interface LoadedPieceDetailItem {
+  pieceNumber: string[];
+  docketNo1?: string;
+  docketNo2?: string;
+  loadedAt?: string;
+}
+
+export interface LoadedTruckInfo {
+  truckNumber: string;
+  driverName?: string;
+}
+
+export interface LoadParcelResponseData {
+  truckInfo: LoadedTruckInfo;
+  pieceDetails: LoadedPieceDetailItem[];
+}
+
+export interface LoadParcelResponse {
+  success: boolean;
+  message?: string;
+  data?: LoadParcelResponseData;
+}
+
+/**
+ * POST /booking/loadParcel
+ * Load parcels into a truck
+ */
+export async function loadParcels(payload: LoadParcelPayload): Promise<LoadParcelResponse> {
+  return await request<LoadParcelResponse>("/booking/loadParcel", {
+    method: "POST",
+    data: payload,
   });
 }
 
