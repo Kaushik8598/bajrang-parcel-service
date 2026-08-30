@@ -49,7 +49,12 @@ export function FileUploadPreview({
   return (
     <div className={cn("space-y-1", className)}>
       {fileUrl || fileName ? (
-        <div className="relative flex items-center gap-2 p-1.5 rounded border border-slate-200 bg-white">
+        <div
+          className={cn(
+            "relative flex items-center gap-2 p-1.5 rounded border",
+            disabled ? "border-slate-300 bg-slate-100" : "border-slate-200 bg-white"
+          )}
+        >
           {/* Thumbnail / Document Icon */}
           {isImage && fileUrl ? (
             <div className="w-9 h-9 rounded overflow-hidden border border-slate-200 shrink-0 bg-slate-100 flex items-center justify-center">
@@ -97,6 +102,10 @@ export function FileUploadPreview({
               <X className="w-3.5 h-3.5" />
             </button>
           )}
+        </div>
+      ) : disabled ? (
+        <div className="flex items-center justify-start h-8 px-2.5 rounded border border-slate-300 bg-slate-100 text-xs text-slate-500 font-normal">
+          No file uploaded
         </div>
       ) : (
         /* Upload Trigger Button */

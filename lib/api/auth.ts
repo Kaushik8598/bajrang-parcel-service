@@ -251,3 +251,60 @@ export function isAuthenticated(): boolean {
   return Boolean(getStoredToken());
 }
 
+export interface SendOtpPayload {
+  contact: string;
+}
+
+export interface SendOtpResponse {
+  success: boolean;
+  message?: string;
+  data?: any;
+}
+
+export interface VerifyOtpPayload {
+  contact: string;
+  otp: string;
+}
+
+export interface VerifyOtpResponse {
+  success: boolean;
+  message?: string;
+  data?: any;
+}
+
+/**
+ * Send OTP to email or mobile via POST /auth/send-otp
+ * Payload: { contact }
+ */
+export async function sendOtp(contact: string): Promise<SendOtpResponse> {
+  return await request<SendOtpResponse>("/auth/send-otp", {
+    method: "POST",
+    body: { contact: contact.trim() },
+  });
+}
+
+/**
+ * Resend OTP to email or mobile via POST /auth/resend-otp
+ * Payload: { contact }
+ */
+export async function resendOtp(contact: string): Promise<SendOtpResponse> {
+  return await request<SendOtpResponse>("/auth/resend-otp", {
+    method: "POST",
+    body: { contact: contact.trim() },
+  });
+}
+
+/**
+ * Verify OTP via POST /auth/verify-otp
+ * Payload: { contact, otp }
+ */
+export async function verifyOtp(contact: string, otp: string): Promise<VerifyOtpResponse> {
+  return await request<VerifyOtpResponse>("/auth/verify-otp", {
+    method: "POST",
+    body: {
+      contact: contact.trim(),
+      otp: otp.trim(),
+    },
+  });
+}
+

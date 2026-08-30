@@ -26,15 +26,20 @@ export async function getBookings(filters?: {
 
 /**
  * GET /booking/:id
- * Fetch single booking by id
+ * Fetch single booking by id or tracking number
  */
-export async function getBookingById(id: number | string): Promise<ParcelBookingRecord | null> {
-  try {
-    const response = await request<{ success: boolean; data: ParcelBookingRecord }>(`/booking/${id}`);
-    return response.data || null;
-  } catch {
-    return null;
+export async function getBookingById(id: number | string): Promise<any> {
+  const response = await request<{ success: boolean; data: any }>(`/booking/${id}`, {
+    method: "GET",
+  });
+  if (response?.data?.booking) {
+    return {
+      ...response.data.booking,
+      booking: response.data.booking,
+      tracking: response.data.tracking,
+    };
   }
+  return response?.data || null;
 }
 
 /**

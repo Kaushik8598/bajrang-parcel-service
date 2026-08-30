@@ -139,6 +139,9 @@ function extractReferencePackages(items: any[] | undefined): ExtractedRefPackage
 export interface ParcelBookingFormProps {
   bookingId?: string;
   isEdit?: boolean;
+  isView?: boolean;
+  prefetchedBooking?: any;
+  hideHeader?: boolean;
 }
 
 export interface SuccessModalState {
@@ -149,7 +152,13 @@ export interface SuccessModalState {
   bookingData?: any;
 }
 
-export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelBookingFormProps) {
+export default function ParcelBookingForm({
+  bookingId,
+  isEdit = false,
+  isView = false,
+  prefetchedBooking,
+  hideHeader = false,
+}: ParcelBookingFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -232,12 +241,14 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
     return list;
   }, [bookingPreferences]);
 
-  // ─── Fetch Booking by ID (for Edit mode) ────────────────────────────────────
-  const { data: initialBooking, isLoading: isBookingLoading } = useQuery({
+  // ─── Fetch Booking by ID (for Edit mode or View mode) ──────────────────────
+  const { data: fetchedBooking, isLoading: isBookingLoading } = useQuery({
     queryKey: ["booking", bookingId],
     queryFn: () => getBookingById(bookingId!),
-    enabled: Boolean(isEdit && bookingId),
+    enabled: Boolean((isEdit || isView) && bookingId && !prefetchedBooking),
   });
+
+  const initialBooking = prefetchedBooking || fetchedBooking;
 
   // ─── Fetch Branches (via GET /user/onlyBranch) ──────────────────────────────
   const { data: branchDropdownRes } = useOnlyBranchList();
@@ -391,87 +402,121 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
     }
   }, [isEdit, paymentMethodOptions, bookingPreferences]);
 
-  // Populate data in Edit mode
+  // Populate data in Edit or View mode
   useEffect(() => {
-    if (isEdit && initialBooking) {
+    if ((isEdit || isView) && initialBooking) {
+      const bObj = (initialBooking as any).booking || initialBooking;
+
       setFormData({
-        from_branch_id: String(initialBooking.from_branch_id || ""),
-        to_branch_id: String(initialBooking.to_branch_id || ""),
-        bill_no: initialBooking.bill_no || "",
-        goods_value: (initialBooking.goods_value as GoodsValue) || 500,
+        from_branch_id: String(
+          bObj.from_branch_id ||
+          (bObj as any).fromBranchId?._id ||
+          (bObj as any).fromBranchId ||
+          ""
+        ),
+        to_branch_id: String(
+          bObj.to_branch_id ||
+          (bObj as any).toBranchId?._id ||
+          (bObj as any).toBranchId ||
+          ""
+        ),
+        bill_no: bObj.bill_no || (bObj as any).billNo || "",
+        goods_value: (bObj.goods_value as GoodsValue) || (bObj as any).goodsValue || 500,
         sender: {
-          contact_no: initialBooking.sender?.contact_no || "",
-          gstin: initialBooking.sender?.gstin || "",
-          name: initialBooking.sender?.name || "",
+          contact_no: bObj.sender?.contact_no || (bObj.sender as any)?.mobile || "",
+          gstin: bObj.sender?.gstin || (bObj.sender as any)?.gst || "",
+          name: bObj.sender?.name || "",
           show_details: Boolean(
-            initialBooking.sender?.address ||
-            initialBooking.sender?.city ||
-            initialBooking.sender?.pincode
+            bObj.sender?.address ||
+            bObj.sender?.city ||
+            bObj.sender?.pincode
           ),
-          address: initialBooking.sender?.address || "",
-          city: initialBooking.sender?.city || "",
-          pincode: initialBooking.sender?.pincode || "",
+          address: bObj.sender?.address || "",
+          city: bObj.sender?.city || "",
+          pincode: bObj.sender?.pincode || "",
         },
         receiver: {
-          contact_no: initialBooking.receiver?.contact_no || "",
-          gstin: initialBooking.receiver?.gstin || "",
-          name: initialBooking.receiver?.name || "",
+          contact_no: bObj.receiver?.contact_no || (bObj.receiver as any)?.mobile || "",
+          gstin: bObj.receiver?.gstin || (bObj.receiver as any)?.gst || "",
+          name: bObj.receiver?.name || "",
           show_details: Boolean(
-            initialBooking.receiver?.address ||
-            initialBooking.receiver?.city ||
-            initialBooking.receiver?.pincode
+            bObj.receiver?.address ||
+            bObj.receiver?.city ||
+            bObj.receiver?.pincode
           ),
-          address: initialBooking.receiver?.address || "",
-          city: initialBooking.receiver?.city || "",
-          pincode: initialBooking.receiver?.pincode || "",
+          address: bObj.receiver?.address || "",
+          city: bObj.receiver?.city || "",
+          pincode: bObj.receiver?.pincode || "",
         },
         packages:
-          initialBooking.packages && initialBooking.packages.length > 0
-            ? initialBooking.packages
+          Array.isArray((bObj as any).items) && (bObj as any).items.length > 0
+            ? (bObj as any).items.map((it: any, idx: number) => ({
+                id: it._id || `pkg-${idx + 1}`,
+                qty: it.parcel ?? it.qty ?? 1,
+                material: it.material || "",
+                packing: it.packing || "",
+                payment_type:
+                  it.priceType === "perPackage"
+                    ? "Per Package"
+                    : it.priceType === "direct"
+                    ? "Direct"
+                    : "Direct",
+                price: it.rate ?? it.amount ?? 0,
+              }))
+            : bObj.packages && bObj.packages.length > 0
+            ? bObj.packages
             : [
-              {
-                id: "pkg-1",
-                qty: initialBooking.total_qty || 1,
-                material: "General Goods",
-                packing: "Carton",
-                payment_type: "Direct",
-                price: (initialBooking.net_cost || 200) - 20,
-              },
-            ],
-        payment_method: initialBooking.payment_method || (initialBooking as any).paymentMethod || "To Pay",
-        delivery_type: ((initialBooking as any).deliveryInfo?.deliveryType || initialBooking.delivery_type || "office") as DeliveryType,
-        bilty_charge: Number(initialBooking.bilty_charge ?? (initialBooking as any).biltyCharge ?? 20),
-        hamali_cost: Number(initialBooking.hamali_cost ?? (initialBooking as any).hamaliCost ?? 0),
-        pickup_charge: Number(initialBooking.pickup_charge ?? (initialBooking as any).pickupCharge ?? 0),
-        loading_charge: Number(initialBooking.loading_charge ?? (initialBooking as any).loadingCharge ?? 0),
-        delivery_charge: Number(initialBooking.delivery_charge ?? (initialBooking as any).deliveryCharge ?? 0),
-        extra_charge: Number(initialBooking.extra_charge ?? (initialBooking as any).extraCharge ?? 0),
-        net_cost: Number(initialBooking.net_cost ?? (initialBooking as any).finalBillAmount ?? 20),
-        sender_id_proof_url: initialBooking.sender_id_proof_url || (initialBooking as any).senderProof || "",
-        remark: initialBooking.remark || "",
-        cancel_reason: initialBooking.cancel_reason || (initialBooking as any).cancelReason || "",
-        cancel_remark: initialBooking.cancel_remark || (initialBooking as any).cancelRemark || "",
-        show_driver_details: Boolean(initialBooking.driver?.driver_name),
+                {
+                  id: "pkg-1",
+                  qty: bObj.total_qty || 1,
+                  material: "General Goods",
+                  packing: "Carton",
+                  payment_type: "Direct",
+                  price: (bObj.net_cost || 200) - 20,
+                },
+              ],
+        payment_method: bObj.payment_method || (bObj as any).paymentMethod || "To Pay",
+        delivery_type: ((bObj as any).deliveryInfo?.deliveryType || bObj.delivery_type || "office") as DeliveryType,
+        bilty_charge: Number(bObj.bilty_charge ?? (bObj as any).biltyCharge ?? 20),
+        hamali_cost: Number(bObj.hamali_cost ?? (bObj as any).hamaliCost ?? 0),
+        pickup_charge: Number(bObj.pickup_charge ?? (bObj as any).pickupCharge ?? 0),
+        loading_charge: Number(bObj.loading_charge ?? (bObj as any).loadingCharge ?? 0),
+        delivery_charge: Number(bObj.delivery_charge ?? (bObj as any).deliveryCharge ?? 0),
+        extra_charge: Number(bObj.extra_charge ?? (bObj as any).extraCharge ?? 0),
+        net_cost: Number(bObj.net_cost ?? (bObj as any).finalBillAmount ?? 20),
+        sender_id_proof_url: bObj.sender_id_proof_url || (bObj as any).senderProof || "",
+        remark: bObj.remark || "",
+        cancel_reason: bObj.cancel_reason || (bObj as any).cancelReason || "",
+        cancel_remark: bObj.cancel_remark || (bObj as any).cancelRemark || "",
+        show_driver_details: Boolean(bObj.driver?.driver_name),
         driver: {
-          driver_id: initialBooking.driver?.driver_id || "",
-          driver_name: initialBooking.driver?.driver_name || "",
-          driver_mobile: initialBooking.driver?.driver_mobile || "",
-          vehicle_no: initialBooking.driver?.vehicle_no || "",
-          license_no: initialBooking.driver?.license_no || "",
+          driver_id: bObj.driver?.driver_id || "",
+          driver_name: bObj.driver?.driver_name || "",
+          driver_mobile: bObj.driver?.driver_mobile || "",
+          vehicle_no: bObj.driver?.vehicle_no || "",
+          license_no: bObj.driver?.license_no || "",
         },
       });
 
+      const hasBillVal =
+        (bObj as any).hasBill ??
+        Boolean((bObj as any).billNo || (bObj as any).billImage || bObj.bill_no);
+      setBillType(hasBillVal ? "with_bill" : "without_bill");
+      if ((bObj as any).billImage || bObj.bill_file_url) {
+        setBillFileUrl((bObj as any).billImage || bObj.bill_file_url || "");
+      }
+
       const hasExtra = Boolean(
-        Number(initialBooking.pickup_charge ?? (initialBooking as any).pickupCharge ?? 0) > 0 ||
-        Number(initialBooking.loading_charge ?? (initialBooking as any).loadingCharge ?? 0) > 0 ||
-        Number(initialBooking.delivery_charge ?? (initialBooking as any).deliveryCharge ?? 0) > 0 ||
-        Number(initialBooking.extra_charge ?? (initialBooking as any).extraCharge ?? 0) > 0 ||
-        Number(initialBooking.hamali_cost ?? (initialBooking as any).hamaliCost ?? 0) > 0 ||
-        ((initialBooking as any).deliveryInfo?.deliveryType || initialBooking.delivery_type) === "door"
+        Number(bObj.pickup_charge ?? (bObj as any).pickupCharge ?? 0) > 0 ||
+        Number(bObj.loading_charge ?? (bObj as any).loadingCharge ?? 0) > 0 ||
+        Number(bObj.delivery_charge ?? (bObj as any).deliveryCharge ?? 0) > 0 ||
+        Number(bObj.extra_charge ?? (bObj as any).extraCharge ?? 0) > 0 ||
+        Number(bObj.hamali_cost ?? (bObj as any).hamaliCost ?? 0) > 0 ||
+        ((bObj as any).deliveryInfo?.deliveryType || bObj.delivery_type) === "door"
       );
       setShowAdditionalCharges(hasExtra);
     }
-  }, [isEdit, initialBooking]);
+  }, [isEdit, isView, initialBooking]);
 
   // ─── Customer Suggestion States ──────────────────────────────────────────
   const [senderSearch, setSenderSearch] = useState("");
@@ -1193,58 +1238,60 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
   return (
     <div className="w-full space-y-1 pb-3">
       {/* ─── Top Header Bar ──────────────────────────────────────────────────── */}
-      <div className="bg-white rounded border border-slate-200/80 shadow-2xs px-3 py-2 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <h1 className="text-base sm:text-lg font-bold text-black tracking-tight">
-            {isEdit ? "Edit Parcel Booking" : "Add Parcel Booking"}
-          </h1>
+      {!hideHeader && (
+        <div className="bg-white rounded border border-slate-200/80 shadow-2xs px-3 py-2 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-base sm:text-lg font-bold text-black tracking-tight">
+              {isEdit ? "Edit Parcel Booking" : isView ? "View Parcel Booking" : "Add Parcel Booking"}
+            </h1>
 
-          {isEdit ? (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-base sm:text-lg font-semibold bg-blue-50 text-[#2980b9] border border-blue-200 px-2 py-0.5 rounded">
-                Docket: {initialBooking?.docketNo || `#${bookingId}`}
+            {isEdit || isView ? (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-base sm:text-lg font-semibold bg-blue-50 text-[#2980b9] border border-blue-200 px-2 py-0.5 rounded">
+                  Docket: {initialBooking?.docketNo || (initialBooking as any)?.docketNo1 || `#${bookingId}`}
+                </span>
+                <span className="text-base sm:text-lg font-semibold text-slate-500">
+                  Tracking: {initialBooking?.tracking_no || (initialBooking as any)?.docketNo2 || "—"}
+                </span>
+              </div>
+            ) : (
+              <span className="text-base sm:text-lg font-semibold text-red-600 tracking-wide flex items-center gap-1 flex-wrap">
+                {isLastDocketLoading ? (
+                  <>
+                    <span>Last Booked Docket :</span>
+                    <Skeleton className="h-4 w-28 inline-block bg-slate-200 animate-pulse rounded" />
+                  </>
+                ) : lastDocketData?.docketNo ? (
+                  <>
+                    <span>Last Booked Docket :</span>
+                    <span className="font-mono font-bold">
+                      {lastDocketData.docketNo}
+                      {lastDocketData.bookingDate && (
+                        <span className="font-normal no-underline ml-2">
+                          ({lastDocketData.bookingDate}{lastDocketData.bookingTime ? ` ${lastDocketData.bookingTime}` : ""})
+                        </span>
+                      )}
+                    </span>
+                  </>
+                ) : null}
               </span>
-              <span className="text-base sm:text-lg font-semibold text-slate-500">
-                Tracking: {initialBooking?.tracking_no || "—"}
-              </span>
-            </div>
-          ) : (
-            <span className="text-base sm:text-lg font-semibold text-red-600 tracking-wide flex items-center gap-1 flex-wrap">
-              {isLastDocketLoading ? (
-                <>
-                  <span>Last Booked Docket :</span>
-                  <Skeleton className="h-4 w-28 inline-block bg-slate-200 animate-pulse rounded" />
-                </>
-              ) : lastDocketData?.docketNo ? (
-                <>
-                  <span>Last Booked Docket :</span>
-                  <span className="font-mono font-bold">
-                    {lastDocketData.docketNo}
-                    {lastDocketData.bookingDate && (
-                      <span className="font-normal no-underline ml-2">
-                        ({lastDocketData.bookingDate}{lastDocketData.bookingTime ? ` ${lastDocketData.bookingTime}` : ""})
-                      </span>
-                    )}
-                  </span>
-                </>
-              ) : null}
-            </span>
-          )}
+            )}
+          </div>
+
+          <Button
+            type="button"
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: BOOKING_REPORTS_QUERY_KEY });
+              queryClient.invalidateQueries({ queryKey: USER_BALANCE_QUERY_KEY });
+              router.push("/reports/booking");
+            }}
+            className="bg-[#2980b9] hover:bg-[#2471a3] text-white h-7 px-3 text-xs font-semibold shadow-xs transition-colors"
+          >
+            <ArrowLeft className="w-3 h-3 mr-1" />
+            Back to List
+          </Button>
         </div>
-
-        <Button
-          type="button"
-          onClick={() => {
-            queryClient.invalidateQueries({ queryKey: BOOKING_REPORTS_QUERY_KEY });
-            queryClient.invalidateQueries({ queryKey: USER_BALANCE_QUERY_KEY });
-            router.push("/reports/booking");
-          }}
-          className="bg-[#2980b9] hover:bg-[#2471a3] text-white h-7 px-3 text-xs font-semibold shadow-xs transition-colors"
-        >
-          <ArrowLeft className="w-3 h-3 mr-1" />
-          Back to List
-        </Button>
-      </div>
+      )}
 
       <form
         data-booking-form="true"
@@ -1252,6 +1299,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
         onKeyDown={handleFormKeyDown}
         className="parcel-booking-form space-y-1"
       >
+        <fieldset disabled={isView} className={`contents space-y-1 ${isView ? "pointer-events-none select-text" : ""}`}>
         {/* ─── 1. Destination & Transport Section ────────────────────────────── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
           {/* Destination Card */}
@@ -1346,6 +1394,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                     label="Bill"
                     fileName={billFile?.name}
                     fileUrl={billFileUrl}
+                    disabled={isView}
                     isUploading={uploadingFields["billFile"]}
                     onFileSelect={handleBillFileUpload}
                     onRemove={() => {
@@ -1368,7 +1417,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
             title="Sender"
             icon={User}
             action={
-              !formData.sender.show_details ? (
+              !isView && !formData.sender.show_details ? (
                 <Button
                   type="button"
                   size="sm"
@@ -1443,26 +1492,28 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                   <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
                     Sender Address Details
                   </span>
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    onClick={() =>
-                      setFormData((p) => ({
-                        ...p,
-                        sender: {
-                          ...p.sender,
-                          show_details: false,
-                          address: "",
-                          city: "",
-                          pincode: "",
-                        },
-                      }))
-                    }
-                    className="p-0.5 rounded text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
-                    title="Remove address details"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {!isView && (
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() =>
+                        setFormData((p) => ({
+                          ...p,
+                          sender: {
+                            ...p.sender,
+                            show_details: false,
+                            address: "",
+                            city: "",
+                            pincode: "",
+                          },
+                        }))
+                      }
+                      className="p-0.5 rounded text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
+                      title="Remove address details"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
 
                 <FormInput
@@ -1511,7 +1562,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
             title="Receiver"
             icon={UserCheck}
             action={
-              !formData.receiver.show_details ? (
+              !isView && !formData.receiver.show_details ? (
                 <Button
                   type="button"
                   size="sm"
@@ -1586,26 +1637,28 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                   <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
                     Receiver Address Details
                   </span>
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    onClick={() =>
-                      setFormData((p) => ({
-                        ...p,
-                        receiver: {
-                          ...p.receiver,
-                          show_details: false,
-                          address: "",
-                          city: "",
-                          pincode: "",
-                        },
-                      }))
-                    }
-                    className="p-0.5 rounded text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
-                    title="Hide address details"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {!isView && (
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() =>
+                        setFormData((p) => ({
+                          ...p,
+                          receiver: {
+                            ...p.receiver,
+                            show_details: false,
+                            address: "",
+                            city: "",
+                            pincode: "",
+                          },
+                        }))
+                      }
+                      className="p-0.5 rounded text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
+                      title="Hide address details"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
 
                 <FormInput
@@ -1732,8 +1785,8 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                   />
                 </div>
 
-                {/* Total (span 2) */}
-                <div className="lg:col-span-2">
+                {/* Total (span 2 or 3 in view mode) */}
+                <div className={isView ? "lg:col-span-3" : "lg:col-span-2"}>
                   <FormInput
                     label="Total (₹)"
                     type="text"
@@ -1748,43 +1801,45 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 </div>
 
                 {/* Action buttons (span 1 - Plus only on last row, Remove on all if length > 1) */}
-                <div className="lg:col-span-1 space-y-1">
-                  <span className="text-[11px] font-bold invisible select-none leading-none block">&nbsp;</span>
-                  <div className="flex items-center justify-end sm:justify-center gap-1 h-8">
-                    {idx === formData.packages.length - 1 && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        tabIndex={-1}
-                        onClick={addPackageRow}
-                        className="h-8 w-7 p-0 bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-none"
-                        title="Add row"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </Button>
-                    )}
+                {!isView && (
+                  <div className="lg:col-span-1 space-y-1">
+                    <span className="text-[11px] font-bold invisible select-none leading-none block">&nbsp;</span>
+                    <div className="flex items-center justify-end sm:justify-center gap-1 h-8">
+                      {idx === formData.packages.length - 1 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          tabIndex={-1}
+                          onClick={addPackageRow}
+                          className="h-8 w-7 p-0 bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-none"
+                          title="Add row"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
 
-                    {formData.packages.length > 1 && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        tabIndex={-1}
-                        variant="destructive"
-                        onClick={() => removePackageRow(idx)}
-                        className="h-8 w-7 p-0 bg-[#e74c3c] hover:bg-[#c0392b] text-white shadow-none"
-                        title="Remove row"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    )}
+                      {formData.packages.length > 1 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          tabIndex={-1}
+                          variant="destructive"
+                          onClick={() => removePackageRow(idx)}
+                          className="h-8 w-7 p-0 bg-[#e74c3c] hover:bg-[#c0392b] text-white shadow-none"
+                          title="Remove row"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             ))}
           </div>
 
           {/* Reference Packages Table from Last Bookings (Clean Table only) */}
-          {referencePackages.length > 0 && (
+          {!isView && referencePackages.length > 0 && (
             <div className="mt-3 pt-2.5 border-t border-slate-200">
               <div className="overflow-x-auto border border-black rounded bg-white">
                 <table className="w-full text-xs text-left border-collapse">
@@ -1898,6 +1953,7 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
                 label="Sender Id Proof"
                 fileName={formData.sender_id_proof?.name}
                 fileUrl={formData.sender_id_proof_url}
+                disabled={isView}
                 isUploading={uploadingFields["senderProof"]}
                 onFileSelect={handleSenderProofUpload}
                 onRemove={() =>
@@ -1914,121 +1970,127 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
           </div>
 
           {/* Line 2: Collapsible Extra Charges & Delivery Details */}
-          <div className="pt-0.5 border-t border-slate-100">
-            {!showAdditionalCharges ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                tabIndex={-1}
-                onClick={() => setShowAdditionalCharges(true)}
-                className="h-7 text-xs text-[#2980b9] border-[#2980b9]/30 hover:bg-blue-50"
-              >
-                <Plus className="w-3 h-3 mr-1" />
-                Add Extra Charges / Delivery Details
-              </Button>
-            ) : (
-              <div className="p-2 rounded bg-slate-50 border border-slate-200/70 space-y-2 animate-in fade-in-50 duration-150">
-                <div className="flex items-center justify-between pb-1 border-b border-slate-200/60">
-                  <h4 className="text-[11px] font-bold text-black uppercase tracking-wider">
-                    Extra Charges &amp; Delivery Details
-                  </h4>
-                  <button
+          {(showAdditionalCharges || !isView) && (
+            <div className="pt-0.5 border-t border-slate-100">
+              {!showAdditionalCharges ? (
+                !isView && (
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
                     tabIndex={-1}
-                    onClick={() => setShowAdditionalCharges(false)}
-                    className="text-slate-400 hover:text-red-600 p-0.5 transition-colors"
-                    title="Collapse extra charges"
+                    onClick={() => setShowAdditionalCharges(true)}
+                    className="h-7 text-xs text-[#2980b9] border-[#2980b9]/30 hover:bg-blue-50"
                   >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+                    <Plus className="w-3 h-3 mr-1" />
+                    Add Extra Charges / Delivery Details
+                  </Button>
+                )
+              ) : (
+                <div className="p-2 rounded bg-slate-50 border border-slate-200/70 space-y-2 animate-in fade-in-50 duration-150">
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-200/60">
+                    <h4 className="text-[11px] font-bold text-black uppercase tracking-wider">
+                      Extra Charges &amp; Delivery Details
+                    </h4>
+                    {!isView && (
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        onClick={() => setShowAdditionalCharges(false)}
+                        className="text-slate-400 hover:text-red-600 p-0.5 transition-colors"
+                        title="Collapse extra charges"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                    {/* Delivery Type */}
+                    <FormSelect
+                      label="Delivery Type"
+                      options={DELIVERY_TYPE_OPTIONS}
+                      value={formData.delivery_type || "office"}
+                      onChange={(val) =>
+                        setFormData((p) => ({ ...p, delivery_type: val as DeliveryType }))
+                      }
+                      placeholder="Select Delivery Type"
+                    />
+
+                    {/* Hamali Cost */}
+                    <FormInput
+                      label="Hamali Cost (₹)"
+                      type="number"
+                      min="0"
+                      value={formData.hamali_cost}
+                      onChange={(e) =>
+                        setFormData((p) => ({
+                          ...p,
+                          hamali_cost: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                        }))
+                      }
+                    />
+
+                    {/* Pickup Charge */}
+                    <FormInput
+                      label="Pickup Charge (₹)"
+                      type="number"
+                      min="0"
+                      value={formData.pickup_charge}
+                      onChange={(e) =>
+                        setFormData((p) => ({
+                          ...p,
+                          pickup_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                        }))
+                      }
+                    />
+
+                    {/* Loading Charge */}
+                    <FormInput
+                      label="Loading Charge (₹)"
+                      type="number"
+                      min="0"
+                      value={formData.loading_charge}
+                      onChange={(e) =>
+                        setFormData((p) => ({
+                          ...p,
+                          loading_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                        }))
+                      }
+                    />
+
+                    {/* Delivery Charge */}
+                    <FormInput
+                      label="Delivery Charge (₹)"
+                      type="number"
+                      min="0"
+                      value={formData.delivery_charge}
+                      onChange={(e) =>
+                        setFormData((p) => ({
+                          ...p,
+                          delivery_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                        }))
+                      }
+                    />
+
+                    {/* Extra Charge */}
+                    <FormInput
+                      label="Extra Charge (₹)"
+                      type="number"
+                      min="0"
+                      value={formData.extra_charge}
+                      onChange={(e) =>
+                        setFormData((p) => ({
+                          ...p,
+                          extra_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
+                        }))
+                      }
+                    />
+                  </div>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-                  {/* Delivery Type */}
-                  <FormSelect
-                    label="Delivery Type"
-                    options={DELIVERY_TYPE_OPTIONS}
-                    value={formData.delivery_type || "office"}
-                    onChange={(val) =>
-                      setFormData((p) => ({ ...p, delivery_type: val as DeliveryType }))
-                    }
-                    placeholder="Select Delivery Type"
-                  />
-
-                  {/* Hamali Cost */}
-                  <FormInput
-                    label="Hamali Cost (₹)"
-                    type="number"
-                    min="0"
-                    value={formData.hamali_cost}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        hamali_cost: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
-                      }))
-                    }
-                  />
-
-                  {/* Pickup Charge */}
-                  <FormInput
-                    label="Pickup Charge (₹)"
-                    type="number"
-                    min="0"
-                    value={formData.pickup_charge}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        pickup_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
-                      }))
-                    }
-                  />
-
-                  {/* Loading Charge */}
-                  <FormInput
-                    label="Loading Charge (₹)"
-                    type="number"
-                    min="0"
-                    value={formData.loading_charge}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        loading_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
-                      }))
-                    }
-                  />
-
-                  {/* Delivery Charge */}
-                  <FormInput
-                    label="Delivery Charge (₹)"
-                    type="number"
-                    min="0"
-                    value={formData.delivery_charge}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        delivery_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
-                      }))
-                    }
-                  />
-
-                  {/* Extra Charge */}
-                  <FormInput
-                    label="Extra Charge (₹)"
-                    type="number"
-                    min="0"
-                    value={formData.extra_charge}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        extra_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* Line 3: Remarks and Cancel Reason */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -2048,52 +2110,57 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
           </div>
 
           {/* Driver Details Toggle */}
-          <div className="pt-0.5 border-t border-slate-100">
-            {!formData.show_driver_details ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                tabIndex={-1}
-                onClick={() =>
-                  setFormData((p) => ({ ...p, show_driver_details: true }))
-                }
-                className="h-7 text-xs text-[#2980b9] border-[#2980b9]/30 hover:bg-blue-50"
-              >
-                <Plus className="w-3 h-3 mr-1" />
-                Add Driver Details
-              </Button>
-            ) : (
-              <div className="p-2 rounded bg-slate-50 border border-slate-200/70 space-y-1.5 animate-in fade-in-50 duration-150">
-                <div className="flex items-center justify-between pb-1 border-b border-slate-200/60">
-                  <div className="flex items-center gap-1.5">
-                    <UserCog className="w-3.5 h-3.5 text-[#2980b9]" />
-                    <h3 className="text-[11px] font-bold text-black uppercase tracking-wider">
-                      Driver &amp; Vehicle Information
-                    </h3>
-                  </div>
-                  <button
+          {(formData.show_driver_details || !isView) && (
+            <div className="pt-0.5 border-t border-slate-100">
+              {!formData.show_driver_details ? (
+                !isView && (
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
                     tabIndex={-1}
                     onClick={() =>
-                      setFormData((p) => ({
-                        ...p,
-                        show_driver_details: false,
-                        driver: {
-                          driver_id: "",
-                          driver_name: "",
-                          driver_mobile: "",
-                          vehicle_no: "",
-                          license_no: "",
-                        },
-                      }))
+                      setFormData((p) => ({ ...p, show_driver_details: true }))
                     }
-                    className="text-slate-400 hover:text-red-600 p-0.5 transition-colors"
-                    title="Remove driver details"
+                    className="h-7 text-xs text-[#2980b9] border-[#2980b9]/30 hover:bg-blue-50"
                   >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+                    <Plus className="w-3 h-3 mr-1" />
+                    Add Driver Details
+                  </Button>
+                )
+              ) : (
+                <div className="p-2 rounded bg-slate-50 border border-slate-200/70 space-y-1.5 animate-in fade-in-50 duration-150">
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-200/60">
+                    <div className="flex items-center gap-1.5">
+                      <UserCog className="w-3.5 h-3.5 text-[#2980b9]" />
+                      <h3 className="text-[11px] font-bold text-black uppercase tracking-wider">
+                        Driver &amp; Vehicle Information
+                      </h3>
+                    </div>
+                    {!isView && (
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        onClick={() =>
+                          setFormData((p) => ({
+                            ...p,
+                            show_driver_details: false,
+                            driver: {
+                              driver_id: "",
+                              driver_name: "",
+                              driver_mobile: "",
+                              vehicle_no: "",
+                              license_no: "",
+                            },
+                          }))
+                        }
+                        className="text-slate-400 hover:text-red-600 p-0.5 transition-colors"
+                        title="Remove driver details"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
 
                 {/* Searchable Driver Select Dropdown */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -2162,38 +2229,43 @@ export default function ParcelBookingForm({ bookingId, isEdit = false }: ParcelB
               </div>
             )}
           </div>
+        )}
         </FormCard>
 
-        {/* ─── Form Actions Footer ───────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center justify-center gap-2 pt-1.5">
-          <Button
-            type="submit"
-            disabled={formMutation.isPending}
-            className="h-8 px-7 bg-[#2980b9] hover:bg-[#2471a3] text-white font-semibold text-xs shadow-xs transition-all"
-          >
-            {formMutation.isPending ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                {isEdit ? "Updating..." : "Saving..."}
-              </>
-            ) : (
-              <>
-                <FileCheck className="w-3.5 h-3.5 mr-1.5" />
-                {isEdit ? "Update Booking" : "Add Booking"}
-              </>
-            )}
-          </Button>
+        </fieldset>
 
-          <Button
-            type="button"
-            data-action="cancel"
-            variant="outline"
-            onClick={() => router.push("/reports/booking")}
-            className="h-8 px-5 text-xs text-slate-600 border-slate-200 hover:bg-slate-50"
-          >
-            Cancel
-          </Button>
-        </div>
+        {/* ─── Form Actions Footer ───────────────────────────────────────────── */}
+        {!isView && (
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-1.5">
+            <Button
+              type="submit"
+              disabled={formMutation.isPending}
+              className="h-8 px-7 bg-[#2980b9] hover:bg-[#2471a3] text-white font-semibold text-xs shadow-xs transition-all"
+            >
+              {formMutation.isPending ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  {isEdit ? "Updating..." : "Saving..."}
+                </>
+              ) : (
+                <>
+                  <FileCheck className="w-3.5 h-3.5 mr-1.5" />
+                  {isEdit ? "Update Booking" : "Add Booking"}
+                </>
+              )}
+            </Button>
+
+            <Button
+              type="button"
+              data-action="cancel"
+              variant="outline"
+              onClick={() => router.push("/reports/booking")}
+              className="h-8 px-5 text-xs text-slate-600 border-slate-200 hover:bg-slate-50"
+            >
+              Cancel
+            </Button>
+          </div>
+        )}
       </form>
 
       {/* ─── Success Confirmation Dialog (shadcn/ui) ────────────────────────── */}

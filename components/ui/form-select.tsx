@@ -197,12 +197,13 @@ export function FormSelect({
           hasError
             ? "border-red-500 focus:ring-2 focus:ring-red-400/20"
             : "hover:border-black focus:border-black focus:ring-2 focus:ring-black/20",
-          disabled && "opacity-50 cursor-not-allowed bg-slate-50",
+          "disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-slate-100 disabled:border-slate-300 disabled:text-slate-700 disabled:opacity-100",
+          disabled && "pointer-events-none cursor-not-allowed bg-slate-100 border-slate-300 text-slate-700 opacity-100",
           isOpen && "border-black ring-2 ring-black/20",
           className
         )}
       >
-        <span className={cn("truncate", selectedOption ? "text-black font-medium" : "text-slate-400")}>
+        <span className={cn("truncate", selectedOption ? (disabled ? "text-slate-700 font-medium" : "text-black font-medium") : "text-slate-400")}>
           {selectedOption ? selectedOption.label : placeholder}
         </span>
 
