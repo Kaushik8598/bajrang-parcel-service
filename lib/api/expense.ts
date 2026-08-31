@@ -9,7 +9,7 @@ export type ExpenseType =
   | "Rent"
   | "Salary"
   | "Labour"
-  | "Truck EMI/Hapto";
+  | "Truck EMI";
 
 export interface ExpensePayload {
   userId?: string;

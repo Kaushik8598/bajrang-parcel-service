@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useMemo } from "react";
-import { Loader2 } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { Loader2, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import TablePagination from "./TablePagination";
 import { cn } from "@/lib/utils";
-import type { ColumnDef } from "@/lib/types/common";
+import type { ColumnDef, SortDirection } from "@/lib/types/common";
 
 export interface SimpleDataTableProps<T> {
   columns: ColumnDef<T>[];
@@ -38,16 +38,68 @@ export default function SimpleDataTable<T extends Record<string, any>>({
   maxHeight,
   className,
 }: SimpleDataTableProps<T>) {
-  const totalCount = total !== undefined ? total : data.length;
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+      } else if (sortDirection === "desc") {
+        setSortKey(null);
+        setSortDirection(null);
+      }
+    } else {
+      setSortKey(key);
+      setSortDirection("asc");
+    }
+  };
+
+  const sortedData = useMemo(() => {
+    if (!sortKey || !sortDirection) return data;
+    const col = columns.find((c) => String(c.key) === sortKey);
+    if (!col) return data;
+
+    return [...data].sort((a, b) => {
+      let valA: unknown;
+      let valB: unknown;
+
+      if (col.sortValue) {
+        valA = col.sortValue(a);
+        valB = col.sortValue(b);
+      } else {
+        const keyStr = String(col.key);
+        if (keyStr.includes(".")) {
+          valA = keyStr.split(".").reduce<unknown>((acc, part) => (acc && typeof acc === "object" ? (acc as any)[part] : undefined), a);
+          valB = keyStr.split(".").reduce<unknown>((acc, part) => (acc && typeof acc === "object" ? (acc as any)[part] : undefined), b);
+        } else {
+          valA = a[keyStr];
+          valB = b[keyStr];
+        }
+      }
+
+      if (typeof valA === "number" && typeof valB === "number") {
+        return sortDirection === "asc" ? valA - valB : valB - valA;
+      }
+
+      const strA = String(valA ?? "").toLowerCase();
+      const strB = String(valB ?? "").toLowerCase();
+      return sortDirection === "asc"
+        ? strA.localeCompare(strB, undefined, { numeric: true, sensitivity: "base" })
+        : strB.localeCompare(strA, undefined, { numeric: true, sensitivity: "base" });
+    });
+  }, [data, sortKey, sortDirection, columns]);
+
+  const totalCount = total !== undefined ? total : sortedData.length;
 
   const displayRows = useMemo(() => {
     // If pagination is enabled and no external total/pagination provided, slice client-side
     if (showPagination && total === undefined && pageSize > 0 && pageSize !== -1) {
       const start = (page - 1) * pageSize;
-      return data.slice(start, start + pageSize);
+      return sortedData.slice(start, start + pageSize);
     }
-    return data;
-  }, [data, showPagination, total, page, pageSize]);
+    return sortedData;
+  }, [sortedData, showPagination, total, page, pageSize]);
 
   return (
     <div className={cn("space-y-2.5", className)}>
@@ -70,17 +122,36 @@ export default function SimpleDataTable<T extends Record<string, any>>({
                     {srNoLabel}
                   </th>
                 )}
-                {columns.map((col) => (
-                  <th
-                    key={String(col.key)}
-                    className={cn(
-                      "px-2.5 py-2 font-bold text-black text-xs uppercase tracking-wider whitespace-nowrap border-r border-slate-300 last:border-r-0",
-                      col.width
-                    )}
-                  >
-                    {col.label}
-                  </th>
-                ))}
+                {columns.map((col) => {
+                  const isSortable = col.sortable !== false;
+                  const isSorted = sortKey === String(col.key);
+                  return (
+                    <th
+                      key={String(col.key)}
+                      onClick={isSortable ? () => handleSort(String(col.key)) : undefined}
+                      className={cn(
+                        "px-2.5 py-2 font-bold text-black text-xs uppercase tracking-wider whitespace-nowrap border-r border-slate-300 last:border-r-0",
+                        isSortable && "cursor-pointer select-none hover:bg-slate-200/80 transition-colors group",
+                        col.width
+                      )}
+                    >
+                      <div className="flex items-center gap-1">
+                        <span>{col.label}</span>
+                        {isSortable && (
+                          isSorted ? (
+                            sortDirection === "asc" ? (
+                              <ArrowUp className="w-3 h-3 text-[#2980b9] shrink-0" />
+                            ) : (
+                              <ArrowDown className="w-3 h-3 text-[#2980b9] shrink-0" />
+                            )
+                          ) : (
+                            <ArrowUpDown className="w-3 h-3 opacity-25 group-hover:opacity-70 transition-opacity shrink-0" />
+                          )
+                        )}
+                      </div>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
 

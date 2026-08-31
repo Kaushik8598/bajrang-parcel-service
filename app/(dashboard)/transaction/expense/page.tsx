@@ -26,9 +26,7 @@ import { Label } from "@/components/ui/label";
 import { FileUploadWithCamera } from "@/components/ui/file-upload-with-camera";
 import { showToast } from "@/lib/toast";
 import {
-    useOnlyBranchList,
     useUserRoleVise,
-    useOnlyTruckList,
     useUpload,
     useCreateExpenseMutation,
     useFuelHistory,
@@ -39,6 +37,8 @@ import {
 } from "@/lib/hooks";
 import { getStoredUser, getStoredUserRole } from "@/lib/api/auth";
 import { ExpenseType } from "@/lib/api/expense";
+import SimpleDataTable from "@/components/DataTable/SimpleDataTable";
+import type { ColumnDef } from "@/lib/types/common";
 
 // ─── Main Expense Type Options ────────────────────────────────────────────────
 const EXPENSE_TYPE_OPTIONS: FormSelectOption[] = [
@@ -50,7 +50,7 @@ const EXPENSE_TYPE_OPTIONS: FormSelectOption[] = [
     { value: "Rent", label: "Rent" },
     { value: "Salary", label: "Salary" },
     { value: "Labour", label: "Labour" },
-    { value: "Truck EMI/Hapto", label: "Truck EMI/Hapto" },
+    { value: "Truck EMI", label: "Truck EMI" },
 ];
 
 // ─── Other Truck Sub-Expense Types (from uploaded screenshot) ─────────────────
@@ -129,6 +129,8 @@ function getMondayToSundayWeeksForMonth(monthYearStr: string): FormSelectOption[
 }
 
 
+
+
 // ─── Helper: Normalize Array from History API Responses ──────────────────────
 function extractHistoryList(res: any): any[] {
     if (!res) return [];
@@ -155,58 +157,31 @@ export default function AddExpensePage() {
     const isAdminOrSuperAdmin = ["superadmin", "admin", "super_admin", "super-admin"].includes(
         currentRole
     );
-    const isTruckRole = currentRole === "truck";
     const ownBranchId = String(currentUser?._id || currentUser?.id || "");
 
-    // ─── Branch List (via GET /user/getUserRoleVise with fallback to onlyBranch) ─
+    // ─── Branch List (via GET /user/getUserRoleVise) ────────────────────────────
     const { data: roleViseRes } = useUserRoleVise();
-    const { data: onlyBranchRes } = useOnlyBranchList();
 
     const branchDropdownList = useMemo(() => {
-        const rawData = roleViseRes?.data || onlyBranchRes?.data;
-        if (Array.isArray(rawData)) return rawData;
-        if (rawData && typeof rawData === "object") {
-            if (Array.isArray((rawData as any).branches)) return (rawData as any).branches;
-            if (Array.isArray((rawData as any).users)) return (rawData as any).users;
-            if (Array.isArray((rawData as any).data)) return (rawData as any).data;
-        }
-        return [];
-    }, [roleViseRes, onlyBranchRes]);
+        const userList =
+            roleViseRes?.users ||
+            roleViseRes?.data?.users ||
+            (Array.isArray(roleViseRes) ? roleViseRes : roleViseRes?.data) ||
+            [];
+        if (!Array.isArray(userList)) return [];
+        return userList;
+    }, [roleViseRes]);
 
     const branchOptions = useMemo<FormSelectOption[]>(() => {
         return branchDropdownList.map((b: any) => {
-            const bInfo = b.branchInfo || {};
-            const name = bInfo.branchName || b.branchName || b.name || "Unknown Branch";
-            const code = bInfo.branchCode || b.branchCode || "";
+            const name = b.name || "Unknown";
+            const code = b.code || "";
             return {
-                value: String(b._id || b.id),
+                value: String(b._id),
                 label: code ? `${name} (${code})` : name,
             };
         });
     }, [branchDropdownList]);
-
-    // ─── Truck List (via GET /user/onlytruck) ───────────────────────────────────
-    const { data: onlyTruckRes } = useOnlyTruckList();
-    const truckList = useMemo(() => {
-        const rawData = onlyTruckRes?.data;
-        if (Array.isArray(rawData)) return rawData;
-        if (rawData && typeof rawData === "object" && Array.isArray((rawData as any).data)) {
-            return (rawData as any).data;
-        }
-        return [];
-    }, [onlyTruckRes]);
-
-    const truckOptions = useMemo<FormSelectOption[]>(() => {
-        return truckList.map((t: any) => {
-            const truckNo =
-                t.truckNumber || t.truckInfo?.truckNo || t.truckNo || t.name || "Unknown Truck";
-            const driverName = t.driverName || t.driverInfo?.name || t.ownerDetail?.name || "";
-            return {
-                value: String(t._id || t.id || t.truckNumber || truckNo),
-                label: driverName ? `${truckNo} (${driverName})` : truckNo,
-            };
-        });
-    }, [truckList]);
 
     // ─── Form States ───────────────────────────────────────────────────────────
     const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
@@ -222,7 +197,6 @@ export default function AddExpensePage() {
     const [documentUrl, setDocumentUrl] = useState<string>("");
 
     // Fuel Fields (Petrol / Diesel / CNG) with startKM, endKM, and quantity/liter
-    const [truckId, setTruckId] = useState<string>("");
     const [startKm, setStartKm] = useState<string>("");
     const [endKm, setEndKm] = useState<string>("");
     const [quantity, setQuantity] = useState<string>("");
@@ -275,22 +249,12 @@ export default function AddExpensePage() {
         }
     }, [isAdminOrSuperAdmin, ownBranchId, branchOptions, branchId]);
 
-    // Auto-select Truck if truck user is logged in
-    useEffect(() => {
-        if (isTruckRole && ownBranchId && truckOptions.length > 0) {
-            const matched = truckOptions.find((t) => t.value === ownBranchId);
-            if (matched) {
-                setTruckId(ownBranchId);
-            }
-        }
-    }, [isTruckRole, ownBranchId, truckOptions]);
-
     // ─── History Queries by Expense Type (passing branchId in body payload) ───────
     const isFuel = ["Petrol", "Diesel", "CNG"].includes(expenseType);
     const isRent = expenseType === "Rent";
     const isSalary = expenseType === "Salary";
     const isLabour = expenseType === "Labour";
-    const isEmi = expenseType === "Truck EMI/Hapto";
+    const isEmi = expenseType === "Truck EMI";
 
     const { data: fuelHistoryRes, isLoading: isFuelHistLoading } = useFuelHistory(
         isFuel ? branchId : undefined
@@ -317,17 +281,8 @@ export default function AddExpensePage() {
     // Selected Branch Data for Rent Summary
     const selectedBranchData = useMemo(() => {
         if (!branchId) return null;
-        return branchDropdownList.find((b: any) => String(b._id || b.id) === String(branchId));
+        return branchDropdownList.find((b: any) => String(b._id) === String(branchId));
     }, [branchId, branchDropdownList]);
-
-    // Selected Truck Data for EMI Summary
-    const selectedTruckData = useMemo(() => {
-        if (!truckId) return null;
-        return truckList.find(
-            (t: any) =>
-                String(t._id || t.id || t.truckNumber || t.truckNo) === String(truckId)
-        );
-    }, [truckId, truckList]);
 
     // Labour Total Amount Calculation
     const labourTotal = useMemo(() => {
@@ -459,7 +414,6 @@ export default function AddExpensePage() {
 
         // Fuel Specific Validation
         if (["Petrol", "Diesel", "CNG"].includes(expenseType)) {
-            if (!truckId) newErrors.truckId = "Please select a truck.";
             if (!startKm) newErrors.startKm = "Please enter Start KM.";
             if (!endKm) newErrors.endKm = "Please enter End KM.";
             if (!quantity) newErrors.quantity = "Please enter fuel liter/quantity.";
@@ -468,8 +422,6 @@ export default function AddExpensePage() {
         // Other Truck Specific Validation
         if (expenseType === "Other Truck") {
             if (!otherTruckSubtype) newErrors.otherTruckSubtype = "Please select a truck expense type.";
-            if (!truckId) newErrors.truckId = "Please select a truck.";
-            if (!startKm) newErrors.startKm = "Please enter Start KM.";
         }
 
         // Labour Specific Validation
@@ -524,8 +476,6 @@ export default function AddExpensePage() {
 
         // Fuel fields
         if (["Petrol", "Diesel", "CNG"].includes(expenseType)) {
-            payload.fuelType = expenseType;
-            payload.truckId = truckId;
             payload.startKM = Number(startKm) || 0;
             payload.endKM = Number(endKm) || 0;
             payload.liter = Number(quantity) || 0;
@@ -533,8 +483,7 @@ export default function AddExpensePage() {
 
         // Other truck fields
         if (expenseType === "Other Truck") {
-            payload.truckExpenseType = otherTruckSubtype;
-            payload.truckId = truckId;
+            payload.expenseType = otherTruckSubtype;
             payload.startKM = Number(startKm) || 0;
             payload.endKM = Number(endKm) || 0;
         }
@@ -558,6 +507,204 @@ export default function AddExpensePage() {
         }
     };
 
+    // ─── Columns Definition for SimpleDataTable ─────────────────────────────────
+    const historyColumns = useMemo<ColumnDef<any>[]>(() => {
+        const cols: ColumnDef<any>[] = [
+            {
+                key: "date",
+                label: "Date",
+                sortable: true,
+                sortValue: (r) => new Date(r.date || 0).getTime(),
+                render: (_, r) => (
+                    <span className="font-mono text-slate-800">
+                        {r.date || "—"}
+                    </span>
+                ),
+            },
+            {
+                key: "receipt",
+                label: "Receipt No",
+                sortable: true,
+                width: "w-20",
+                sortValue: (r) => (r.receiptNo ? 1 : 0),
+                render: (_, r) => {
+                    const receiptNo = r.receiptNo;
+                    return <span className="font-mono text-slate-800">{receiptNo}</span>;
+                },
+            }
+        ];
+
+        if (isFuel) {
+            cols.push(
+                {
+                    key: "fuelType",
+                    label: "Fuel Type",
+                    sortable: true,
+                    sortValue: (r) => r.fuelType || r.expenseType || "",
+                    render: (_, r) => (
+                        <span className="font-semibold text-slate-900">
+                            {r.fuelType || r.expenseType || "—"}
+                        </span>
+                    ),
+                },
+                {
+                    key: "truck",
+                    label: "Truck",
+                    sortable: true,
+                    sortValue: (r) => r.truckNumber || r.truckNo || r.truckId?.truckNumber || "",
+                    render: (_, r) => (
+                        <span className="text-slate-800">
+                            {r.truckNumber || r.truckNo || r.truckId?.truckNumber || "—"}
+                        </span>
+                    ),
+                },
+                {
+                    key: "startKM",
+                    label: "Start KM",
+                    sortable: true,
+                    sortValue: (r) => Number(r.startKM || r.startKm || 0),
+                    render: (_, r) => (
+                        <span className="font-mono text-slate-800">
+                            {r.startKM || r.startKm || "—"}
+                        </span>
+                    ),
+                },
+                {
+                    key: "endKM",
+                    label: "End KM",
+                    sortable: true,
+                    sortValue: (r) => Number(r.endKM || r.endKm || 0),
+                    render: (_, r) => (
+                        <span className="font-mono text-slate-800">
+                            {r.endKM || r.endKm || "—"}
+                        </span>
+                    ),
+                },
+                {
+                    key: "liter",
+                    label: "Liter",
+                    sortable: true,
+                    sortValue: (r) => Number(r.liter || r.quantity || 0),
+                    render: (_, r) => (
+                        <span className="font-mono text-slate-800">
+                            {r.liter || r.quantity || "—"}
+                        </span>
+                    ),
+                }
+            );
+        }
+
+        if (isLabour) {
+            cols.push(
+                {
+                    key: "labourMonth",
+                    label: "Month / Week",
+                    sortable: true,
+                    sortValue: (r) =>
+                        r.labourMonth
+                            ? `${r.labourMonth} - ${r.labourWeek || ""}`
+                            : r.description || r.remark || "",
+                    render: (_, r) => (
+                        <span className="text-slate-800">
+                            {r.labourMonth
+                                ? `${r.labourMonth} - ${r.labourWeek || ""}`
+                                : r.description || r.remark || "—"}
+                        </span>
+                    ),
+                },
+                {
+                    key: "labourCount",
+                    label: "Labor Count",
+                    sortable: true,
+                    sortValue: (r) => Number(r.labourCount || 0),
+                    render: (_, r) => (
+                        <span className="font-mono text-slate-800 text-center block">
+                            {r.labourCount || "—"}
+                        </span>
+                    ),
+                },
+                {
+                    key: "ratePerLabour",
+                    label: "Rate / Labor (₹)",
+                    sortable: true,
+                    sortValue: (r) => Number(r.ratePerLabour || 0),
+                    render: (_, r) => (
+                        <span className="font-mono text-slate-800 text-right block">
+                            ₹{r.ratePerLabour || 0}
+                        </span>
+                    ),
+                }
+            );
+        }
+
+        if (isRent) {
+            cols.push({
+                key: "branchRemark",
+                label: "Branch / Remark",
+                sortable: true,
+                sortValue: (r) => r.description || r.remark || r.branchName || "",
+                render: (_, r) => (
+                    <span className="text-slate-700 max-w-[220px] truncate block">
+                        {r.description || r.remark || r.branchName || "—"}
+                    </span>
+                ),
+            });
+        }
+
+
+
+        cols.push(
+            {
+                key: "cashAmount",
+                label: "Cash (₹)",
+                sortable: true,
+                sortValue: (r) => Number(r.cashAmount || r.cash || 0),
+                render: (_, r) => (
+                    <span className="font-mono text-slate-800 text-right block">
+                        ₹{r.cashAmount || r.cash || 0}
+                    </span>
+                ),
+            },
+            {
+                key: "onlineAmount",
+                label: "Online (₹)",
+                sortable: true,
+                sortValue: (r) => Number(r.onlineAmount || r.online || 0),
+                render: (_, r) => (
+                    <span className="font-mono text-slate-800 text-right block">
+                        ₹{r.onlineAmount || r.online || 0}
+                    </span>
+                ),
+            },
+            {
+                key: "totalAmount",
+                label: "Total (₹)",
+                sortable: true,
+                sortValue: (r) => Number(r.totalAmount || r.total || 0),
+                render: (_, r) => (
+                    <span className="font-mono font-bold text-black text-right block">
+                        ₹{r.totalAmount || r.total || 0}
+                    </span>
+                ),
+            }
+        );
+
+        if (isSalary) {
+            cols.push({
+                key: "staffRemark",
+                label: "Staff / Remark",
+                sortable: true,
+                sortValue: (r) => r.remark || "",
+                render: (_, r) => (
+                    <span className="text-slate-700 max-w-[220px] truncate block">
+                        {r.remark || "—"}
+                    </span>
+                ),
+            });
+        }
+        return cols;
+    }, [isFuel, isLabour, isRent, isSalary]);
+
     // ─── Reset Form ────────────────────────────────────────────────────────────
     const handleReset = () => {
         if (isAdminOrSuperAdmin) {
@@ -568,7 +715,6 @@ export default function AddExpensePage() {
         setRemark("");
         setDocumentName("");
         setDocumentUrl("");
-        setTruckId(isTruckRole ? ownBranchId : "");
         setStartKm("");
         setEndKm("");
         setQuantity("");
@@ -783,7 +929,7 @@ export default function AddExpensePage() {
                 {/* ─── 3. DYNAMIC SECTION: Fuel Details (Petrol / Diesel / CNG) ─────────── */}
                 {isFuel && (
                     <FormCard title={`${expenseType} Details`} icon={Fuel} className="animate-in fade-in-50 duration-150">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-1.5 items-start">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 items-start">
                             {/* 1. Fuel Type */}
                             <div>
                                 <FormInput
@@ -797,26 +943,7 @@ export default function AddExpensePage() {
                                 />
                             </div>
 
-                            {/* 2. Truck */}
-                            <div>
-                                <FormSelect
-                                    label="Truck"
-                                    required
-                                    searchable
-                                    options={truckOptions}
-                                    value={truckId}
-                                    disabled={isTruckRole && Boolean(ownBranchId)}
-                                    onChange={(val) => {
-                                        setTruckId(val);
-                                        if (errors.truckId) setErrors((p) => ({ ...p, truckId: "" }));
-                                    }}
-                                    placeholder="Select Truck"
-                                    searchPlaceholder="Search truck no / driver..."
-                                    error={errors.truckId}
-                                />
-                            </div>
-
-                            {/* 3. Start KM */}
+                            {/* 2. Start KM */}
                             <div>
                                 <FormInput
                                     label="Start KM"
@@ -830,7 +957,7 @@ export default function AddExpensePage() {
                                 />
                             </div>
 
-                            {/* 4. End KM */}
+                            {/* 3. End KM */}
                             <div>
                                 <FormInput
                                     label="End KM"
@@ -844,7 +971,7 @@ export default function AddExpensePage() {
                                 />
                             </div>
 
-                            {/* 5. Liter / Quantity */}
+                            {/* 4. Liter / Quantity */}
                             <div>
                                 <FormInput
                                     label={`Liter (${expenseType === "CNG" ? "Kg" : "Liters"})`}
@@ -868,7 +995,7 @@ export default function AddExpensePage() {
                 {/* ─── 4. DYNAMIC SECTION: Other Truck Details ─────────────────────────── */}
                 {expenseType === "Other Truck" && (
                     <FormCard title="Other Truck Details" icon={Truck} className="animate-in fade-in-50 duration-150">
-                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-1.5 items-start">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 items-start">
                             {/* 1. Truck Expense Type */}
                             <div>
                                 <FormSelect
@@ -887,30 +1014,10 @@ export default function AddExpensePage() {
                                 />
                             </div>
 
-                            {/* 2. Truck */}
-                            <div>
-                                <FormSelect
-                                    label="Truck"
-                                    required
-                                    searchable
-                                    options={truckOptions}
-                                    value={truckId}
-                                    disabled={isTruckRole && Boolean(ownBranchId)}
-                                    onChange={(val) => {
-                                        setTruckId(val);
-                                        if (errors.truckId) setErrors((p) => ({ ...p, truckId: "" }));
-                                    }}
-                                    placeholder="Select Truck"
-                                    searchPlaceholder="Search truck no / driver..."
-                                    error={errors.truckId}
-                                />
-                            </div>
-
-                            {/* 3. Start KM */}
+                            {/* 2. Start KM */}
                             <div>
                                 <FormInput
                                     label="Start KM"
-                                    required
                                     type="text"
                                     inputMode="numeric"
                                     placeholder="e.g. 45000"
@@ -920,7 +1027,7 @@ export default function AddExpensePage() {
                                 />
                             </div>
 
-                            {/* 4. End KM */}
+                            {/* 3. End KM */}
                             <div>
                                 <FormInput
                                     label="End KM"
@@ -1101,41 +1208,7 @@ export default function AddExpensePage() {
                     </div>
                 )}
 
-                {/* ─── 8. DYNAMIC SECTION: Truck EMI Summary ───────────────────────────── */}
-                {isEmi && (
-                    <div className="space-y-1.5 animate-in fade-in-50 duration-150">
-                        <FormCard title="Truck EMI Summary" icon={CreditCard}>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                                <div className="p-2.5 rounded bg-teal-50/60 border border-teal-100">
-                                    <span className="text-[11px] font-medium text-slate-600 block">Selected Truck</span>
-                                    <span className="text-sm font-bold text-slate-900 truncate block">
-                                        {selectedTruckData?.truckNumber || selectedTruckData?.truckInfo?.truckNo || selectedTruckData?.name || "Select Truck"}
-                                    </span>
-                                </div>
-                                <div className="p-2.5 rounded bg-slate-50 border border-slate-200">
-                                    <span className="text-[11px] font-medium text-slate-600 block">Driver / Owner</span>
-                                    <span className="text-xs font-semibold text-slate-900 block truncate">
-                                        {selectedTruckData?.driverName || selectedTruckData?.ownerDetail?.name || selectedTruckData?.driverInfo?.name || "—"}
-                                    </span>
-                                </div>
-                                <div className="p-2.5 rounded bg-slate-50 border border-slate-200">
-                                    <span className="text-[11px] font-medium text-slate-600 block">Bank Account</span>
-                                    <span className="text-xs font-mono text-slate-900 block truncate">
-                                        {selectedTruckData?.bankDetails?.accountNumber || "—"}
-                                    </span>
-                                </div>
-                                <div className="p-2.5 rounded bg-slate-50 border border-slate-200">
-                                    <span className="text-[11px] font-medium text-slate-600 block">Bank Name</span>
-                                    <span className="text-xs font-semibold text-slate-900 block truncate">
-                                        {selectedTruckData?.bankDetails?.bankName || "—"}
-                                    </span>
-                                </div>
-                            </div>
-                        </FormCard>
-                    </div>
-                )}
-
-                {/* ─── 9. DYNAMIC SECTION: History Table for Fuel, Rent, Salary, Labour, EMI ─ */}
+                {/* ─── 8. DYNAMIC SECTION: History Table for Fuel, Rent, Salary, Labour, EMI ─ */}
                 {(isFuel || isRent || isSalary || isLabour || isEmi) && (
                     <div className="space-y-1.5 animate-in fade-in-50 duration-150">
                         <FormCard
@@ -1152,189 +1225,40 @@ export default function AddExpensePage() {
                             }
                             icon={History}
                         >
-                            <div className="overflow-x-auto border border-slate-200 rounded bg-white">
-                                <table className="w-full text-xs text-left border-collapse">
-                                    <thead className="bg-slate-100 text-[11px] font-bold text-black border-b border-slate-200 uppercase tracking-wider">
-                                        <tr>
-                                            <th className="py-1.5 px-3 border-r border-slate-200 w-12 text-center">#</th>
-                                            <th className="py-1.5 px-3 border-r border-slate-200">Date</th>
-                                            {isFuel && (
-                                                <>
-                                                    <th className="py-1.5 px-3 border-r border-slate-200">Fuel Type</th>
-                                                    <th className="py-1.5 px-3 border-r border-slate-200">Truck</th>
-                                                    <th className="py-1.5 px-3 border-r border-slate-200">Start KM</th>
-                                                    <th className="py-1.5 px-3 border-r border-slate-200">End KM</th>
-                                                    <th className="py-1.5 px-3 border-r border-slate-200">Liter</th>
-                                                </>
-                                            )}
-                                            {isLabour && (
-                                                <>
-                                                    <th className="py-1.5 px-3 border-r border-slate-200">Month / Week</th>
-                                                    <th className="py-1.5 px-3 border-r border-slate-200 text-center">Labor Count</th>
-                                                    <th className="py-1.5 px-3 border-r border-slate-200 text-right">Rate / Labor (₹)</th>
-                                                </>
-                                            )}
-                                            {isRent && (
-                                                <th className="py-1.5 px-3 border-r border-slate-200">Branch / Remark</th>
-                                            )}
-                                            {isSalary && (
-                                                <th className="py-1.5 px-3 border-r border-slate-200">Staff / Remark</th>
-                                            )}
-                                            {isEmi && (
-                                                <>
-                                                    <th className="py-1.5 px-3 border-r border-slate-200">Truck No</th>
-                                                    <th className="py-1.5 px-3 border-r border-slate-200">Bank / Loan Details</th>
-                                                </>
-                                            )}
-                                            <th className="py-1.5 px-3 border-r border-slate-200 text-right">Cash (₹)</th>
-                                            <th className="py-1.5 px-3 border-r border-slate-200 text-right">Online (₹)</th>
-                                            <th className="py-1.5 px-3 border-r border-slate-200 text-right font-bold">Total (₹)</th>
-                                            <th className="py-1.5 px-3 text-center w-20">Receipt</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-200">
-                                        {(() => {
-                                            const records = isFuel
-                                                ? fuelHistory
-                                                : isRent
-                                                    ? rentHistory
-                                                    : isSalary
-                                                        ? salaryHistory
-                                                        : isLabour
-                                                            ? labourHistory
-                                                            : emiHistory;
-
-                                            const isLoading = isFuel
-                                                ? isFuelHistLoading
-                                                : isRent
-                                                    ? isRentHistLoading
-                                                    : isSalary
-                                                        ? isSalaryHistLoading
-                                                        : isLabour
-                                                            ? isLabourHistLoading
-                                                            : isEmiHistLoading;
-
-                                            if (!branchId) {
-                                                return (
-                                                    <tr>
-                                                        <td colSpan={11} className="py-4 text-center text-slate-500 text-xs">
-                                                            Please select a branch to view history.
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            }
-
-                                            if (isLoading) {
-                                                return (
-                                                    <tr>
-                                                        <td colSpan={11} className="py-4 text-center text-slate-500 text-xs">
-                                                            <Loader2 className="w-4 h-4 animate-spin inline-block mr-2 text-[#2980b9]" />
-                                                            Loading history records...
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            }
-
-                                            if (records.length === 0) {
-                                                return (
-                                                    <tr>
-                                                        <td colSpan={11} className="py-4 text-center text-slate-500 text-xs">
-                                                            No previous history records found for this branch.
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            }
-
-                                            return records.map((item: any, idx: number) => (
-                                                <tr key={item._id || idx} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="py-1.5 px-3 border-r border-slate-200 text-center font-mono text-slate-600">
-                                                        {idx + 1}
-                                                    </td>
-                                                    <td className="py-1.5 px-3 border-r border-slate-200 font-mono text-slate-800">
-                                                        {item.expenseDate || item.date || item.createdAt?.split("T")[0] || "—"}
-                                                    </td>
-                                                    {isFuel && (
-                                                        <>
-                                                            <td className="py-1.5 px-3 border-r border-slate-200 font-semibold text-slate-900">
-                                                                {item.fuelType || item.expenseType || "—"}
-                                                            </td>
-                                                            <td className="py-1.5 px-3 border-r border-slate-200 text-slate-800">
-                                                                {item.truckNumber || item.truckNo || item.truckId?.truckNumber || "—"}
-                                                            </td>
-                                                            <td className="py-1.5 px-3 border-r border-slate-200 font-mono text-slate-800">
-                                                                {item.startKM || item.startKm || "—"}
-                                                            </td>
-                                                            <td className="py-1.5 px-3 border-r border-slate-200 font-mono text-slate-800">
-                                                                {item.endKM || item.endKm || "—"}
-                                                            </td>
-                                                            <td className="py-1.5 px-3 border-r border-slate-200 font-mono text-slate-800">
-                                                                {item.liter || item.quantity || "—"}
-                                                            </td>
-                                                        </>
-                                                    )}
-                                                    {isLabour && (
-                                                        <>
-                                                            <td className="py-1.5 px-3 border-r border-slate-200 text-slate-800">
-                                                                {item.labourMonth ? `${item.labourMonth} - ${item.labourWeek || ""}` : item.description || item.remark || "—"}
-                                                            </td>
-                                                            <td className="py-1.5 px-3 border-r border-slate-200 text-center font-mono text-slate-800">
-                                                                {item.labourCount || "—"}
-                                                            </td>
-                                                            <td className="py-1.5 px-3 border-r border-slate-200 text-right font-mono text-slate-800">
-                                                                ₹{item.ratePerLabour || 0}
-                                                            </td>
-                                                        </>
-                                                    )}
-                                                    {isRent && (
-                                                        <td className="py-1.5 px-3 border-r border-slate-200 text-slate-700 max-w-[200px] truncate">
-                                                            {item.description || item.remark || item.branchName || "—"}
-                                                        </td>
-                                                    )}
-                                                    {isSalary && (
-                                                        <td className="py-1.5 px-3 border-r border-slate-200 text-slate-700 max-w-[200px] truncate">
-                                                            {item.staffName || item.description || item.remark || "—"}
-                                                        </td>
-                                                    )}
-                                                    {isEmi && (
-                                                        <>
-                                                            <td className="py-1.5 px-3 border-r border-slate-200 text-slate-800">
-                                                                {item.truckNumber || item.truckNo || "—"}
-                                                            </td>
-                                                            <td className="py-1.5 px-3 border-r border-slate-200 text-slate-700">
-                                                                {item.bankName || item.description || item.remark || "—"}
-                                                            </td>
-                                                        </>
-                                                    )}
-                                                    <td className="py-1.5 px-3 border-r border-slate-200 text-right font-mono text-slate-800">
-                                                        ₹{item.cashAmount || item.cash || 0}
-                                                    </td>
-                                                    <td className="py-1.5 px-3 border-r border-slate-200 text-right font-mono text-slate-800">
-                                                        ₹{item.onlineAmount || item.online || 0}
-                                                    </td>
-                                                    <td className="py-1.5 px-3 border-r border-slate-200 text-right font-mono font-bold text-black">
-                                                        ₹{item.totalAmount || item.total || 0}
-                                                    </td>
-                                                    <td className="py-1.5 px-3 text-center">
-                                                        {item.onlineScreenshot || item.receiptUrl || item.receipt ? (
-                                                            <a
-                                                                href={item.onlineScreenshot || item.receiptUrl || item.receipt}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                className="text-[11px] text-[#2980b9] hover:underline flex items-center justify-center gap-1"
-                                                            >
-                                                                <span>View</span>
-                                                                <ExternalLink className="w-2.5 h-2.5" />
-                                                            </a>
-                                                        ) : (
-                                                            <span className="text-slate-400 text-xs">—</span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ));
-                                        })()}
-                                    </tbody>
-                                </table>
-                            </div>
+                            <SimpleDataTable
+                                columns={historyColumns}
+                                data={
+                                    !branchId
+                                        ? []
+                                        : isFuel
+                                            ? fuelHistory
+                                            : isRent
+                                                ? rentHistory
+                                                : isSalary
+                                                    ? salaryHistory
+                                                    : isLabour
+                                                        ? labourHistory
+                                                        : emiHistory
+                                }
+                                isLoading={
+                                    isFuel
+                                        ? isFuelHistLoading
+                                        : isRent
+                                            ? isRentHistLoading
+                                            : isSalary
+                                                ? isSalaryHistLoading
+                                                : isLabour
+                                                    ? isLabourHistLoading
+                                                    : isEmiHistLoading
+                                }
+                                showSrNo
+                                srNoLabel="#"
+                                emptyMessage={
+                                    !branchId
+                                        ? "Please select a branch to view history."
+                                        : "No previous history records found for this branch."
+                                }
+                            />
                         </FormCard>
                     </div>
                 )}
