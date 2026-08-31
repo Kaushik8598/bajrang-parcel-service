@@ -505,21 +505,21 @@ export default function AddExpensePage() {
 
         // Payload formatted with exact required backend keys for POST /memo/add-expense
         const payload: Record<string, unknown> = {
-            userId: branchId,
+            // userId: branchId,
             branchId,
             expenseType,
-            date: expenseDate,
+            // date: expenseDate,
             expenseDate,
-            description: remark.trim(),
+            // description: remark.trim(),
             remark: remark.trim(),
             cashAmount: numCash,
             onlineAmount: numOnline,
             totalAmount: numTotal,
-            onlineScreenshot: receiptUrl || documentUrl || "",
-            receiptUrl,
-            receiptName,
+            paymentScreenShort: receiptUrl,
+            // receiptUrl,
+            // receiptName,
             documentUrl,
-            documentName,
+            // documentName,
         };
 
         // Fuel fields
@@ -529,7 +529,6 @@ export default function AddExpensePage() {
             payload.startKM = Number(startKm) || 0;
             payload.endKM = Number(endKm) || 0;
             payload.liter = Number(quantity) || 0;
-            payload.quantity = Number(quantity) || 0;
         }
 
         // Other truck fields
