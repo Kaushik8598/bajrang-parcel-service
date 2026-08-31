@@ -43,6 +43,17 @@ export async function getBookingById(id: number | string): Promise<any> {
 }
 
 /**
+ * GET /track/:trackingid
+ * Public parcel tracking API (No authentication required)
+ */
+export async function getPublicTrack(trackingId: string): Promise<any> {
+  const response = await request<{ success: boolean; data: any }>(`/track/${encodeURIComponent(trackingId)}`, {
+    method: "GET",
+  });
+  return response?.data || null;
+}
+
+/**
  * POST /booking
  * Create a new parcel booking docket
  */

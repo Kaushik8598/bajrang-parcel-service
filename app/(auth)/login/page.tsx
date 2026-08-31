@@ -144,7 +144,7 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className="mt-4 text-center">
+            {/* <div className="mt-4 text-center">
               <a
                 href="/forgot-password"
                 id="forgot-password-link"
@@ -152,7 +152,7 @@ export default function LoginPage() {
               >
                 Forgot Password?
               </a>
-            </div>
+            </div> */}
           </div>
         </div>
 
