@@ -203,26 +203,6 @@ function getCurrentStep(tracking: any, bookingStatus: string): number {
   return maxStep;
 }
 
-// Overall status badge
-const STATUS_BADGE: Record<
-  string,
-  { label: string; color: string; bg: string; border: string; dot: string; icon: React.ElementType }
-> = {
-  draft: { label: "Draft", color: "text-slate-600", bg: "bg-slate-50", border: "border-slate-200", dot: "bg-slate-400", icon: Clock },
-  confirmed: { label: "Confirmed", color: "text-blue-700", bg: "bg-blue-50", border: "border-blue-200", dot: "bg-blue-500", icon: CheckCircle2 },
-  loaded: { label: "Loaded", color: "text-indigo-700", bg: "bg-indigo-50", border: "border-indigo-200", dot: "bg-indigo-500", icon: Truck },
-  in_transit: { label: "In Transit", color: "text-purple-700", bg: "bg-purple-50", border: "border-purple-200", dot: "bg-purple-500", icon: Navigation },
-  arrived_at_destination: { label: "Arrived", color: "text-cyan-700", bg: "bg-cyan-50", border: "border-cyan-200", dot: "bg-cyan-500", icon: Building2 },
-  delivered: { label: "Delivered", color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-200", dot: "bg-emerald-500", icon: CheckCircle2 },
-  cancelled: { label: "Cancelled", color: "text-red-700", bg: "bg-red-50", border: "border-red-200", dot: "bg-red-500", icon: XCircle },
-};
-
-function getStatusBadge(status: string | undefined) {
-  if (!status) return STATUS_BADGE.confirmed;
-  const key = status.toLowerCase().replace(/[\s-]+/g, "_");
-  return STATUS_BADGE[key] || STATUS_BADGE.confirmed;
-}
-
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 function formatDate(dateStr?: string | null) {
   if (!dateStr) return "—";
@@ -373,8 +353,8 @@ function TrackingTimeline({
                   isDone
                     ? "bg-emerald-500 border-emerald-400 text-white"
                     : isActive
-                    ? cn(step.activeBg, "border-white ring-2 ring-offset-1 text-white shadow-md", step.border)
-                    : "bg-white border-slate-200 text-slate-300"
+                      ? cn(step.activeBg, "border-white ring-2 ring-offset-1 text-white shadow-md", step.border)
+                      : "bg-white border-slate-200 text-slate-300"
                 )}
                 style={{ zIndex: 2 }}
               >
@@ -403,8 +383,8 @@ function TrackingTimeline({
                     ? isDone
                       ? "bg-emerald-50 text-emerald-700 border-emerald-300"
                       : isActive
-                      ? cn(step.bg, step.color, step.border)
-                      : "bg-blue-50 text-[#2980b9] border-blue-300"
+                        ? cn(step.bg, step.color, step.border)
+                        : "bg-blue-50 text-[#2980b9] border-blue-300"
                     : "bg-slate-50 text-slate-400 border-slate-200"
                 )}
               >
@@ -498,28 +478,27 @@ function TrackingPageContent() {
 
   const booking = rawBooking
     ? {
-        ...rawBooking,
-        fromBranch,
-        toBranch,
-        sender: rawBooking.sender
-          ? {
-              ...rawBooking.sender,
-              gstin: rawBooking.sender.gst || rawBooking.sender.gstin,
-              contact_no: rawBooking.sender.mobile || rawBooking.sender.contact_no,
-            }
-          : null,
-        receiver: rawBooking.receiver
-          ? {
-              ...rawBooking.receiver,
-              gstin: rawBooking.receiver.gst || rawBooking.receiver.gstin,
-              contact_no: rawBooking.receiver.mobile || rawBooking.receiver.contact_no,
-            }
-          : null,
-      }
+      ...rawBooking,
+      fromBranch,
+      toBranch,
+      sender: rawBooking.sender
+        ? {
+          ...rawBooking.sender,
+          gstin: rawBooking.sender.gst || rawBooking.sender.gstin,
+          contact_no: rawBooking.sender.mobile || rawBooking.sender.contact_no,
+        }
+        : null,
+      receiver: rawBooking.receiver
+        ? {
+          ...rawBooking.receiver,
+          gstin: rawBooking.receiver.gst || rawBooking.receiver.gstin,
+          contact_no: rawBooking.receiver.mobile || rawBooking.receiver.contact_no,
+        }
+        : null,
+    }
     : null;
 
   const status = booking?.status || "confirmed";
-  const badge = getStatusBadge(status);
 
   const isCancelled = status.toLowerCase() === "cancelled";
   const isDelivered = status.toLowerCase() === "delivered";
@@ -530,7 +509,6 @@ function TrackingPageContent() {
   const currentStep = getCurrentStep(tracking, status);
   const pieces: any[] = tracking?.pieces || [];
   const pieceCounts = getPieceCounts(pieces);
-  const totalPieces = tracking?.totalPieces || pieces.length || 0;
 
   const paymentMethodDisplay = (() => {
     const pm = (booking?.paymentMethod || "").toLowerCase();
