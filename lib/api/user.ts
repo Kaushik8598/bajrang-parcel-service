@@ -212,3 +212,13 @@ export async function updateUserPermissions(
   }
 }
 
+/**
+ * Fetch branches / users based on logged-in role via GET /user/getUserRoleVise
+ */
+export async function getUserRoleVise(): Promise<any> {
+  return await request<any>("/user/getUserRoleVise", {
+    method: "GET",
+  });
+}
+
+

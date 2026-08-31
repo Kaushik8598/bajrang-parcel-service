@@ -73,6 +73,18 @@ export function useUpdateUserPermissionsById() {
   });
 }
 
+export const USER_ROLE_VISE_QUERY_KEY = ["user-role-vise-list"] as const;
 
-
-
+/**
+ * React Query hook to fetch user/branch list based on role via GET /user/getUserRoleVise
+ */
+export function useUserRoleVise() {
+  return useQuery({
+    queryKey: USER_ROLE_VISE_QUERY_KEY,
+    queryFn: async () => {
+      const { getUserRoleVise } = await import("@/lib/api/user");
+      return getUserRoleVise();
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
