@@ -55,7 +55,7 @@ export default function Header({ onMenuToggle }: HeaderProps) {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      router.push(`/transaction/booking?q=${encodeURIComponent(searchQuery.trim())}`);
+      router.push(`/tracking?q=${encodeURIComponent(searchQuery.trim())}`);
     }
   };
 
