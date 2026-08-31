@@ -76,7 +76,7 @@ function getLast6MonthsOptions(): FormSelectOption[] {
     return options;
 }
 
-// ─── Helper: Dynamically Calculate Monday-to-Sunday Weeks for a Month ────────
+// ─── Helper: Dynamically Calculate Monday-to-Sunday Fixed 7-Day Weeks for a Month ──
 function getMondayToSundayWeeksForMonth(monthYearStr: string): FormSelectOption[] {
     if (!monthYearStr) return [];
     const parts = monthYearStr.trim().split(" ");
@@ -87,48 +87,47 @@ function getMondayToSundayWeeksForMonth(monthYearStr: string): FormSelectOption[
     const monthIndex = testDate.getMonth();
     if (isNaN(monthIndex)) return [];
 
-    const totalDays = new Date(year, monthIndex + 1, 0).getDate();
+    const totalDaysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+    const lastDateOfMonth = new Date(year, monthIndex, totalDaysInMonth);
+
+    // Find the Monday of the week containing the 1st day of the month
+    const firstDayOfMonth = new Date(year, monthIndex, 1);
+    const dayOfWeek = firstDayOfMonth.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+
+    let currentMonday = new Date(year, monthIndex, 1 - daysToMonday);
+    let weekNumber = 1;
     const weeks: FormSelectOption[] = [];
 
-    let currentDay = 1;
-    let weekNumber = 1;
-
-    const formatDateStr = (day: number) => {
-        const d = day < 10 ? `0${day}` : `${day}`;
-        const m = monthIndex + 1 < 10 ? `0${monthIndex + 1}` : `${monthIndex + 1}`;
-        return `${d}/${m}/${year}`;
+    const formatDate = (d: Date) => {
+        const day = d.getDate() < 10 ? `0${d.getDate()}` : `${d.getDate()}`;
+        const m = d.getMonth() + 1 < 10 ? `0${d.getMonth() + 1}` : `${d.getMonth() + 1}`;
+        const y = d.getFullYear();
+        return `${day}/${m}/${y}`;
     };
 
-    const getDayName = (day: number) => {
-        const dateObj = new Date(year, monthIndex, day);
-        return dateObj.toLocaleDateString("en-US", { weekday: "short" });
-    };
+    // Continue generating 7-day Monday-to-Sunday weeks as long as Monday <= lastDateOfMonth
+    while (currentMonday <= lastDateOfMonth) {
+        const currentSunday = new Date(currentMonday);
+        currentSunday.setDate(currentMonday.getDate() + 6);
 
-    while (currentDay <= totalDays) {
-        const startDay = currentDay;
-        const startDateObj = new Date(year, monthIndex, startDay);
-        const dayOfWeek = startDateObj.getDay(); // 0 = Sun, 1 = Mon, ... 6 = Sat
+        const startStr = formatDate(currentMonday);
+        const endStr = formatDate(currentSunday);
 
-        // Days until Sunday: if Sunday (0), 0 days; else (7 - dayOfWeek)
-        const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
-        const endDay = Math.min(startDay + daysUntilSunday, totalDays);
-
-        const startFormatted = formatDateStr(startDay);
-        const endFormatted = formatDateStr(endDay);
-        const startDayName = getDayName(startDay);
-        const endDayName = getDayName(endDay);
-
-        const label = `Week ${weekNumber} (${startFormatted} [${startDayName}] to ${endFormatted} [${endDayName}])`;
-        const value = `Week ${weekNumber} (${startFormatted} - ${endFormatted})`;
+        const label = `Week ${weekNumber} (${startStr} to ${endStr})`;
+        const value = `Week ${weekNumber} (${startStr} to ${endStr})`;
 
         weeks.push({ value, label });
 
-        currentDay = endDay + 1;
+        // Move to next Monday
+        currentMonday = new Date(currentMonday);
+        currentMonday.setDate(currentMonday.getDate() + 7);
         weekNumber++;
     }
 
     return weeks;
 }
+
 
 // ─── Helper: Normalize Array from History API Responses ──────────────────────
 function extractHistoryList(res: any): any[] {
@@ -957,10 +956,10 @@ export default function AddExpensePage() {
                                 />
                             </div>
 
-                            {/* 2. Select Week (Monday to Sunday dynamic date intervals) */}
+                            {/* 2. Select Week (Fixed 7-Day Monday to Sunday weeks) */}
                             <div>
                                 <FormSelect
-                                    label="Select Week (Mon - Sun)"
+                                    label="Select Week"
                                     required
                                     options={dynamicLabourWeeks}
                                     value={labourWeek}
