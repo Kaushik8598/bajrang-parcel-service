@@ -1,7 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createMemo, getMemoList, getMemoById, CreateMemoPayload } from "@/lib/api/memo";
+import {
+  createMemo,
+  getMemoList,
+  getMemoById,
+  getDataForAddMemo,
+  CreateMemoPayload,
+} from "@/lib/api/memo";
 
 export const MEMO_LIST_QUERY_KEY = ["memo-list"] as const;
+export const DATA_FOR_ADD_MEMO_QUERY_KEY = ["data-for-add-memo"] as const;
+
+export function useDataForAddMemo(params?: { branchId?: string }, enabled = true) {
+  return useQuery({
+    queryKey: [...DATA_FOR_ADD_MEMO_QUERY_KEY, params],
+    queryFn: () => getDataForAddMemo(params),
+    enabled,
+  });
+}
 
 export function useMemoList(params?: Record<string, unknown>) {
   return useQuery({
@@ -24,6 +39,7 @@ export function useCreateMemoMutation() {
     mutationFn: (payload: CreateMemoPayload) => createMemo(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: MEMO_LIST_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: DATA_FOR_ADD_MEMO_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ["user-balance"] });
     },
   });

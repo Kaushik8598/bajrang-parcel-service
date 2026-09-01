@@ -53,3 +53,15 @@ export function useUpdateAdmin() {
     },
   });
 }
+
+export const ONLY_ADMIN_DROPDOWN_QUERY_KEY = ["only-admin-dropdown-list"] as const;
+
+/**
+ * Custom React Query hook to fetch ONLY admins for dropdown via GET /user/onlyAdmin
+ */
+export function useOnlyAdminList() {
+  return useQuery({
+    queryKey: ONLY_ADMIN_DROPDOWN_QUERY_KEY,
+    queryFn: () => import("@/lib/api/admin").then((m) => m.getOnlyAdminList()),
+  });
+}

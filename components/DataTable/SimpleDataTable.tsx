@@ -123,7 +123,7 @@ export default function SimpleDataTable<T extends Record<string, any>>({
                   </th>
                 )}
                 {columns.map((col) => {
-                  const isSortable = col.sortable !== false;
+                  const isSortable = Boolean(col.sortable);
                   const isSorted = sortKey === String(col.key);
                   return (
                     <th
@@ -131,11 +131,21 @@ export default function SimpleDataTable<T extends Record<string, any>>({
                       onClick={isSortable ? () => handleSort(String(col.key)) : undefined}
                       className={cn(
                         "px-2.5 py-2 font-bold text-black text-xs uppercase tracking-wider whitespace-nowrap border-r border-slate-300 last:border-r-0",
+                        col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
                         isSortable && "cursor-pointer select-none hover:bg-slate-200/80 transition-colors group",
                         col.width
                       )}
                     >
-                      <div className="flex items-center gap-1">
+                      <div
+                        className={cn(
+                          "flex items-center gap-1",
+                          col.align === "right"
+                            ? "justify-end"
+                            : col.align === "center"
+                            ? "justify-center"
+                            : "justify-start"
+                        )}
+                      >
                         <span>{col.label}</span>
                         {isSortable && (
                           isSorted ? (
@@ -186,7 +196,7 @@ export default function SimpleDataTable<T extends Record<string, any>>({
                   return (
                     <tr key={row._id || row.id || rowIdx} className="hover:bg-blue-50/40 transition-colors">
                       {showSrNo && (
-                        <td className="px-2.5 py-2 text-center font-mono text-slate-500 font-semibold border-r border-slate-200">
+                        <td className="px-2.5 py-2 text-center font-mono text-black font-semibold border-r border-slate-200">
                           {srNo}
                         </td>
                       )}
@@ -195,7 +205,11 @@ export default function SimpleDataTable<T extends Record<string, any>>({
                         return (
                           <td
                             key={String(col.key)}
-                            className="px-2.5 py-2 text-slate-800 border-r border-slate-200 last:border-r-0 align-middle"
+                            className={cn(
+                              "px-2.5 py-2 text-black border-r border-slate-200 last:border-r-0 align-middle",
+                              col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
+                              col.className
+                            )}
                           >
                             {col.render ? col.render(cellValue, row) : (cellValue ?? "—")}
                           </td>

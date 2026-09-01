@@ -95,3 +95,26 @@ export async function updateAdmin(
     }
   );
 }
+
+export interface OnlyAdminItem {
+  _id: string;
+  name: string;
+  [key: string]: unknown;
+}
+
+export type OnlyAdminApiResponse =
+  | OnlyAdminItem[]
+  | {
+      success?: boolean;
+      message?: string;
+      data?: OnlyAdminItem[] | { users?: OnlyAdminItem[]; data?: OnlyAdminItem[] };
+    };
+
+/**
+ * Fetch Only Admin list for dropdown via GET /user/onlyAdmin
+ */
+export async function getOnlyAdminList(): Promise<OnlyAdminApiResponse> {
+  return await request<OnlyAdminApiResponse>("/user/onlyAdmin", {
+    method: "GET",
+  });
+}

@@ -34,7 +34,6 @@ export function getBookingPrintSlipHtml(props: BookingPrintSlipProps): string {
   // Branch Details (from response object)
   const fromBranchObj = booking?.fromBranch || props.fromBranch || {};
   const toBranchObj = booking?.toBranch || props.toBranch || {};
-  console.log("fromBranchObj", booking);
 
   // Branch Name with Code (e.g. SARTHANA (SRTN))
   const fromBranchName = fromBranchObj?.branchName || "";

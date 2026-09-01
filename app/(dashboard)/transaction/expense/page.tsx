@@ -516,7 +516,7 @@ export default function AddExpensePage() {
                 sortable: true,
                 sortValue: (r) => new Date(r.date || 0).getTime(),
                 render: (_, r) => (
-                    <span className="font-mono text-slate-800">
+                    <span className="font-mono text-black">
                         {r.date || "—"}
                     </span>
                 ),
@@ -524,12 +524,11 @@ export default function AddExpensePage() {
             {
                 key: "receipt",
                 label: "Receipt No",
-                sortable: true,
-                width: "w-20",
-                sortValue: (r) => (r.receiptNo ? 1 : 0),
+                width: "w-24",
+                align: "center",
                 render: (_, r) => {
                     const receiptNo = r.receiptNo;
-                    return <span className="font-mono text-slate-800">{receiptNo}</span>;
+                    return <span className="font-mono text-black">{receiptNo || "—"}</span>;
                 },
             }
         ];
@@ -539,10 +538,8 @@ export default function AddExpensePage() {
                 {
                     key: "fuelType",
                     label: "Fuel Type",
-                    sortable: true,
-                    sortValue: (r) => r.fuelType || r.expenseType || "",
                     render: (_, r) => (
-                        <span className="font-semibold text-slate-900">
+                        <span className="font-semibold text-black">
                             {r.fuelType || r.expenseType || "—"}
                         </span>
                     ),
@@ -550,10 +547,8 @@ export default function AddExpensePage() {
                 {
                     key: "truck",
                     label: "Truck",
-                    sortable: true,
-                    sortValue: (r) => r.truckNumber || r.truckNo || r.truckId?.truckNumber || "",
                     render: (_, r) => (
-                        <span className="text-slate-800">
+                        <span className="text-black">
                             {r.truckNumber || r.truckNo || r.truckId?.truckNumber || "—"}
                         </span>
                     ),
@@ -561,10 +556,9 @@ export default function AddExpensePage() {
                 {
                     key: "startKM",
                     label: "Start KM",
-                    sortable: true,
-                    sortValue: (r) => Number(r.startKM || r.startKm || 0),
+                    align: "right",
                     render: (_, r) => (
-                        <span className="font-mono text-slate-800">
+                        <span className="font-mono text-black">
                             {r.startKM || r.startKm || "—"}
                         </span>
                     ),
@@ -572,10 +566,9 @@ export default function AddExpensePage() {
                 {
                     key: "endKM",
                     label: "End KM",
-                    sortable: true,
-                    sortValue: (r) => Number(r.endKM || r.endKm || 0),
+                    align: "right",
                     render: (_, r) => (
-                        <span className="font-mono text-slate-800">
+                        <span className="font-mono text-black">
                             {r.endKM || r.endKm || "—"}
                         </span>
                     ),
@@ -583,10 +576,9 @@ export default function AddExpensePage() {
                 {
                     key: "liter",
                     label: "Liter",
-                    sortable: true,
-                    sortValue: (r) => Number(r.liter || r.quantity || 0),
+                    align: "right",
                     render: (_, r) => (
-                        <span className="font-mono text-slate-800">
+                        <span className="font-mono text-black">
                             {r.liter || r.quantity || "—"}
                         </span>
                     ),
@@ -599,13 +591,8 @@ export default function AddExpensePage() {
                 {
                     key: "labourMonth",
                     label: "Month / Week",
-                    sortable: true,
-                    sortValue: (r) =>
-                        r.labourMonth
-                            ? `${r.labourMonth} - ${r.labourWeek || ""}`
-                            : r.description || r.remark || "",
                     render: (_, r) => (
-                        <span className="text-slate-800">
+                        <span className="text-black">
                             {r.labourMonth
                                 ? `${r.labourMonth} - ${r.labourWeek || ""}`
                                 : r.description || r.remark || "—"}
@@ -615,10 +602,9 @@ export default function AddExpensePage() {
                 {
                     key: "labourCount",
                     label: "Labor Count",
-                    sortable: true,
-                    sortValue: (r) => Number(r.labourCount || 0),
+                    align: "center",
                     render: (_, r) => (
-                        <span className="font-mono text-slate-800 text-center block">
+                        <span className="font-mono text-black text-center block">
                             {r.labourCount || "—"}
                         </span>
                     ),
@@ -626,10 +612,9 @@ export default function AddExpensePage() {
                 {
                     key: "ratePerLabour",
                     label: "Rate / Labor (₹)",
-                    sortable: true,
-                    sortValue: (r) => Number(r.ratePerLabour || 0),
+                    align: "right",
                     render: (_, r) => (
-                        <span className="font-mono text-slate-800 text-right block">
+                        <span className="font-mono text-black text-right block">
                             ₹{r.ratePerLabour || 0}
                         </span>
                     ),
@@ -641,26 +626,23 @@ export default function AddExpensePage() {
             cols.push({
                 key: "branchRemark",
                 label: "Branch / Remark",
-                sortable: true,
-                sortValue: (r) => r.description || r.remark || r.branchName || "",
                 render: (_, r) => (
-                    <span className="text-slate-700 max-w-[220px] truncate block">
+                    <span className="text-black max-w-[220px] truncate block">
                         {r.description || r.remark || r.branchName || "—"}
                     </span>
                 ),
             });
         }
 
-
-
         cols.push(
             {
                 key: "cashAmount",
                 label: "Cash (₹)",
                 sortable: true,
+                align: "right",
                 sortValue: (r) => Number(r.cashAmount || r.cash || 0),
                 render: (_, r) => (
-                    <span className="font-mono text-slate-800 text-right block">
+                    <span className="font-mono text-black text-right block">
                         ₹{r.cashAmount || r.cash || 0}
                     </span>
                 ),
@@ -669,9 +651,10 @@ export default function AddExpensePage() {
                 key: "onlineAmount",
                 label: "Online (₹)",
                 sortable: true,
+                align: "right",
                 sortValue: (r) => Number(r.onlineAmount || r.online || 0),
                 render: (_, r) => (
-                    <span className="font-mono text-slate-800 text-right block">
+                    <span className="font-mono text-black text-right block">
                         ₹{r.onlineAmount || r.online || 0}
                     </span>
                 ),
@@ -680,6 +663,7 @@ export default function AddExpensePage() {
                 key: "totalAmount",
                 label: "Total (₹)",
                 sortable: true,
+                align: "right",
                 sortValue: (r) => Number(r.totalAmount || r.total || 0),
                 render: (_, r) => (
                     <span className="font-mono font-bold text-black text-right block">
@@ -693,10 +677,8 @@ export default function AddExpensePage() {
             cols.push({
                 key: "staffRemark",
                 label: "Staff / Remark",
-                sortable: true,
-                sortValue: (r) => r.remark || "",
                 render: (_, r) => (
-                    <span className="text-slate-700 max-w-[220px] truncate block">
+                    <span className="text-black max-w-[220px] truncate block">
                         {r.remark || "—"}
                     </span>
                 ),
@@ -732,15 +714,10 @@ export default function AddExpensePage() {
         <div className="w-full space-y-1.5 pb-6">
             {/* ─── Top Header Bar ──────────────────────────────────────────────────── */}
             <div className="bg-white rounded border border-slate-200/80 shadow-2xs px-3 py-2 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded bg-[#2980b9]/10 text-[#2980b9] flex items-center justify-center font-bold">
-                        <DollarSign className="w-4 h-4" />
-                    </div>
-                    <div>
-                        <h1 className="text-base sm:text-lg font-bold text-black tracking-tight leading-tight">
-                            Add Expense
-                        </h1>
-                    </div>
+                <div>
+                    <h1 className="text-base sm:text-lg font-bold text-black tracking-tight leading-tight">
+                        Add Expense
+                    </h1>
                 </div>
 
                 <Button

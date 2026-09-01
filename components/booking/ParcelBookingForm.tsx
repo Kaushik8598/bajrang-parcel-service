@@ -250,7 +250,6 @@ export default function ParcelBookingForm({
   });
 
   const initialBooking: any = prefetchedBooking || fetchedBooking;
-  console.log("initialBooking", initialBooking?.booking);
 
   const isDelivered: boolean = useMemo(() => {
     if (!initialBooking) return false;

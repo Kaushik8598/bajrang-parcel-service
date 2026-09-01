@@ -9,6 +9,7 @@ import {
     Save,
     Loader2,
     ArrowLeft,
+    Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
@@ -19,21 +20,20 @@ import { FileUploadWithCamera } from "@/components/ui/file-upload-with-camera";
 import SimpleDataTable from "@/components/DataTable/SimpleDataTable";
 import { showToast } from "@/lib/toast";
 import {
-    useBookingReports,
-    useParcelDeliveredReports,
-    useOnlyBranchList,
+    useDataForAddMemo,
+    useOnlyAdminList,
     useUserRoleVise,
-    useAllUsers,
     useUpload,
     useCreateMemoMutation,
 } from "@/lib/hooks";
 import { getStoredUser, getStoredUserRole } from "@/lib/api/auth";
+import { CreateMemoPayload } from "@/lib/api/memo";
 import type { ColumnDef } from "@/lib/types/common";
 import { cn } from "@/lib/utils";
 
 export interface DocketItem extends Record<string, any> {
     id: string;
-    type: "BOOKING" | "DELIVERY";
+    type: "BOOKING" | "DELIVERY" | "EXPENSE";
     docketNo: string;
     date: string;
     from: string;
@@ -52,204 +52,66 @@ export default function CreateMemoPage() {
     // ─── Current User & Role ───────────────────────────────────────────────────
     const currentUser = useMemo(() => getStoredUser(), []);
     const currentRole = useMemo(() => (getStoredUserRole() || "").toLowerCase(), []);
-    const isAdminOrSuperAdmin = ["superadmin", "admin", "super_admin", "super-admin"].includes(
-        currentRole
-    );
-    const ownBranchId = String(currentUser?._id || currentUser?.id || "");
+    const isAdminOrSuperAdmin = currentRole === "admin" || currentRole === "superadmin";
+    const ownBranchId = String(currentUser?._id || "");
 
-    // ─── Fetch Branch List (for branch selection if admin) ──────────────────────
-    const { data: roleViseRes } = useUserRoleVise();
-    const { data: onlyBranchRes } = useOnlyBranchList();
-
-    const branchDropdownList = useMemo(() => {
-        const rawData = roleViseRes?.data || onlyBranchRes?.data;
-        if (Array.isArray(rawData)) return rawData;
-        if (rawData && typeof rawData === "object") {
-            if (Array.isArray((rawData as any).branches)) return (rawData as any).branches;
-            if (Array.isArray((rawData as any).users)) return (rawData as any).users;
-            if (Array.isArray((rawData as any).data)) return (rawData as any).data;
-        }
-        return [];
-    }, [roleViseRes, onlyBranchRes]);
+    // ─── Fetch Branch List (Only for Admin via getUserRoleVise) ────────────────
+    const { data: roleViseRes } = useUserRoleVise(isAdminOrSuperAdmin);
 
     const branchOptions = useMemo<FormSelectOption[]>(() => {
-        return branchDropdownList.map((b: any) => {
-            const bInfo = b.branchInfo || {};
-            const name = bInfo.branchName || b.branchName || b.name || "Unknown Branch";
-            const code = bInfo.branchCode || b.branchCode || "";
-            return {
-                value: String(b._id || b.id),
-                label: code ? `${name} (${code})` : name,
-            };
-        });
-    }, [branchDropdownList]);
+        if (!isAdminOrSuperAdmin) return [];
+        const rawUsers = roleViseRes?.data?.users || (Array.isArray(roleViseRes?.data) ? roleViseRes.data : []);
 
-    // Selected Branch for memo calculation (defaults to own branch for non-admin)
+        return rawUsers
+            .filter((b: any) => b.role !== "admin" && b.role !== "superadmin")
+            .map((b: any) => {
+                const name = b.name || "";
+                const code = b.code || "";
+                return {
+                    value: String(b._id || ""),
+                    label: code ? `${name} (${code})` : name,
+                };
+            });
+    }, [roleViseRes, isAdminOrSuperAdmin]);
+
+    // Selected Branch for memo data
     const [selectedBranchId, setSelectedBranchId] = useState<string>("");
 
     useEffect(() => {
-        if (!isAdminOrSuperAdmin && ownBranchId) {
-            setSelectedBranchId(ownBranchId);
-        } else if (isAdminOrSuperAdmin && branchOptions.length > 0 && !selectedBranchId) {
-            setSelectedBranchId(branchOptions[0].value);
+        if (isAdminOrSuperAdmin) {
+            if (branchOptions.length > 0 && !selectedBranchId) {
+                setSelectedBranchId(branchOptions[0].value);
+            }
+        } else {
+            if (ownBranchId && selectedBranchId !== ownBranchId) {
+                setSelectedBranchId(ownBranchId);
+            }
         }
     }, [isAdminOrSuperAdmin, ownBranchId, branchOptions, selectedBranchId]);
 
-    // Branch Info & Commission rates
-    const currentBranchData = useMemo(() => {
-        if (!selectedBranchId) return null;
-        return branchDropdownList.find((b: any) => String(b._id || b.id) === String(selectedBranchId));
-    }, [selectedBranchId, branchDropdownList]);
+    const targetBranchId = isAdminOrSuperAdmin ? selectedBranchId : ownBranchId;
 
-    const bookingCommissionRate = useMemo(() => {
-        const bInfo = currentBranchData?.branchInfo || {};
-        return Number(bInfo.Bookingcommission ?? currentBranchData?.Bookingcommission ?? 0);
-    }, [currentBranchData]);
+    // ─── Fetch Memo Data via GET /memo/dataForAddMemo ──────────────────────────
+    const { data: memoData, isLoading: isMemoDataLoading } = useDataForAddMemo(
+        targetBranchId ? { branchId: targetBranchId } : undefined,
+        Boolean(!isAdminOrSuperAdmin || selectedBranchId)
+    );
 
-    const deliveryCommissionRate = useMemo(() => {
-        const bInfo = currentBranchData?.branchInfo || {};
-        return Number(bInfo.DeliveryCommission ?? currentBranchData?.DeliveryCommission ?? 0);
-    }, [currentBranchData]);
-
-    // ─── Fetch Admin Users for "Send To User" ───────────────────────────────────
-    const { data: allUsersRes } = useAllUsers({ limit: 100 });
-    const usersList = useMemo(() => {
-        const rawData = allUsersRes?.data;
-        if (Array.isArray(rawData)) return rawData;
-        if (rawData && typeof rawData === "object" && Array.isArray((rawData as any).users)) {
-            return (rawData as any).users;
-        }
-        return [];
-    }, [allUsersRes]);
+    // ─── Fetch Admins for "Send To User" via GET /user/onlyAdmin ───────────────
+    const { data: onlyAdminRes } = useOnlyAdminList();
 
     const userOptions = useMemo<FormSelectOption[]>(() => {
-        return usersList
-            .filter((u: any) =>
-                ["admin", "superadmin", "super_admin"].includes((u.role || "").toLowerCase())
-            )
-            .map((u: any) => ({
-                value: String(u._id || u.id),
-                label: `${u.name || "Admin"} (${u.role || "Admin"})`,
-            }));
-    }, [usersList]);
+        const raw = (onlyAdminRes as any)?.data ?? onlyAdminRes ?? [];
+        const list = Array.isArray(raw) ? raw : [];
 
-    // ─── Fetch Bookings (Confirm & Draft) from API ──────────────────────────────
-    const { data: bookingsRes, isLoading: isBookingsLoading } = useBookingReports({
-        page: 1,
-        limit: 500,
-        fromBranchId: selectedBranchId || undefined,
-    });
-
-    const rawBookings = useMemo(() => {
-        const rawData = bookingsRes?.data;
-        if (Array.isArray(rawData)) return rawData;
-        if (rawData && typeof rawData === "object") {
-            if (Array.isArray((rawData as any).bookings)) return (rawData as any).bookings;
-            if (Array.isArray((rawData as any).reports)) return (rawData as any).reports;
-            if (Array.isArray((rawData as any).data)) return (rawData as any).data;
-        }
-        return [];
-    }, [bookingsRes]);
-
-    // Filter confirmed & draft bookings
-    const filteredBookings = useMemo(() => {
-        return rawBookings.filter((b: any) => {
-            const status = (b.status || "").toLowerCase();
-            return status === "confirmed" || status === "confirm" || status === "draft" || !status;
-        });
-    }, [rawBookings]);
-
-    // ─── Fetch Deliveries (Delivered) from API ──────────────────────────────────
-    const { data: deliveredRes, isLoading: isDeliveredLoading } = useParcelDeliveredReports({
-        page: 1,
-        limit: 500,
-        toBranchId: selectedBranchId || undefined,
-    });
-
-    const rawDeliveries = useMemo(() => {
-        const rawData = deliveredRes?.data;
-        if (Array.isArray(rawData)) return rawData;
-        if (rawData && typeof rawData === "object") {
-            if (Array.isArray((rawData as any).bookings)) return (rawData as any).bookings;
-            if (Array.isArray((rawData as any).reports)) return (rawData as any).reports;
-            if (Array.isArray((rawData as any).data)) return (rawData as any).data;
-        }
-        return [];
-    }, [deliveredRes]);
-
-    const filteredDeliveries = useMemo(() => {
-        return rawDeliveries.filter((b: any) => {
-            const status = (b.status || "").toLowerCase();
-            return status === "delivered" || b.deliveryInfo?.deliveredAt;
-        });
-    }, [rawDeliveries]);
-
-    // ─── Automatic Frontend Financial Calculations ─────────────────────────────
-    // 1. Bookings Calculations
-    const bookingsSummary = useMemo(() => {
-        let paid = 0;
-        let toPay = 0;
-        let gpay = 0;
-
-        filteredBookings.forEach((b: any) => {
-            const amt = Number(b.finalBillAmount || b.totalAmount || b.amount || 0);
-            const method = (b.paymentMethod || "").toLowerCase();
-            if (method === "paid") paid += amt;
-            else if (method === "to-pay" || method === "topay") toPay += amt;
-            else if (method.includes("g pay") || method.includes("gpay") || method.includes("online"))
-                gpay += amt;
-        });
-
-        const total = paid + toPay + gpay;
-        const commission = Math.round((total * bookingCommissionRate) / 100);
-
-        return { paid, toPay, gpay, total, commission };
-    }, [filteredBookings, bookingCommissionRate]);
-
-    // 2. Deliveries Calculations
-    const deliveriesSummary = useMemo(() => {
-        let paid = 0;
-        let toPay = 0;
-        let gpay = 0;
-
-        filteredDeliveries.forEach((d: any) => {
-            const amt = Number(d.finalBillAmount || d.totalAmount || d.amount || 0);
-            const method = (d.paymentMethod || "").toLowerCase();
-            if (method === "paid") paid += amt;
-            else if (method === "to-pay" || method === "topay") toPay += amt;
-            else if (method.includes("g pay") || method.includes("gpay") || method.includes("online"))
-                gpay += amt;
-        });
-
-        const total = paid + toPay + gpay;
-        const commission = Math.round((total * deliveryCommissionRate) / 100);
-
-        return { paid, toPay, gpay, total, commission };
-    }, [filteredDeliveries, deliveryCommissionRate]);
-
-    // 3. Final Summary Calculations
-    const finalSummary = useMemo(() => {
-        const totalForCommission = bookingsSummary.total + deliveriesSummary.total;
-        const totalCommission = bookingsSummary.commission + deliveriesSummary.commission;
-        // Actual Collected: Paid Bookings + GPay Bookings + To-Pay Deliveries + GPay Deliveries
-        const actualCollected =
-            bookingsSummary.paid +
-            bookingsSummary.gpay +
-            deliveriesSummary.toPay +
-            deliveriesSummary.gpay;
-        const totalExpenses = 0;
-        const amountToSend = Math.max(0, actualCollected - totalCommission - totalExpenses);
-
-        return {
-            totalForCommission,
-            totalCommission,
-            actualCollected,
-            totalExpenses,
-            amountToSend,
-        };
-    }, [bookingsSummary, deliveriesSummary]);
+        return list.map((u: any) => ({
+            value: String(u._id || ""),
+            label: u.name || "",
+        }));
+    }, [onlyAdminRes]);
 
     // ─── Memo Form States ──────────────────────────────────────────────────────
+    const amountToSend = memoData?.totalSummary?.amountToSend ?? 0;
     const [totalAmountToSend, setTotalAmountToSend] = useState<number | "">(0);
     const [sendToUserId, setSendToUserId] = useState<string>("");
     const [cashAmount, setCashAmount] = useState<number | "">(0);
@@ -257,18 +119,14 @@ export default function CreateMemoPage() {
     const [proofName, setProofName] = useState<string>("");
     const [proofUrl, setProofUrl] = useState<string>("");
     const [remark, setRemark] = useState<string>("");
-
     const [errors, setErrors] = useState<Record<string, string>>({});
 
-    // Auto-sync initial total amount with calculated amountToSend when calculation updates
+    // Auto-update amountToSend from API response
     useEffect(() => {
-        if (finalSummary.amountToSend > 0 && (totalAmountToSend === 0 || totalAmountToSend === "")) {
-            const amt = finalSummary.amountToSend;
-            setTotalAmountToSend(amt);
-            setCashAmount(amt);
-            setOnlineAmount(0);
-        }
-    }, [finalSummary.amountToSend, totalAmountToSend]);
+        setTotalAmountToSend(amountToSend);
+        setCashAmount(amountToSend);
+        setOnlineAmount(0);
+    }, [amountToSend]);
 
     // Default Send To User
     useEffect(() => {
@@ -277,11 +135,10 @@ export default function CreateMemoPage() {
         }
     }, [userOptions, sendToUserId]);
 
-    // ─── Dual-Sync Amount Handlers (Exact User Specification) ───────────────────
+    // ─── Dual-Sync Amount Handlers ─────────────────────────────────────────────
     const handleCashChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const raw = e.target.value;
-        const total =
-            typeof totalAmountToSend === "number" ? totalAmountToSend : Number(totalAmountToSend) || 0;
+        const total = typeof amountToSend === "number" ? amountToSend : Number(amountToSend) || 0;
 
         if (raw === "") {
             setCashAmount("");
@@ -291,21 +148,18 @@ export default function CreateMemoPage() {
 
         const clean = raw.replace(/\D/g, "");
         let intVal = clean === "" ? 0 : parseInt(clean, 10);
-
-        if (intVal > total) {
-            intVal = total;
-        }
+        if (intVal > total) intVal = total;
 
         setCashAmount(intVal);
         setOnlineAmount(Math.max(0, total - intVal));
 
         if (errors.amount) setErrors((p) => ({ ...p, amount: "" }));
+        if (errors.proof && total - intVal === 0) setErrors((p) => ({ ...p, proof: "" }));
     };
 
     const handleOnlineChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const raw = e.target.value;
-        const total =
-            typeof totalAmountToSend === "number" ? totalAmountToSend : Number(totalAmountToSend) || 0;
+        const total = typeof amountToSend === "number" ? amountToSend : Number(amountToSend) || 0;
 
         if (raw === "") {
             setOnlineAmount("");
@@ -315,59 +169,13 @@ export default function CreateMemoPage() {
 
         const clean = raw.replace(/\D/g, "");
         let intVal = clean === "" ? 0 : parseInt(clean, 10);
-
-        if (intVal > total) {
-            intVal = total;
-        }
+        if (intVal > total) intVal = total;
 
         setOnlineAmount(intVal);
         setCashAmount(Math.max(0, total - intVal));
 
         if (errors.amount) setErrors((p) => ({ ...p, amount: "" }));
-        if (intVal === 0) {
-            if (errors.proof) setErrors((p) => ({ ...p, proof: "" }));
-        }
-    };
-
-    const handleTotalAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const raw = e.target.value;
-        if (raw === "") {
-            setTotalAmountToSend("");
-            setCashAmount("");
-            setOnlineAmount("");
-            return;
-        }
-
-        const clean = raw.replace(/\D/g, "");
-        const intVal = clean === "" ? 0 : parseInt(clean, 10);
-        setTotalAmountToSend(intVal);
-
-        const currCash = typeof cashAmount === "number" ? cashAmount : 0;
-        if (currCash <= intVal) {
-            setCashAmount(currCash);
-            setOnlineAmount(intVal - currCash);
-        } else {
-            setCashAmount(intVal);
-            setOnlineAmount(0);
-        }
-
-        if (errors.totalAmountToSend) setErrors((p) => ({ ...p, totalAmountToSend: "" }));
-    };
-
-    const handleBlurRebalance = () => {
-        const total =
-            typeof totalAmountToSend === "number" ? totalAmountToSend : Number(totalAmountToSend) || 0;
-        const cash = typeof cashAmount === "number" ? cashAmount : 0;
-        const online = typeof onlineAmount === "number" ? onlineAmount : 0;
-
-        if (cash + online !== total) {
-            if (cash > total) {
-                setCashAmount(total);
-                setOnlineAmount(0);
-            } else {
-                setOnlineAmount(Math.max(0, total - cash));
-            }
-        }
+        if (errors.proof && intVal === 0) setErrors((p) => ({ ...p, proof: "" }));
     };
 
     // ─── Proof Upload ──────────────────────────────────────────────────────────
@@ -380,50 +188,49 @@ export default function CreateMemoPage() {
         }
     };
 
-    // ─── Combined Docket Table Rows ────────────────────────────────────────────
+    // ─── Combined Docket Table Rows from dataForAddMemo ────────────────────────
     const allDockets: DocketItem[] = useMemo(() => {
         const list: DocketItem[] = [];
+        const bookings = memoData?.data?.bookings || [];
+        const expenses = memoData?.data?.expenses || [];
 
-        filteredBookings.forEach((b: any, idx: number) => {
-            const fromName = b.fromBranch?.branchName || b.fromBranch?.name || "Origin";
-            const toName = b.toBranch?.branchName || b.toBranch?.name || "Destination";
+        bookings.forEach((b: any, idx: number) => {
             list.push({
                 id: b._id || `booking-${idx}`,
-                type: "BOOKING",
-                docketNo: b.docketNo1 || b.docketNo2 || b.docketNo || `BK-${idx + 1}`,
-                date: b.bookingDate || b.createdAt?.split("T")[0] || "—",
-                from: fromName,
-                to: toName,
-                party: b.sender?.name || b.receiver?.name || "Party",
-                paymentMethod: b.paymentMethod || "paid",
-                amount: Number(b.finalBillAmount || b.totalAmount || b.amount || 0),
-                status: b.status || "Confirmed",
+                type: b.status === "delivered" ? "DELIVERY" : "BOOKING",
+                docketNo: b.docketNo1 || b.docketNo2 || "",
+                date: b.bookingDate || b.createdAt?.split("T")[0] || "",
+                from: b.fromBranch?.name || "",
+                to: b.toBranch?.name || "",
+                party: b.sender?.name || b.receiver?.name || "",
+                paymentMethod: b.paymentMethod || "",
+                amount: Number(b.finalBillAmount || 0),
+                status: b.status || "",
             });
         });
 
-        filteredDeliveries.forEach((d: any, idx: number) => {
-            const fromName = d.fromBranch?.branchName || d.fromBranch?.name || "Origin";
-            const toName = d.toBranch?.branchName || d.toBranch?.name || "Destination";
+        expenses.forEach((ex: any, idx: number) => {
             list.push({
-                id: d._id || `delivery-${idx}`,
-                type: "DELIVERY",
-                docketNo: d.docketNo1 || d.docketNo2 || d.docketNo || `DL-${idx + 1}`,
-                date:
-                    d.deliveryInfo?.deliveredAt?.split("T")[0] ||
-                    d.bookingDate ||
-                    d.createdAt?.split("T")[0] ||
-                    "—",
-                from: fromName,
-                to: toName,
-                party: d.receiver?.name || d.sender?.name || "Party",
-                paymentMethod: d.paymentMethod || "to-pay",
-                amount: Number(d.finalBillAmount || d.totalAmount || d.amount || 0),
-                status: "Delivered",
+                id: ex._id || `expense-${idx}`,
+                type: "EXPENSE",
+                docketNo: ex.memoNo || "",
+                date: ex.memoDate?.split("T")[0] || "",
+                from: ex.fromBranch?.name || "",
+                to: "",
+                party: ex.expenseType ? `Expense: ${ex.expenseType}` : "",
+                paymentMethod:
+                    ex.cashAmount > 0 && ex.onlineAmount > 0
+                        ? "Cash + Online"
+                        : ex.onlineAmount > 0
+                            ? "Online"
+                            : "Cash",
+                amount: Number(ex.totalAmount || 0),
+                status: ex.status || "",
             });
         });
 
         return list;
-    }, [filteredBookings, filteredDeliveries]);
+    }, [memoData]);
 
     // ─── SimpleDataTable Columns Definition ─────────────────────────────────────
     const columns: ColumnDef<DocketItem>[] = useMemo(
@@ -432,15 +239,9 @@ export default function CreateMemoPage() {
                 key: "type",
                 label: "TYPE",
                 width: "w-24",
+                align: "center",
                 render: (_, r) => (
-                    <span
-                        className={cn(
-                            "text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase",
-                            r.type === "BOOKING"
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                : "bg-blue-50 text-blue-700 border-blue-200"
-                        )}
-                    >
+                    <span className="font-semibold text-black uppercase">
                         {r.type}
                     </span>
                 ),
@@ -448,60 +249,79 @@ export default function CreateMemoPage() {
             {
                 key: "docketNo",
                 label: "DOCKET NO.",
+                sortable: true,
+                sortValue: (r) => r.docketNo,
                 render: (val) => (
-                    <span className="font-mono font-bold text-slate-900">{String(val || "—")}</span>
+                    <span className="font-mono font-bold text-black">{String(val || "—")}</span>
                 ),
             },
             {
                 key: "date",
                 label: "DATE",
-                render: (val) => <span className="font-mono text-slate-700">{String(val || "—")}</span>,
+                sortable: true,
+                sortValue: (r) => new Date(r.date || 0).getTime(),
+                render: (val) => <span className="font-mono text-black">{String(val || "—")}</span>,
             },
             {
                 key: "from",
                 label: "FROM",
+                render: (val) => <span className="text-black">{String(val || "—")}</span>,
             },
             {
                 key: "to",
                 label: "TO",
+                render: (val) => <span className="text-black">{String(val || "—")}</span>,
             },
             {
                 key: "party",
-                label: "PARTY",
+                label: "PARTY / REMARK",
                 render: (val) => (
-                    <span className="font-medium text-slate-800 truncate max-w-[160px] block">
+                    <span className="font-medium text-black truncate max-w-[160px] block">
+                        {String(val || "—")}
+                    </span>
+                ),
+            },
+            {
+                key: "paymentMethod",
+                label: "PAYMENT",
+                render: (val) => (
+                    <span className="text-[11px] font-semibold text-black uppercase">
                         {String(val || "—")}
                     </span>
                 ),
             },
             {
                 key: "amount",
-                label: "AMOUNT",
-                render: (val, r) => (
-                    <div className="text-right font-mono">
-                        <span className="font-bold text-slate-900 block">₹{Number(val || 0)}</span>
-                        <span className="text-[9px] font-medium text-slate-500 uppercase">
-                            ({r.paymentMethod})
-                        </span>
-                    </div>
+                label: "AMOUNT (₹)",
+                sortable: true,
+                align: "right",
+                sortValue: (r) => Number(r.amount || 0),
+                render: (val) => (
+                    <span className="font-mono font-bold text-black">
+                        ₹{Number(val || 0)}
+                    </span>
+                ),
+            },
+            {
+                key: "status",
+                label: "STATUS",
+                align: "center",
+                render: (val) => (
+                    <span className="text-[11px] font-semibold text-black uppercase">
+                        {String(val || "—")}
+                    </span>
                 ),
             },
         ],
         []
     );
 
-    // Pagination state for SimpleDataTable
-    const [currentPage, setCurrentPage] = useState<number>(1);
-    const pageSize = 25;
-
-    // ─── Submit Memo ───────────────────────────────────────────────────────────
+    // ─── Submit Memo (POST /memo/add-memo) ──────────────────────────────────────
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         const newErrors: Record<string, string> = {};
-
-        const total =
-            typeof totalAmountToSend === "number" ? totalAmountToSend : Number(totalAmountToSend) || 0;
+        const total = Number(amountToSend) || 0;
         const cash = typeof cashAmount === "number" ? cashAmount : 0;
         const online = typeof onlineAmount === "number" ? onlineAmount : 0;
 
@@ -514,10 +334,10 @@ export default function CreateMemoPage() {
         }
 
         if (cash + online !== total) {
-            newErrors.amount = "Cash and Online amount must exactly equal Total Amount.";
+            newErrors.amount = "Cash and Online amount must exactly equal Total Amount to Send.";
         }
 
-        if (Number(online) > 0 && !proofUrl) {
+        if (online > 0 && !proofUrl) {
             newErrors.proof = "Proof upload is required when online amount is entered.";
         }
 
@@ -529,29 +349,13 @@ export default function CreateMemoPage() {
 
         setErrors({});
 
-        const selectedUser = userOptions.find((u) => u.value === sendToUserId);
-
-        const payload = {
-            totalAmountToSend: total,
+        const payload: CreateMemoPayload = {
             sendToUserId,
-            sendToUserName: selectedUser?.label || "",
             cashAmount: cash,
             onlineAmount: online,
-            proofUrl,
-            proofName,
+            proofUrl: proofUrl || "",
             remark: remark.trim(),
-            bookingTotal: bookingsSummary.total,
-            deliveryTotal: deliveriesSummary.total,
-            totalCommission: finalSummary.totalCommission,
-            actualCollected: finalSummary.actualCollected,
-            totalExpenses: finalSummary.totalExpenses,
-            dockets: allDockets.map((d) => ({
-                docketNo: d.docketNo,
-                type: d.type,
-                amount: d.amount,
-                paymentMethod: d.paymentMethod,
-                date: d.date,
-            })),
+            ...(isAdminOrSuperAdmin && targetBranchId ? { branchId: targetBranchId } : {}),
         };
 
         try {
@@ -563,8 +367,6 @@ export default function CreateMemoPage() {
             showToast("error", "Failed to Send Memo", msg);
         }
     };
-
-    const isLoadingData = isBookingsLoading || isDeliveredLoading;
 
     return (
         <div className="w-full space-y-1.5 pb-6">
@@ -582,9 +384,9 @@ export default function CreateMemoPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    {/* Admin Branch Selector */}
+                    {/* Admin Branch Selector (Only shown to Admin) */}
                     {isAdminOrSuperAdmin && branchOptions.length > 0 && (
-                        <div className="w-52">
+                        <div className="w-56">
                             <FormSelect
                                 label=""
                                 searchable
@@ -607,22 +409,21 @@ export default function CreateMemoPage() {
                 </div>
             </div>
 
-            {/* ─── 1. Create New Memo Form (Top Section) ───────────────────────────── */}
+            {/* ─── 1. Memo Information Form (Top Section) ─────────────────────────── */}
             <form onSubmit={handleSubmit} className="space-y-1.5">
-                <FormCard title="Create New Memo" icon={FileText}>
+                <FormCard title="Memo Details" icon={FileText}>
                     <div className="space-y-1.5">
-                        {/* Row 1: Total Amount & Send To User */}
+                        {/* Row 1: Total Amount (Disabled) & Send To User */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                             <div>
                                 <FormInput
                                     label="Total Amount to Send (₹)"
                                     required
+                                    disabled
                                     type="text"
-                                    inputMode="numeric"
                                     placeholder="0"
-                                    value={totalAmountToSend === "" ? "" : String(totalAmountToSend)}
-                                    onChange={handleTotalAmountChange}
-                                    onBlur={handleBlurRebalance}
+                                    value={amountToSend === 0 ? "0" : String(amountToSend)}
+                                    className="bg-slate-100 font-mono font-bold text-slate-900 cursor-not-allowed"
                                     error={errors.totalAmountToSend}
                                 />
                             </div>
@@ -638,8 +439,8 @@ export default function CreateMemoPage() {
                                         setSendToUserId(val);
                                         if (errors.sendToUserId) setErrors((p) => ({ ...p, sendToUserId: "" }));
                                     }}
-                                    placeholder="Select User"
-                                    searchPlaceholder="Search admin / user..."
+                                    placeholder="Select Admin User"
+                                    searchPlaceholder="Search admin user..."
                                     error={errors.sendToUserId}
                                 />
                             </div>
@@ -655,7 +456,6 @@ export default function CreateMemoPage() {
                                     placeholder="Enter cash amount"
                                     value={cashAmount === "" ? "" : String(cashAmount)}
                                     onChange={handleCashChange}
-                                    onBlur={handleBlurRebalance}
                                 />
                             </div>
 
@@ -667,7 +467,6 @@ export default function CreateMemoPage() {
                                     placeholder="Enter online amount"
                                     value={onlineAmount === "" ? "" : String(onlineAmount)}
                                     onChange={handleOnlineChange}
-                                    onBlur={handleBlurRebalance}
                                 />
                             </div>
 
@@ -737,152 +536,219 @@ export default function CreateMemoPage() {
                 </FormCard>
             </form>
 
-            {/* ─── 2. Middle Section: Summary Cards ─────────────────────────────────── */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5">
-                {/* Card 1: Bookings */}
-                <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-3 space-y-2">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+            {/* ─── 2. Middle Section: Summary Tables (Bookings, Deliveries, Final Summary) ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5 items-start">
+                {/* Table 1: Bookings */}
+                <div className="bg-white rounded border border-slate-200/80 shadow-2xs overflow-hidden">
+                    <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200">
                         <div className="flex items-center gap-1.5">
-                            <FileText className="w-4 h-4 text-slate-700" />
-                            <h3 className="text-xs font-bold text-slate-900">Bookings</h3>
+                            <FileText className="w-4 h-4 text-black" />
+                            <h3 className="text-xs font-bold text-black">Bookings</h3>
                         </div>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            {bookingCommissionRate}%
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-black border border-emerald-200 font-mono">
+                            {memoData?.branch?.Bookingcommission ?? 0}%
                         </span>
                     </div>
 
-                    <div className="space-y-1 text-xs">
-                        <div className="flex items-center justify-between text-slate-700">
-                            <span>Paid:</span>
-                            <span className="font-semibold text-emerald-600 font-mono">
-                                ₹{bookingsSummary.paid}
-                            </span>
-                        </div>
-                        <div className="flex items-center justify-between text-slate-700">
-                            <span>To-Pay:</span>
-                            <span className="font-semibold text-slate-800 font-mono">
-                                ₹{bookingsSummary.toPay}
-                            </span>
-                        </div>
-                        <div className="flex items-center justify-between text-slate-700">
-                            <span>G Pay:</span>
-                            <span className="font-semibold text-slate-800 font-mono">
-                                ₹{bookingsSummary.gpay}
-                            </span>
-                        </div>
-
-                        <div className="border-t border-slate-100 pt-1 flex items-center justify-between font-bold text-slate-900">
-                            <span>Total:</span>
-                            <span className="font-mono">₹{bookingsSummary.total}</span>
-                        </div>
-
-                        <div className="border-t-2 border-amber-400/80 pt-1 flex items-center justify-between font-bold text-red-600">
-                            <span>Commission ({bookingCommissionRate}%):</span>
-                            <span className="font-mono">-₹{bookingsSummary.commission}</span>
-                        </div>
+                    <div className="p-2">
+                        <table className="w-full text-xs text-left border-collapse border border-slate-200">
+                            <thead className="bg-slate-100/90 text-black font-bold border-b border-slate-200">
+                                <tr>
+                                    <th className="px-2 py-1 border-r border-slate-200">Payment Type</th>
+                                    <th className="px-2 py-1 text-center border-r border-slate-200 w-16">Count</th>
+                                    <th className="px-2 py-1 text-right">Amount (₹)</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200 text-black">
+                                <tr>
+                                    <td className="px-2 py-1 border-r border-slate-200">Paid</td>
+                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.bookingSummary?.paid?.count ?? 0}</td>
+                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.bookingSummary?.paid?.totalAmount ?? 0}</td>
+                                </tr>
+                                <tr>
+                                    <td className="px-2 py-1 border-r border-slate-200">To-Pay</td>
+                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.bookingSummary?.["to pay"]?.count ?? 0}</td>
+                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.bookingSummary?.["to pay"]?.totalAmount ?? 0}</td>
+                                </tr>
+                                <tr>
+                                    <td className="px-2 py-1 border-r border-slate-200">G Pay</td>
+                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.bookingSummary?.["g pay"]?.count ?? 0}</td>
+                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.bookingSummary?.["g pay"]?.totalAmount ?? 0}</td>
+                                </tr>
+                                <tr>
+                                    <td className="px-2 py-1 border-r border-slate-200">Credit</td>
+                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.bookingSummary?.credit?.count ?? 0}</td>
+                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.bookingSummary?.credit?.totalAmount ?? 0}</td>
+                                </tr>
+                                <tr>
+                                    <td className="px-2 py-1 border-r border-slate-200">Not Pay</td>
+                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.bookingSummary?.["not pay"]?.count ?? 0}</td>
+                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.bookingSummary?.["not pay"]?.totalAmount ?? 0}</td>
+                                </tr>
+                            </tbody>
+                            <tfoot className="bg-slate-50 font-bold border-t border-slate-200 text-black">
+                                <tr className="border-b border-slate-200">
+                                    <td colSpan={2} className="px-2 py-1 border-r border-slate-200">Total Booking Amount</td>
+                                    <td className="px-2 py-1 text-right font-mono">₹{memoData?.totalSummary?.totalBookingAmount ?? 0}</td>
+                                </tr>
+                                <tr>
+                                    <td colSpan={2} className="px-2 py-1 border-r border-slate-200 text-red-600">Commission ({memoData?.branch?.Bookingcommission ?? 0}%)</td>
+                                    <td className="px-2 py-1 text-right font-mono text-red-600">-₹{memoData?.totalSummary?.bookingCommission ?? 0}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
                     </div>
                 </div>
 
-                {/* Card 2: Deliveries */}
-                <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-3 space-y-2">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                {/* Table 2: Deliveries */}
+                <div className="bg-white rounded border border-slate-200/80 shadow-2xs overflow-hidden">
+                    <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200">
                         <div className="flex items-center gap-1.5">
-                            <Truck className="w-4 h-4 text-slate-700" />
-                            <h3 className="text-xs font-bold text-slate-900">Deliveries</h3>
+                            <Truck className="w-4 h-4 text-black" />
+                            <h3 className="text-xs font-bold text-black">Deliveries</h3>
                         </div>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
-                            {deliveryCommissionRate}%
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-black border border-blue-200 font-mono">
+                            {memoData?.branch?.DeliveryCommission ?? 0}%
                         </span>
                     </div>
 
-                    <div className="space-y-1 text-xs">
-                        <div className="flex items-center justify-between text-slate-700">
-                            <span>Paid:</span>
-                            <span className="font-semibold text-emerald-600 font-mono">
-                                ₹{deliveriesSummary.paid}
-                            </span>
-                        </div>
-                        <div className="flex items-center justify-between text-slate-700">
-                            <span>To-Pay:</span>
-                            <span className="font-semibold text-slate-800 font-mono">
-                                ₹{deliveriesSummary.toPay}
-                            </span>
-                        </div>
-                        <div className="flex items-center justify-between text-slate-700">
-                            <span>G Pay:</span>
-                            <span className="font-semibold text-slate-800 font-mono">
-                                ₹{deliveriesSummary.gpay}
-                            </span>
-                        </div>
-
-                        <div className="border-t border-slate-100 pt-1 flex items-center justify-between font-bold text-slate-900">
-                            <span>Total:</span>
-                            <span className="font-mono">₹{deliveriesSummary.total}</span>
-                        </div>
-
-                        <div className="border-t-2 border-amber-400/80 pt-1 flex items-center justify-between font-bold text-red-600">
-                            <span>Commission:</span>
-                            <span className="font-mono">-₹{deliveriesSummary.commission}</span>
-                        </div>
+                    <div className="p-2">
+                        <table className="w-full text-xs text-left border-collapse border border-slate-200">
+                            <thead className="bg-slate-100/90 text-black font-bold border-b border-slate-200">
+                                <tr>
+                                    <th className="px-2 py-1 border-r border-slate-200">Payment Type</th>
+                                    <th className="px-2 py-1 text-center border-r border-slate-200 w-16">Count</th>
+                                    <th className="px-2 py-1 text-right">Amount (₹)</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200 text-black">
+                                <tr>
+                                    <td className="px-2 py-1 border-r border-slate-200">Paid</td>
+                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.deliverySummary?.paid?.count ?? 0}</td>
+                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.deliverySummary?.paid?.totalAmount ?? 0}</td>
+                                </tr>
+                                <tr>
+                                    <td className="px-2 py-1 border-r border-slate-200">To-Pay</td>
+                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.deliverySummary?.["to pay"]?.count ?? 0}</td>
+                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.deliverySummary?.["to pay"]?.totalAmount ?? 0}</td>
+                                </tr>
+                                <tr>
+                                    <td className="px-2 py-1 border-r border-slate-200">G Pay</td>
+                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.deliverySummary?.["g pay"]?.count ?? 0}</td>
+                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.deliverySummary?.["g pay"]?.totalAmount ?? 0}</td>
+                                </tr>
+                                <tr>
+                                    <td className="px-2 py-1 border-r border-slate-200">Credit</td>
+                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.deliverySummary?.credit?.count ?? 0}</td>
+                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.deliverySummary?.credit?.totalAmount ?? 0}</td>
+                                </tr>
+                                <tr>
+                                    <td className="px-2 py-1 border-r border-slate-200">Not Pay</td>
+                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.deliverySummary?.["not pay"]?.count ?? 0}</td>
+                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.deliverySummary?.["not pay"]?.totalAmount ?? 0}</td>
+                                </tr>
+                            </tbody>
+                            <tfoot className="bg-slate-50 font-bold border-t border-slate-200 text-black">
+                                <tr className="border-b border-slate-200">
+                                    <td colSpan={2} className="px-2 py-1 border-r border-slate-200">Total Delivery Amount</td>
+                                    <td className="px-2 py-1 text-right font-mono">₹{memoData?.totalSummary?.totalDeliveryAmount ?? 0}</td>
+                                </tr>
+                                <tr>
+                                    <td colSpan={2} className="px-2 py-1 border-r border-slate-200 text-red-600">Commission ({memoData?.branch?.DeliveryCommission ?? 0}%)</td>
+                                    <td className="px-2 py-1 text-right font-mono text-red-600">-₹{memoData?.totalSummary?.deliveryCommission ?? 0}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
                     </div>
                 </div>
 
-                {/* Card 3: Final Summary */}
-                <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-3 space-y-2">
-                    <div className="flex items-center gap-1.5 border-b border-slate-100 pb-1.5">
-                        <Calculator className="w-4 h-4 text-slate-700" />
-                        <h3 className="text-xs font-bold text-slate-900">Final Summary</h3>
+                {/* Table 3: Final Summary */}
+                <div className="bg-white rounded border border-slate-200/80 shadow-2xs overflow-hidden">
+                    <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200">
+                        <div className="flex items-center gap-1.5">
+                            <Calculator className="w-4 h-4 text-black" />
+                            <h3 className="text-xs font-bold text-black">Final Summary</h3>
+                        </div>
                     </div>
 
-                    <div className="space-y-1 text-xs">
-                        <div className="flex items-center justify-between text-slate-700">
-                            <span>Total for Commission:</span>
-                            <span className="font-semibold text-slate-900 font-mono">
-                                ₹{finalSummary.totalForCommission}
-                            </span>
-                        </div>
-
-                        <div className="flex items-center justify-between font-bold text-red-600 border-l-2 border-amber-500 pl-1.5">
-                            <span>Total Commission:</span>
-                            <span className="font-mono">-₹{finalSummary.totalCommission}</span>
-                        </div>
-
-                        <div className="flex items-center justify-between text-slate-700">
-                            <span>Actual Collected:</span>
-                            <span className="font-semibold text-emerald-600 font-mono">
-                                ₹{finalSummary.actualCollected}
-                            </span>
-                        </div>
-
-                        <div className="flex items-center justify-between text-slate-700">
-                            <span>Total Expenses:</span>
-                            <span className="font-semibold text-red-600 font-mono">
-                                -₹{finalSummary.totalExpenses}
-                            </span>
-                        </div>
-
-                        <div className="border-t border-slate-200 pt-1 flex items-center justify-between font-bold text-xs text-emerald-700">
-                            <span>Amount to Send:</span>
-                            <span className="font-mono text-sm">₹{finalSummary.amountToSend}</span>
-                        </div>
+                    <div className="p-2">
+                        <table className="w-full text-xs text-left border-collapse border border-slate-200">
+                            <thead className="bg-slate-100/90 text-black font-bold border-b border-slate-200">
+                                <tr>
+                                    <th className="px-2 py-1 border-r border-slate-200">Particulars</th>
+                                    <th className="px-2 py-1 text-right w-28">Amount (₹)</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200 text-black">
+                                <tr>
+                                    <td className="px-2 py-1 border-r border-slate-200">Total Booking Amount</td>
+                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.totalSummary?.totalBookingAmount ?? 0}</td>
+                                </tr>
+                                <tr>
+                                    <td className="px-2 py-1 border-r border-slate-200">Total Delivery Amount</td>
+                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.totalSummary?.totalDeliveryAmount ?? 0}</td>
+                                </tr>
+                                <tr className="bg-slate-50/70 font-semibold">
+                                    <td className="px-2 py-1 border-r border-slate-200">Total Amount</td>
+                                    <td className="px-2 py-1 text-right font-mono">₹{memoData?.totalSummary?.totalAmount ?? 0}</td>
+                                </tr>
+                                <tr>
+                                    <td className="px-2 py-1 border-r border-slate-200">Booking Commission</td>
+                                    <td className="px-2 py-1 text-right font-mono text-red-600">-₹{memoData?.totalSummary?.bookingCommission ?? 0}</td>
+                                </tr>
+                                <tr>
+                                    <td className="px-2 py-1 border-r border-slate-200">Delivery Commission</td>
+                                    <td className="px-2 py-1 text-right font-mono text-red-600">-₹{memoData?.totalSummary?.deliveryCommission ?? 0}</td>
+                                </tr>
+                                <tr className="bg-amber-50/50 font-semibold text-red-600">
+                                    <td className="px-2 py-1 border-r border-slate-200">Total Commission</td>
+                                    <td className="px-2 py-1 text-right font-mono">-₹{memoData?.totalSummary?.totalCommission ?? 0}</td>
+                                </tr>
+                                <tr>
+                                    <td className="px-2 py-1 border-r border-slate-200">
+                                        Total Expense Amount ({memoData?.expenseSummary?.count ?? 0})
+                                    </td>
+                                    <td className="px-2 py-1 text-right font-mono text-red-600">
+                                        -₹{memoData?.totalSummary?.totalExpenseAmount ?? memoData?.expenseSummary?.totalAmount ?? 0}
+                                    </td>
+                                </tr>
+                            </tbody>
+                            <tfoot className="bg-emerald-50/80 font-bold border-t-2 border-slate-300 text-black">
+                                <tr>
+                                    <td className="px-2 py-1.5 border-r border-slate-200 text-black font-bold">Amount to Send</td>
+                                    <td className="px-2 py-1.5 text-right font-mono text-sm font-bold text-black">
+                                        ₹{memoData?.totalSummary?.amountToSend ?? 0}
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
                     </div>
                 </div>
             </div>
 
             {/* ─── 3. Bottom Section: SimpleDataTable Component ─────────────────────── */}
-            <SimpleDataTable<DocketItem>
-                columns={columns}
-                data={allDockets}
-                isLoading={isLoadingData}
-                showSrNo={true}
-                srNoLabel="#"
-                showPagination={true}
-                page={currentPage}
-                pageSize={pageSize}
-                total={allDockets.length}
-                onPageChange={setCurrentPage}
-                emptyMessage="No data found"
-            />
+            <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-3 space-y-2">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <div className="flex items-center gap-1.5">
+                        <Receipt className="w-4 h-4 text-slate-700" />
+                        <h3 className="text-xs font-bold text-slate-900">
+                            Memo Items (Bookings & Expenses)
+                        </h3>
+                    </div>
+                    <span className="text-xs font-semibold text-slate-500 font-mono">
+                        Total Items: {allDockets.length}
+                    </span>
+                </div>
+
+                <SimpleDataTable<DocketItem>
+                    columns={columns}
+                    data={allDockets}
+                    isLoading={isMemoDataLoading}
+                    showSrNo={true}
+                    srNoLabel="#"
+                    emptyMessage="No pending bookings or expenses found for this memo."
+                />
+            </div>
         </div>
     );
 }

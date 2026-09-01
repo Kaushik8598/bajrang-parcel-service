@@ -22,6 +22,8 @@ export interface ColumnDef<T = Record<string, unknown>> {
   key: keyof T | string;
   label: string;
   sortable?: boolean;
+  align?: "left" | "center" | "right";
+  className?: string;
   /** Optional custom sort value extractor for nested or computed values */
   sortValue?: (row: T) => string | number | boolean | null | undefined;
   render?: (value: unknown, row: T) => React.ReactNode;

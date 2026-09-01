@@ -118,6 +118,14 @@ interface SidebarProps {
 
 // ─── Permission check ─────────────────────────────────────────────────────────
 function isMenuVisible(item: MenuItem, user: User | null, permissions: UserPermissions | any): boolean {
+  // Add memo is only for branch / non-admin, hidden from admin roles
+  if (item.id === "add-memo" || item.path === "/transaction/memo") {
+    const role = (user?.role || "").toLowerCase();
+    if (role === "admin" || role === "superadmin") {
+      return false;
+    }
+  }
+
   if (!item.permission_module) return true;
   if (!permissions) return false;
 
