@@ -81,6 +81,64 @@ export interface DashboardSummary {
   pendingMemo?: number;
 }
 
+export interface DashboardCardItem {
+  label: string;
+  value: number;
+  count?: number;
+  redirect: string;
+  icon?: string;
+}
+
+export interface ExpiringDocumentItem {
+  user?: string;
+  userId?: string;
+  role?: string;
+  documentType?: string;
+  documentNumber?: string;
+  expiryDate?: string;
+  daysLeft?: number;
+}
+
+export interface BranchSummaryHeader {
+  id: string;
+  name: string;
+  code: string;
+}
+
+export interface BranchSummaryMetric {
+  total: number;
+  paid: number;
+  toPay: number;
+  credit: number;
+  notPay: number;
+  gpay: number;
+}
+
+export interface BranchSummaryCell extends BranchSummaryMetric {
+  toBranch: BranchSummaryHeader;
+}
+
+export interface BranchSummaryRow {
+  fromBranch: BranchSummaryHeader;
+  toBranches: BranchSummaryCell[];
+}
+
+export interface BranchSummaryColumnTotal extends BranchSummaryMetric {
+  toBranch: BranchSummaryHeader;
+}
+
+export interface BranchSummaryRowTotal extends BranchSummaryMetric {
+  fromBranch: BranchSummaryHeader;
+}
+
+export interface DashboardBranchSummaryMatrix {
+  headers: BranchSummaryHeader[];
+  rows: BranchSummaryRow[];
+  columnTotals?: BranchSummaryColumnTotal[];
+  rowTotals?: BranchSummaryRowTotal[];
+  grandTotal?: BranchSummaryMetric;
+}
+
 export interface DashboardBranchSummary {
   branchId?: string;
   branchName?: string;
@@ -94,7 +152,9 @@ export interface DashboardBranchSummary {
 export interface DashboardResponseData {
   user?: DashboardUser;
   dateRange?: DashboardDateRange;
-  summary: DashboardSummary;
-  branchSummary?: DashboardBranchSummary;
+  cards?: DashboardCardItem[];
+  expiringDocuments?: ExpiringDocumentItem[];
+  summary?: DashboardSummary;
+  branchSummary?: DashboardBranchSummaryMatrix | DashboardBranchSummary | any;
 }
 
