@@ -51,6 +51,7 @@ export interface ParcelBookingReportItem {
   sender?: PartyRef;
   receiver?: PartyRef;
   parcel?: number; // Qty
+  originalAmount?: number;
   finalBillAmount?: number;
   paymentMethod?: "g pay" | "credit" | "paid" | "to-pay" | "not-pay" | string;
   discount?: number;

@@ -167,33 +167,37 @@ export default function CustomerDiscountReportPage() {
 
   // ─── Column-wise Total Calculation ─────────────────────────────────────────
   const totals = useMemo(() => {
+    let totalOriginalAmount = 0;
     let totalTopay = 0;
     let totalPaid = 0;
     let totalGpay = 0;
     let totalCredit = 0;
     let totalDiscount = 0;
+    let totalFinalBillAmount = 0;
     let totalParcels = 0;
 
     bookingRecords.forEach((row) => {
       const { topayAmount, paidAmount, gpayAmount, creditAmount } = getPaymentMethodAmounts(row);
+      totalOriginalAmount += Number(row.originalAmount) || 0;
       totalTopay += topayAmount;
       totalPaid += paidAmount;
       totalGpay += gpayAmount;
       totalCredit += creditAmount;
-
       totalDiscount += Number(row.discount) || 0;
-
+      totalFinalBillAmount += Number(row.finalBillAmount) || 0;
       totalParcels += row.parcel || 0;
     });
 
     const grandTotal = totalTopay + totalPaid + totalGpay + totalCredit;
 
     return {
+      totalOriginalAmount,
       totalTopay,
       totalPaid,
       totalGpay,
       totalCredit,
       totalDiscount,
+      totalFinalBillAmount,
       grandTotal,
       totalParcels,
     };
@@ -307,6 +311,23 @@ export default function CustomerDiscountReportPage() {
       ),
     },
     {
+      key: "originalAmount",
+      label: "Amount",
+      sortable: true,
+      width: "w-24",
+      sortValue: (row) => Number(row.originalAmount) || 0,
+      render: (_, row) => {
+        const amt = Number(row.originalAmount) || 0;
+        return amt > 0 ? (
+          <span className="font-medium text-xs text-slate-900 font-mono">
+            {amt.toFixed(2)}
+          </span>
+        ) : (
+          <span className="text-slate-300 text-xs">—</span>
+        );
+      },
+    },
+    {
       key: "topay",
       label: "Topay",
       sortable: true,
@@ -385,6 +406,23 @@ export default function CustomerDiscountReportPage() {
         return discount > 0 ? (
           <span className="font-medium text-xs text-slate-900 font-mono">
             {discount.toFixed(2)}
+          </span>
+        ) : (
+          <span className="text-slate-300 text-xs">—</span>
+        );
+      },
+    },
+    {
+      key: "finalBillAmount",
+      label: "Final Amount",
+      sortable: true,
+      width: "w-28",
+      sortValue: (row) => Number(row.finalBillAmount) || 0,
+      render: (_, row) => {
+        const finalAmt = Number(row.finalBillAmount) || 0;
+        return finalAmt > 0 ? (
+          <span className="font-semibold text-xs text-slate-900 font-mono">
+            {finalAmt.toFixed(2)}
           </span>
         ) : (
           <span className="text-slate-300 text-xs">—</span>
@@ -654,6 +692,10 @@ export default function CustomerDiscountReportPage() {
             <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
             {/* Receiver */}
             <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
+            {/* Amount Total */}
+            <td className="px-2.5 py-2.5 text-slate-900 font-bold text-xs font-mono border-r border-slate-300">
+              {totals.totalOriginalAmount > 0 ? totals.totalOriginalAmount.toFixed(2) : "—"}
+            </td>
             {/* Topay Total */}
             <td className="px-2.5 py-2.5 text-slate-900 font-bold text-xs font-mono border-r border-slate-300">
               {totals.totalTopay > 0 ? totals.totalTopay.toFixed(2) : "—"}
@@ -673,6 +715,10 @@ export default function CustomerDiscountReportPage() {
             {/* Discount Total */}
             <td className="px-2.5 py-2.5 text-slate-900 font-bold text-xs font-mono border-r border-slate-300">
               {totals.totalDiscount > 0 ? totals.totalDiscount.toFixed(2) : "—"}
+            </td>
+            {/* Final Amount Total */}
+            <td className="px-2.5 py-2.5 text-slate-900 font-bold text-xs font-mono border-r border-slate-300">
+              {totals.totalFinalBillAmount > 0 ? totals.totalFinalBillAmount.toFixed(2) : "—"}
             </td>
             {/* Bill No */}
             <td className="px-2.5 py-2.5 text-slate-400 text-xs border-r border-slate-300">—</td>
