@@ -106,3 +106,21 @@ export function useUserProfile() {
     staleTime: 60 * 1000,
   });
 }
+
+export const USER_BADGES_QUERY_KEY = ["user-badges"] as const;
+
+/**
+ * React Query hook to fetch sidebar count badges via GET /user/badges
+ */
+export function useUserBadges() {
+  return useQuery({
+    queryKey: USER_BADGES_QUERY_KEY,
+    queryFn: async () => {
+      const { getUserBadges } = await import("@/lib/api/user");
+      return getUserBadges();
+    },
+    staleTime: 30 * 1000,
+    refetchInterval: 60 * 1000,
+  });
+}
+

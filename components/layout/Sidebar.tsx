@@ -32,6 +32,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { getStoredUser, getStoredPermissions } from "@/lib/api/auth";
+import { useUserBadges } from "@/lib/hooks";
+import type { UserBadgesData } from "@/lib/api/user";
 import type { MenuItem, User, UserPermissions } from "@/lib/types/auth";
 
 // ─── Width constants ──────────────────────────────────────────────────────────
@@ -108,6 +110,57 @@ const DEFAULT_MENU: MenuItem[] = [
   { id: "website-settings", label: "Website Settings", path: "/website-settings", icon: "website-settings", permission_module: "profile" },
 ];
 
+// ─── Resolve Badge Count per Menu Item (Only Leaf Sub-items) ──────────────────
+function getItemBadgeCount(item: MenuItem, badges?: UserBadgesData): number | null {
+  if (!badges) return null;
+  // Do not show total on parent main menus with children
+  if (item.children && item.children.length > 0) return null;
+
+  switch (item.id) {
+    // ─── Reports ────────────────────────
+    case "booking-report":
+      return badges.parcelBookingReport ?? null;
+    case "delivery-report":
+      return badges.parcelDeliveryReport ?? null;
+    case "cancel-booking-report":
+      return badges.cancelBookingReport ?? null;
+    case "parcel-pending-report":
+      return badges.parcelPendingReport ?? null;
+    case "customer-discount-report":
+      return badges.customerDiscountReport ?? null;
+    case "pending-delivery-report":
+      return badges.pendingDeliveryReport ?? null;
+    case "memo-report":
+      return badges.memoReport ?? null;
+    case "branch-expense-report":
+      return badges.expenseReport ?? null;
+
+    // ─── Transactions ────────────────────
+    case "customer-booking-parcel":
+      return badges.draftCount ?? null;
+    case "load-parcel":
+      return badges.loadableParcelCount ?? null;
+    case "unload-parcel":
+      return badges.unloadableParcelCount ?? null;
+    case "delivery":
+      return badges.pendingPayment ?? null;
+
+    // ─── Master / Users ──────────────────
+    case "manage-admin":
+      return badges.usersCount?.totalAdmins ?? null;
+    case "manage-branch":
+      return badges.usersCount?.totalBranches ?? null;
+    case "manage-staff":
+      return badges.usersCount?.totalStaff ?? null;
+    case "manage-truck":
+      return badges.usersCount?.totalTrucks ?? null;
+    case "manage-driver":
+      return badges.usersCount?.totalDrivers ?? null;
+
+    default:
+      return null;
+  }
+}
 
 // ─── Props ─────────────────────────────────────────────────────────────────────
 interface SidebarProps {
@@ -154,12 +207,12 @@ function isMenuVisible(item: MenuItem, user: User | null, permissions: UserPermi
   return false;
 }
 
-
 // ─── SidebarItem ──────────────────────────────────────────────────────────────
 function SidebarItem({
   item,
   user,
   permissions,
+  badges,
   depth = 0,
   isCollapsed,
   onExpand,
@@ -171,6 +224,7 @@ function SidebarItem({
   item: MenuItem;
   user: User | null;
   permissions: UserPermissions | null;
+  badges?: UserBadgesData;
   depth?: number;
   isCollapsed: boolean;
   onExpand: () => void;
@@ -193,6 +247,7 @@ function SidebarItem({
   );
 
   const expanded = openMenuId === item.id;
+  const badgeCount = getItemBadgeCount(item, badges);
 
   if (!isMenuVisible(item, user, permissions)) return null;
 
@@ -203,13 +258,18 @@ function SidebarItem({
     const iconEl = (
       <div
         className={cn(
-          "flex items-center justify-center w-10 h-10 rounded-xl mx-auto transition-all duration-150",
+          "relative flex items-center justify-center w-10 h-10 rounded-xl mx-auto transition-all duration-150",
           (isActive || hasActiveChild)
             ? "bg-[#3498db] text-white shadow-lg shadow-blue-900/30"
             : "text-white/70 hover:bg-white/15 hover:text-white"
         )}
       >
         <Icon className="w-[20px] h-[20px]" />
+        {typeof badgeCount === "number" && badgeCount > 0 && (
+          <span className="absolute -top-1 -right-1 px-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold bg-[#e74c3c] text-white rounded-full leading-none shadow-xs">
+            {badgeCount > 99 ? "99+" : badgeCount}
+          </span>
+        )}
       </div>
     );
 
@@ -233,6 +293,7 @@ function SidebarItem({
         </TooltipTrigger>
         <TooltipContent side="right" className="text-xs font-medium">
           {item.label}
+          {typeof badgeCount === "number" && badgeCount > 0 ? ` (${badgeCount})` : ""}
         </TooltipContent>
       </Tooltip>
     );
@@ -255,9 +316,11 @@ function SidebarItem({
             (expanded || hasActiveChild) && "bg-white/10 text-white"
           )}
         >
-          {depth === 0 && <Icon className="w-[18px] h-[18px] flex-shrink-0" />}
-          {depth > 0 && <span className="w-[18px]" />}
-          <span className="flex-1 text-left whitespace-nowrap overflow-hidden text-ellipsis">{item.label}</span>
+          <Icon className="w-[18px] h-[18px] flex-shrink-0" />
+          <span className="flex-1 text-left whitespace-nowrap overflow-hidden text-ellipsis">
+            {item.label}
+          </span>
+
           {expanded ? (
             <ChevronDown className="w-3.5 h-3.5 opacity-60 flex-shrink-0" />
           ) : (
@@ -271,13 +334,15 @@ function SidebarItem({
             expanded ? "max-h-[800px] opacity-100" : "max-h-0 opacity-0"
           )}
         >
-          <div className="ml-5 border-l border-white/10 pl-2 py-0.5 space-y-0.5">
+          {/* Sub menu items: Aligned directly under the main menu's icon line */}
+          <div className="py-0.5 space-y-0.5">
             {visibleChildren.map((child: MenuItem) => (
               <SidebarItem
                 key={child.id}
                 item={child}
                 user={user}
                 permissions={permissions}
+                badges={badges}
                 depth={depth + 1}
                 isCollapsed={false}
                 onExpand={onExpand}
@@ -303,23 +368,44 @@ function SidebarItem({
         }
       }}
       className={cn(
-        "flex items-center gap-3 px-3 py-2.5 text-[13px] rounded-lg transition-all duration-150",
-        depth === 0 ? "font-medium" : "font-normal text-white/70",
+        "flex items-center gap-3 px-3 py-2 text-[13px] rounded-lg transition-all duration-150",
+        depth === 0 ? "font-medium py-2.5" : "font-normal text-white/80",
         isActive
-          ? "bg-[#3498db] text-white shadow-md shadow-blue-900/30"
+          ? "bg-[#3498db] text-white shadow-md shadow-blue-900/30 font-medium"
           : "text-white/80 hover:bg-white/10 hover:text-white"
       )}
     >
-      {depth === 0 && <Icon className="w-[18px] h-[18px] flex-shrink-0" />}
-      {depth > 0 && (
+      {depth === 0 ? (
+        <Icon className="w-[18px] h-[18px] flex-shrink-0" />
+      ) : (
+        /* Sub-menu dot: Aligned exactly in the same 18px column as the main icon */
+        <div className="w-[18px] h-[18px] flex items-center justify-center flex-shrink-0">
+          <span
+            className={cn(
+              "w-1.5 h-1.5 rounded-full transition-colors",
+              isActive ? "bg-white ring-2 ring-white/30" : "bg-white/50"
+            )}
+          />
+        </div>
+      )}
+
+      <span className="flex-1 whitespace-nowrap overflow-hidden text-ellipsis">
+        {item.label}
+      </span>
+
+      {/* Leaf Item Badge Count */}
+      {typeof badgeCount === "number" && badgeCount > 0 && (
         <span
           className={cn(
-            "w-1.5 h-1.5 rounded-full flex-shrink-0 ml-0.5",
-            isActive ? "bg-white" : "bg-white/40"
+            "ml-auto px-2 py-0.5 text-[10px] font-bold rounded-full transition-colors leading-none flex-shrink-0",
+            isActive
+              ? "bg-white text-[#2980b9]"
+              : "bg-white/20 text-white"
           )}
-        />
+        >
+          {badgeCount}
+        </span>
       )}
-      <span className="whitespace-nowrap overflow-hidden text-ellipsis">{item.label}</span>
     </Link>
   );
 }
@@ -332,6 +418,10 @@ export default function Sidebar({ isOpen, onClose, onExpand }: SidebarProps) {
   const [menu, setMenu] = useState<MenuItem[]>(DEFAULT_MENU);
   const [isMobile, setIsMobile] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  // Fetch count badges dynamically via GET /user/badges
+  const { data: badgesRes } = useUserBadges();
+  const badgesData: UserBadgesData | undefined = (badgesRes as any)?.data || badgesRes;
 
   const handleToggleSubmenu = (id: string) => {
     setOpenMenuId((prev) => (prev === id ? null : id));
@@ -479,6 +569,7 @@ export default function Sidebar({ isOpen, onClose, onExpand }: SidebarProps) {
                 item={item}
                 user={user}
                 permissions={permissions}
+                badges={badgesData}
                 isCollapsed={isCollapsed}
                 onExpand={onExpand}
                 openMenuId={openMenuId}

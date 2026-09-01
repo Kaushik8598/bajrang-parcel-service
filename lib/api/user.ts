@@ -231,4 +231,47 @@ export async function getMe(): Promise<{ success: boolean; data: { user: any } }
   });
 }
 
+// ─── User Badges Types & API ───────────────────────────────────────────────────
+
+export interface UserBadgesData {
+  parcelBookingReport?: number;
+  parcelDeliveryReport?: number;
+  cancelBookingReport?: number;
+  parcelPendingReport?: number;
+  customerDiscountReport?: number;
+  pendingDeliveryReport?: number;
+  draftCount?: number;
+  loadableParcelCount?: number;
+  unloadableParcelCount?: number;
+  pendingPayment?: number;
+  usersCount?: {
+    totalAdmins?: number;
+    totalBranches?: number;
+    totalStaff?: number;
+    totalTrucks?: number;
+    totalDrivers?: number;
+    allUsers?: number;
+  };
+  memoReport?: number;
+  expenseReport?: number;
+  [key: string]: unknown;
+}
+
+export interface UserBadgesApiResponse {
+  success: boolean;
+  message?: string;
+  data: UserBadgesData;
+}
+
+/**
+ * GET /user/badges
+ * Fetch count badges for sidebar navigation items
+ */
+export async function getUserBadges(): Promise<UserBadgesApiResponse> {
+  return await request<UserBadgesApiResponse>("/user/badges", {
+    method: "GET",
+  });
+}
+
+
 
