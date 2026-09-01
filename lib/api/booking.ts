@@ -54,10 +54,24 @@ export async function getPublicTrack(trackingId: string): Promise<any> {
 }
 
 /**
- * POST /createBooking
- * Create a new parcel booking docket
+ * POST /booking
+ * Create a new parcel booking docket (Private API)
  */
 export async function createParcelBooking(
+  data: any
+): Promise<any> {
+  const response = await request<any>("/booking", {
+    method: "POST",
+    body: data,
+  });
+  return response;
+}
+
+/**
+ * POST /createBooking
+ * Create a new customer parcel booking docket (Public Online Booking API)
+ */
+export async function createCustomerBooking(
   data: any
 ): Promise<any> {
   const response = await request<any>("/createBooking", {

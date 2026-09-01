@@ -35,7 +35,7 @@ import {
   CUSTOMER_BOOKING_REPORTS_QUERY_KEY,
   BOOKING_REPORTS_QUERY_KEY,
 } from "@/lib/hooks/useReports";
-import { createParcelBooking } from "@/lib/api/booking";
+import { createCustomerBooking } from "@/lib/api/booking";
 import { PublicBranchItem } from "@/lib/api/branch";
 import { getStoredUser, getStoredUserRole } from "@/lib/api/auth";
 import { showToast } from "@/lib/toast";
@@ -349,7 +349,7 @@ export default function CustomerBookingForm({
         remark: data.remark.trim(),
       };
 
-      return await createParcelBooking(payload);
+      return await createCustomerBooking(payload);
     },
     onSuccess: (result: any) => {
       const apiMessage = result?.message || "Customer Booking Created Successfully!";
