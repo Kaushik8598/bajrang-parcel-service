@@ -31,7 +31,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { useOnlyBranchList, useUpload } from "@/lib/hooks";
+import { usePublicBranchList, useUpload } from "@/lib/hooks";
 import {
   CUSTOMER_BOOKING_REPORTS_QUERY_KEY,
   BOOKING_REPORTS_QUERY_KEY,
@@ -41,6 +41,7 @@ import {
   createParcelBooking,
   updateParcelBooking,
 } from "@/lib/api/booking";
+import { PublicBranchItem } from "@/lib/api/branch";
 import { getStoredUser, getStoredUserRole } from "@/lib/api/auth";
 import { showToast } from "@/lib/toast";
 import { FileUploadPreview } from "@/components/ui/file-upload-preview";
@@ -109,6 +110,9 @@ export interface CustomerBookingFormProps {
   isView?: boolean;
   prefetchedBooking?: any;
   hideHeader?: boolean;
+  initialFromBranchId?: string;
+  isPublic?: boolean;
+  onBackToBranchSelection?: () => void;
 }
 
 export default function CustomerBookingForm({
@@ -117,6 +121,9 @@ export default function CustomerBookingForm({
   isView = false,
   prefetchedBooking,
   hideHeader = false,
+  initialFromBranchId,
+  isPublic = false,
+  onBackToBranchSelection,
 }: CustomerBookingFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -130,17 +137,22 @@ export default function CustomerBookingForm({
   );
   const ownBranchId = String(currentUser?._id || currentUser?.id || "");
 
-  // ─── Branches Query (GET /user/onlyBranch) ─────────────────────────────────
-  const { data: branchRes } = useOnlyBranchList();
-  const branchList = useMemo(() => {
-    return (branchRes?.data as any)?.users || (branchRes as any)?.users || [];
+  // ─── Branches Query (GET /branchList) ───────────────────────────────────────
+  const { data: branchRes } = usePublicBranchList();
+  const branchList: PublicBranchItem[] = useMemo(() => {
+    if (Array.isArray(branchRes?.data)) return branchRes.data;
+    return [];
   }, [branchRes]);
 
   const branchOptions = useMemo<FormSelectOption[]>(() => {
-    return branchList.map((b: { _id: string; name: string; code: string; role?: string }) => ({
-      value: b._id,
-      label: b.code ? `${b.name} (${b.code})` : b.name,
-    }));
+    return branchList.map((b: PublicBranchItem) => {
+      const name = b.branchName || (b as any).name || "";
+      const code = b.branchCode || (b as any).code || "";
+      return {
+        value: b._id,
+        label: code ? `${name} (${code})` : name,
+      };
+    });
   }, [branchList]);
 
   // ─── Fetch Booking by ID (for Edit or View) ─────────────────────────────────
@@ -152,16 +164,12 @@ export default function CustomerBookingForm({
 
   const activeBooking = prefetchedBooking || fetchedBooking;
 
-  // ─── Form State ────────────────────────────────────────────────────────────
-  const [billType, setBillType] = useState<"with_bill" | "without_bill">("with_bill");
-  const [billFile, setBillFile] = useState<File | null>(null);
-  const [billFileUrl, setBillFileUrl] = useState<string>("");
-
+  // ─── Form State (Default Without Bill) ──────────────────────────────────────
   const [formData, setFormData] = useState<CustomerBookingFormData>({
-    from_branch_id: ownBranchId || "",
+    from_branch_id: initialFromBranchId || ownBranchId || "",
     to_branch_id: "",
     delivery_type: "office",
-    has_bill: true,
+    has_bill: false,
     bill_no: "",
     bill_image: "",
     goods_value: 500,
@@ -202,38 +210,38 @@ export default function CustomerBookingForm({
     message?: string;
   } | null>(null);
 
-  // Set default from_branch for non-admin
+  // Set default from_branch
   useEffect(() => {
-    if (!isAdminOrSuperAdmin && ownBranchId && !formData.from_branch_id) {
+    if (initialFromBranchId) {
+      setFormData((p) => ({ ...p, from_branch_id: initialFromBranchId }));
+    } else if (!isAdminOrSuperAdmin && ownBranchId && !formData.from_branch_id) {
       setFormData((p) => ({ ...p, from_branch_id: ownBranchId }));
     }
-  }, [isAdminOrSuperAdmin, ownBranchId, formData.from_branch_id]);
+  }, [initialFromBranchId, isAdminOrSuperAdmin, ownBranchId, formData.from_branch_id]);
 
   // ─── Pre-fill on Edit / View ───────────────────────────────────────────────
   useEffect(() => {
     if (activeBooking) {
       const b = activeBooking.booking || activeBooking;
       const hasBill = b.hasBill === true || Boolean(b.billNo || b.bill_no);
-      setBillType(hasBill ? "with_bill" : "without_bill");
-      setBillFileUrl(b.billImage || b.bill_image || b.bill_file_url || "");
 
       const items = Array.isArray(b.items) && b.items.length > 0 ? b.items : b.packages;
       const pkgs: CustomerPackageItem[] =
         Array.isArray(items) && items.length > 0
           ? items.map((it: any, i: number) => ({
-              id: it._id || `pkg-${i + 1}`,
-              material: it.material || "",
-              packing: it.packing || "",
-              qty: Number(it.parcel ?? it.qty ?? it.quantity ?? 1),
-            }))
+            id: it._id || `pkg-${i + 1}`,
+            material: it.material || "",
+            packing: it.packing || "",
+            qty: Number(it.parcel ?? it.qty ?? it.quantity ?? 1),
+          }))
           : [
-              {
-                id: "pkg-1",
-                material: "",
-                packing: "",
-                qty: 1,
-              },
-            ];
+            {
+              id: "pkg-1",
+              material: "",
+              packing: "",
+              qty: 1,
+            },
+          ];
 
       setFormData({
         from_branch_id: String(
@@ -271,16 +279,6 @@ export default function CustomerBookingForm({
       });
     }
   }, [activeBooking]);
-
-  // ─── Bill File Upload ──────────────────────────────────────────────────────
-  const handleBillFileUpload = async (file: File) => {
-    const res = await uploadFile(file, "billFile");
-    if (res?.url) {
-      setBillFile(file);
-      setBillFileUrl(res.url);
-      setFormData((p) => ({ ...p, bill_image: res.url }));
-    }
-  };
 
   // ─── Package Row Management ────────────────────────────────────────────────
   const addPackageRow = () => {
@@ -361,11 +359,6 @@ export default function CustomerBookingForm({
       errors.receiver_name = "Receiver name is required.";
     }
 
-    // Bill Validation
-    if (billType === "with_bill" && !formData.bill_no.trim()) {
-      errors.bill_no = "Bill No is required when With Bill is selected.";
-    }
-
     // Packages validation
     if (formData.packages.length === 0) {
       errors.packages = "At least one package is required.";
@@ -388,11 +381,11 @@ export default function CustomerBookingForm({
   const mutation = useMutation({
     mutationFn: async (data: CustomerBookingFormData) => {
       const payload: Record<string, unknown> = {
-        fromBranch: data.from_branch_id,
-        toBranch: data.to_branch_id,
+        fromBranchId: data.from_branch_id,
+        toBranchId: data.to_branch_id,
         sender: {
           name: data.sender.name.trim(),
-          contact_no: data.sender.contact_no.trim(),
+          mobile: data.sender.contact_no.trim(),
           gstin: data.sender.gstin.trim(),
           address: data.sender.address.trim(),
           city: data.sender.city.trim(),
@@ -400,7 +393,7 @@ export default function CustomerBookingForm({
         },
         receiver: {
           name: data.receiver.name.trim(),
-          contact_no: data.receiver.contact_no.trim(),
+          mobile: data.receiver.contact_no.trim(),
           gstin: data.receiver.gstin.trim(),
           address: data.receiver.address.trim(),
           city: data.receiver.city.trim(),
@@ -414,9 +407,9 @@ export default function CustomerBookingForm({
           rate: 0,
           amount: 0,
         })),
-        hasBill: billType === "with_bill",
-        billNo: billType === "with_bill" ? data.bill_no.trim() : "",
-        billImage: billFileUrl || "",
+        hasBill: false,
+        billNo: "",
+        billImage: "",
         goodsValue: Number(data.goods_value) || 500,
         deliveryInfo: {
           deliveryType: data.delivery_type || "office",
@@ -429,7 +422,7 @@ export default function CustomerBookingForm({
         paymentMethod: "To Pay",
         finalBillAmount: 0,
         hamaliCost: 0,
-        biltyCharge: 0,
+        biltyCharge: 20,
         pickupCharge: 0,
         loadingCharge: 0,
         deliveryCharge: 0,
@@ -479,10 +472,10 @@ export default function CustomerBookingForm({
 
   const handleReset = () => {
     setFormData({
-      from_branch_id: isAdminOrSuperAdmin ? "" : ownBranchId,
+      from_branch_id: initialFromBranchId || (isAdminOrSuperAdmin ? "" : ownBranchId),
       to_branch_id: "",
       delivery_type: "office",
-      has_bill: true,
+      has_bill: false,
       bill_no: "",
       bill_image: "",
       goods_value: 500,
@@ -515,9 +508,6 @@ export default function CustomerBookingForm({
       payment_method: "To Pay",
       remark: "",
     });
-    setBillType("with_bill");
-    setBillFile(null);
-    setBillFileUrl("");
     setFormErrors({});
   };
 
@@ -566,8 +556,8 @@ export default function CustomerBookingForm({
 
   return (
     <div className="w-full space-y-1 pb-6">
-      {/* ─── Top Header Navigation Bar ───────────────────────────────────────── */}
-      {!hideHeader && (
+      {/* ─── Top Header Navigation Bar (Hidden on Public View) ────────────────── */}
+      {!hideHeader && !isPublic && (
         <div className="bg-white rounded border border-slate-200/80 shadow-2xs px-3 py-2 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded bg-[#2980b9]/10 text-[#2980b9] flex items-center justify-center font-bold">
@@ -578,20 +568,22 @@ export default function CustomerBookingForm({
                 {isView
                   ? "View Customer Booking"
                   : isEdit
-                  ? "Edit Customer Booking"
-                  : "Customer Booking Parcel"}
+                    ? "Edit Customer Booking"
+                    : "Customer Booking Parcel"}
               </h1>
             </div>
           </div>
 
-          <Button
-            type="button"
-            onClick={() => router.push("/reports/customer-booking")}
-            className="bg-[#2980b9] hover:bg-[#2471a3] text-white h-7 px-3 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="w-3 h-3 mr-1" />
-            View Customer Bookings
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              onClick={() => router.push("/reports/customer-booking")}
+              className="bg-[#2980b9] hover:bg-[#2471a3] text-white h-7 px-3 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-3 h-3 mr-1" />
+              View Customer Bookings
+            </Button>
+          </div>
         </div>
       )}
 
@@ -622,7 +614,7 @@ export default function CustomerBookingForm({
                   placeholder="Select From Branch"
                   searchPlaceholder="Search branch..."
                   error={formErrors.from_branch_id}
-                  disabled={!isAdminOrSuperAdmin || isEdit || isView}
+                  disabled={Boolean(initialFromBranchId) || (!isAdminOrSuperAdmin && !isPublic) || isEdit || isView}
                 />
 
                 <FormSelect
@@ -647,27 +639,7 @@ export default function CustomerBookingForm({
 
             {/* Transport Card */}
             <FormCard title="Transport" icon={Truck}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                {/* Bill Type */}
-                <FormSelect
-                  label="Bill Type"
-                  required
-                  options={[
-                    { value: "with_bill", label: "With Bill" },
-                    { value: "without_bill", label: "Without Bill" },
-                  ]}
-                  value={billType}
-                  onChange={(val) => {
-                    setBillType(val as "with_bill" | "without_bill");
-                    if (val === "without_bill") {
-                      setFormData((p) => ({ ...p, bill_no: "" }));
-                      setBillFile(null);
-                      setBillFileUrl("");
-                    }
-                  }}
-                  placeholder="Select Bill Type"
-                />
-
+              <div className="grid grid-cols-1 gap-1.5">
                 {/* Goods Value */}
                 <FormSelect
                   label="Goods Value"
@@ -679,45 +651,6 @@ export default function CustomerBookingForm({
                   }
                   placeholder="Select Goods Value"
                 />
-
-                {/* Bill No (when with_bill) */}
-                {billType === "with_bill" && (
-                  <FormInput
-                    label="Bill No"
-                    required
-                    placeholder="Bill No / LR No"
-                    value={formData.bill_no}
-                    onChange={(e) => {
-                      setFormData((p) => ({ ...p, bill_no: e.target.value }));
-                      if (formErrors.bill_no) setFormErrors((p) => ({ ...p, bill_no: "" }));
-                    }}
-                    error={formErrors.bill_no}
-                  />
-                )}
-
-                {/* Bill Upload (when with_bill) */}
-                {billType === "with_bill" && (
-                  <div className="space-y-1">
-                    <Label className="text-[11px] font-bold text-black flex items-center gap-0.5 leading-none">
-                      Bill Upload
-                    </Label>
-                    <FileUploadPreview
-                      label="Bill"
-                      fileName={billFile?.name}
-                      fileUrl={billFileUrl}
-                      disabled={isView}
-                      isUploading={uploadingFields["billFile"]}
-                      onFileSelect={handleBillFileUpload}
-                      onRemove={() => {
-                        setBillFile(null);
-                        setBillFileUrl("");
-                        setFormData((p) => ({ ...p, bill_image: "" }));
-                      }}
-                      accept="image/*,.pdf"
-                      showViewLink={true}
-                    />
-                  </div>
-                )}
               </div>
             </FormCard>
           </div>
@@ -1129,7 +1062,7 @@ export default function CustomerBookingForm({
                   required
                   options={PAYMENT_METHOD_LOCKED_OPTIONS}
                   value="To Pay"
-                  onChange={() => {}}
+                  onChange={() => { }}
                   disabled={true}
                   placeholder="To Pay"
                 />
@@ -1240,20 +1173,35 @@ export default function CustomerBookingForm({
                 setSuccessModal(null);
                 handleReset();
               }}
-              className="flex-1 text-xs"
+              className="flex-1 text-xs cursor-pointer"
             >
               Book Another Parcel
             </Button>
-            <Button
-              type="button"
-              onClick={() => {
-                setSuccessModal(null);
-                router.push("/reports/customer-booking");
-              }}
-              className="flex-1 bg-[#2980b9] hover:bg-[#2471a3] text-white text-xs"
-            >
-              View Booking Reports
-            </Button>
+            {isPublic ? (
+              onBackToBranchSelection && (
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setSuccessModal(null);
+                    onBackToBranchSelection();
+                  }}
+                  className="flex-1 bg-[#2980b9] hover:bg-[#2471a3] text-white text-xs cursor-pointer"
+                >
+                  Change Branch
+                </Button>
+              )
+            ) : (
+              <Button
+                type="button"
+                onClick={() => {
+                  setSuccessModal(null);
+                  router.push("/reports/customer-booking");
+                }}
+                className="flex-1 bg-[#2980b9] hover:bg-[#2471a3] text-white text-xs cursor-pointer"
+              >
+                View Booking Reports
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

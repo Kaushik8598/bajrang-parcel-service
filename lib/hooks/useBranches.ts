@@ -58,6 +58,7 @@ export function useUpdateBranch() {
 
 export const BRANCH_DROPDOWN_QUERY_KEY = ["branch-dropdown-list"] as const;
 export const ONLY_BRANCH_DROPDOWN_QUERY_KEY = ["only-branch-dropdown-list"] as const;
+export const PUBLIC_BRANCH_LIST_QUERY_KEY = ["public-branch-list"] as const;
 
 /**
  * Custom React Query hook to fetch branch list for dropdowns via GET /user/branchAndAdminList
@@ -80,5 +81,17 @@ export function useOnlyBranchList() {
     staleTime: 5 * 60 * 1000,
   });
 }
+
+/**
+ * Custom React Query hook to fetch public branch list for public booking via GET /branch/branchList
+ */
+export function usePublicBranchList() {
+  return useQuery({
+    queryKey: PUBLIC_BRANCH_LIST_QUERY_KEY,
+    queryFn: () => import("@/lib/api/branch").then((m) => m.getPublicBranchList()),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 
 

@@ -54,13 +54,13 @@ export async function getPublicTrack(trackingId: string): Promise<any> {
 }
 
 /**
- * POST /booking
+ * POST /createBooking
  * Create a new parcel booking docket
  */
 export async function createParcelBooking(
   data: any
 ): Promise<any> {
-  const response = await request<any>("/booking", {
+  const response = await request<any>("/createBooking", {
     method: "POST",
     body: data,
   });

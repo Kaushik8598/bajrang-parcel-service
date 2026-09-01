@@ -230,4 +230,34 @@ export async function getOnlyBranchList(): Promise<BranchDropdownApiResponse> {
   });
 }
 
+export interface PublicBranchItem {
+  _id: string;
+  email?: string;
+  profilePhoto?: string;
+  branchName?: string;
+  branchCode?: string;
+  mobile1?: string;
+  mobile2?: string;
+  address?: string;
+  branchMapLink?: string;
+  [key: string]: unknown;
+}
+
+export interface PublicBranchListResponse {
+  success: boolean;
+  message?: string;
+  data: PublicBranchItem[];
+  total?: number;
+}
+
+/**
+ * Fetch list of branches for public customer booking via GET /branchList
+ */
+export async function getPublicBranchList(): Promise<PublicBranchListResponse> {
+  return await request<PublicBranchListResponse>("/branchList", {
+    method: "GET",
+  });
+}
+
+
 
