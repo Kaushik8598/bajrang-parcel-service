@@ -221,4 +221,14 @@ export async function getUserRoleVise(): Promise<any> {
   });
 }
 
+/**
+ * GET /user/me
+ * Fetch logged-in user profile details
+ */
+export async function getMe(): Promise<{ success: boolean; data: { user: any } }> {
+  return await request<{ success: boolean; data: { user: any } }>("/user/me", {
+    method: "GET",
+  });
+}
+
 

@@ -89,3 +89,20 @@ export function useUserRoleVise(enabled = true) {
     staleTime: 5 * 60 * 1000,
   });
 }
+
+export const USER_ME_QUERY_KEY = ["user-me"] as const;
+
+/**
+ * React Query hook to fetch current authenticated user profile via GET /user/me
+ */
+export function useUserProfile() {
+  return useQuery({
+    queryKey: USER_ME_QUERY_KEY,
+    queryFn: async () => {
+      const { getMe } = await import("@/lib/api/user");
+      const res = await getMe();
+      return res?.data?.user || (res?.data as any) || res;
+    },
+    staleTime: 60 * 1000,
+  });
+}
