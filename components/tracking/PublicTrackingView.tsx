@@ -488,32 +488,9 @@ export default function PublicTrackingView({ initialTrackingId = "" }: PublicTra
   );
 
   return (
-    <div className="min-h-screen bg-slate-100/70 text-slate-900">
-      {/* ─── Top Brand Header ─────────────────────────────────────────────── */}
-      <header className="bg-white border-b border-slate-200/90 shadow-xs">
-        <div className="max-w-5xl mx-auto px-3 sm:px-6 py-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded bg-[#2980b9] text-white flex items-center justify-center font-black text-sm shadow-xs">
-              B
-            </div>
-            <div>
-              <h2 className="text-sm font-extrabold text-black leading-tight tracking-tight">
-                BAJRANG ROAD LINES
-              </h2>
-              <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">
-                Parcel Service & Logistics
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded px-2.5 py-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Public Tracking</span>
-          </div>
-        </div>
-      </header>
-
+    <div className="w-full">
       {/* ─── Main Container ───────────────────────────────────────────────── */}
-      <main className="max-w-5xl mx-auto px-3 sm:px-6 py-4 space-y-3">
+      <div className="max-w-5xl mx-auto px-3 sm:px-6 py-4 space-y-3">
         {/* ─── Search Bar & Result Docket Header ──────────────────────────── */}
         <div className="bg-white rounded border border-slate-200/80 shadow-2xs px-3 sm:px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -840,17 +817,7 @@ export default function PublicTrackingView({ initialTrackingId = "" }: PublicTra
             </div>
           </div>
         )}
-      </main>
-
-      {/* ─── Footer ───────────────────────────────────────────────────────── */}
-      <footer className="mt-10 border-t border-slate-200 bg-white py-6">
-        <div className="max-w-5xl mx-auto px-3 sm:px-6 text-center text-xs text-slate-500">
-          <p className="font-semibold text-slate-700">BAJRANG Road Lines & Parcel Service</p>
-          <p className="text-[11px] text-slate-400 mt-1">
-            Safe, reliable, and on-time parcel transportation across Gujarat and beyond.
-          </p>
-        </div>
-      </footer>
+      </div>
     </div>
   );
 }
