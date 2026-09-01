@@ -77,6 +77,7 @@ apiClient.interceptors.response.use(
             localStorage.removeItem(AUTH_USER_KEY);
             localStorage.removeItem(AUTH_PERMISSIONS_KEY);
             localStorage.removeItem(AUTH_ROLE_KEY);
+            sessionStorage.clear();
           } catch {
             // Ignore
           }

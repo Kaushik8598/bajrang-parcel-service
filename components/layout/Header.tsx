@@ -26,7 +26,8 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, getInitials } from "@/lib/utils";
-import { getStoredUser, clearAuthData } from "@/lib/api/auth";
+import { getStoredUser, clearAuthData, logout } from "@/lib/api/auth";
+import { queryClient } from "@/lib/queryClient";
 import { useUserBalance } from "@/lib/hooks";
 import type { User } from "@/lib/types/auth";
 import Link from "next/link";
@@ -47,8 +48,17 @@ export default function Header({ onMenuToggle }: HeaderProps) {
 
   const notifications = 214535; // notifications count
 
-  const handleLogout = () => {
-    clearAuthData();
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {
+      clearAuthData();
+    }
+    try {
+      queryClient.clear();
+    } catch {
+      // Ignore
+    }
     router.push("/login");
   };
 

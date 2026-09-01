@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { login, saveAuthData } from "@/lib/api/auth";
+import { queryClient } from "@/lib/queryClient";
 import { showToast } from "@/lib/toast";
 import type { LoginRequest, AuthResponseData } from "@/lib/types/auth";
 
@@ -23,6 +24,11 @@ export default function LoginPage() {
   const loginMutation = useMutation({
     mutationFn: (credentials: LoginRequest) => login(credentials),
     onSuccess: (data: AuthResponseData) => {
+      try {
+        queryClient.clear();
+      } catch {
+        // Ignore
+      }
       saveAuthData(data);
       showToast("success", "Login successful!", `Welcome back, ${data.user.name || "Admin"}`);
       router.push("/dashboard");

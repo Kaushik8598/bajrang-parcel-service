@@ -134,23 +134,33 @@ export function saveAuthData(authData: AuthResponseData): void {
   }
 }
 
+import { queryClient } from "../queryClient";
+
 /**
- * Clear all authentication data from Cookies and localStorage
+ * Clear all authentication data from Cookies, localStorage, sessionStorage, and React Query cache
  */
 export function clearAuthData(): void {
-  // 1. Clear Cookies
+  // 1. Clear React Query in-memory cache
+  try {
+    queryClient.clear();
+  } catch {
+    // Ignore in SSR
+  }
+
+  // 2. Clear Cookies
   Cookies.remove(AUTH_TOKEN_KEY, { path: "/" });
   Cookies.remove(AUTH_USER_KEY, { path: "/" });
   Cookies.remove(AUTH_PERMISSIONS_KEY, { path: "/" });
   Cookies.remove(AUTH_ROLE_KEY, { path: "/" });
 
-  // 2. Clear localStorage
+  // 3. Clear localStorage and sessionStorage
   if (typeof window !== "undefined") {
     try {
       localStorage.removeItem(AUTH_TOKEN_KEY);
       localStorage.removeItem(AUTH_USER_KEY);
       localStorage.removeItem(AUTH_PERMISSIONS_KEY);
       localStorage.removeItem(AUTH_ROLE_KEY);
+      sessionStorage.clear();
     } catch {
       // Ignore
     }
