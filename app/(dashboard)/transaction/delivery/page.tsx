@@ -33,6 +33,7 @@ export default function ParcelDeliveryPage() {
   // Delivery confirmation form states
   const [receiverContact, setReceiverContact] = useState<string>("");
   const [receiverName, setReceiverName] = useState<string>("");
+  const [discount, setDiscount] = useState<number | "">("");
   const [receiverProofFile, setReceiverProofFile] = useState<File | null>(null);
   const [receiverProofUrl, setReceiverProofUrl] = useState<string>("");
   const [otp, setOtp] = useState<string>("");
@@ -94,6 +95,7 @@ export default function ParcelDeliveryPage() {
       const rName = bookingData.receiver?.name || "";
       setReceiverContact(rMobile);
       setReceiverName(rName);
+      setDiscount(bookingData.discount ?? "");
       setOtp("");
       setOtpSent(false);
       setReceiverProofFile(null);
@@ -146,6 +148,7 @@ export default function ParcelDeliveryPage() {
     setErrorMsg("");
     setReceiverContact("");
     setReceiverName("");
+    setDiscount("");
     setReceiverProofFile(null);
     setReceiverProofUrl("");
     setOtp("");
@@ -228,6 +231,7 @@ export default function ParcelDeliveryPage() {
           receiverProof: receiverProofUrl,
           receiverProofUrl: receiverProofUrl,
           otp: otp.trim(),
+          discount: typeof discount === "number" ? discount : Number(discount) || 0,
         });
 
         showToast(
@@ -550,8 +554,8 @@ export default function ParcelDeliveryPage() {
                   </div>
                 </div>
 
-                {/* 2. Receiver Name (span 3) */}
-                <div className="lg:col-span-3 space-y-1">
+                {/* 2. Receiver Name (span 2) */}
+                <div className="lg:col-span-2 space-y-1">
                   <Label className="text-[11px] font-bold text-black flex items-center gap-0.5 leading-none">
                     Receiver Name <span className="text-red-500 font-bold">*</span>
                   </Label>
@@ -564,8 +568,26 @@ export default function ParcelDeliveryPage() {
                   />
                 </div>
 
-                {/* 3. Receiver Document Upload Field (span 3) */}
-                <div className="lg:col-span-3 space-y-1">
+                {/* 3. Discount (₹) (span 2) */}
+                <div className="lg:col-span-2 space-y-1">
+                  <Label className="text-[11px] font-bold text-black flex items-center gap-0.5 leading-none">
+                    Discount (₹)
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    value={discount === "" ? "" : discount}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setDiscount(val === "" ? "" : Number(val));
+                    }}
+                    className="h-8 text-xs font-mono text-black border-black focus:border-black font-medium"
+                  />
+                </div>
+
+                {/* 4. Receiver Document Upload Field (span 2) */}
+                <div className="lg:col-span-2 space-y-1">
                   <Label className="text-[11px] font-bold text-black flex items-center gap-0.5 leading-none">
                     Receiver Document
                   </Label>
@@ -584,7 +606,7 @@ export default function ParcelDeliveryPage() {
                   />
                 </div>
 
-                {/* 4. 6-Digit OTP Confirmation Field (span 2) */}
+                {/* 5. 6-Digit OTP Confirmation Field (span 2) */}
                 <div className="lg:col-span-2 space-y-1">
                   <Label className="text-[11px] font-bold text-black flex items-center gap-0.5 leading-none">
                     6-Digit OTP <span className="text-red-500 font-bold">*</span>
@@ -600,7 +622,7 @@ export default function ParcelDeliveryPage() {
                   />
                 </div>
 
-                {/* 5. Submit Button (span 1) */}
+                {/* 6. Submit Button (span 1) */}
                 <div className="lg:col-span-1">
                   <Button
                     type="submit"
