@@ -463,7 +463,7 @@ export default function ParcelBookingForm({
           Array.isArray((bObj as any).items) && (bObj as any).items.length > 0
             ? (bObj as any).items.map((it: any, idx: number) => ({
               id: it._id || `pkg-${idx + 1}`,
-              qty: it.parcel ?? it.qty ?? 1,
+              qty: it.parcel ?? it.qty ?? 0,
               material: it.material || "",
               packing: it.packing || "",
               payment_type:
@@ -472,18 +472,23 @@ export default function ParcelBookingForm({
                   : it.priceType === "direct"
                     ? "Direct"
                     : "Direct",
-              price: it.rate ?? it.amount ?? 0,
+              price:
+                it.rate !== undefined && it.rate !== null && it.rate !== 0
+                  ? Math.round(Number(it.rate))
+                  : it.amount !== undefined && it.amount !== null && it.amount !== 0
+                    ? Math.round(Number(it.amount))
+                    : "",
             }))
             : bObj.packages && bObj.packages.length > 0
               ? bObj.packages
               : [
                 {
                   id: "pkg-1",
-                  qty: bObj.total_qty || 1,
+                  qty: bObj.total_qty || 0,
                   material: "General Goods",
                   packing: "Carton",
                   payment_type: "Direct",
-                  price: (bObj.net_cost || 200) - 20,
+                  price: bObj.net_cost ? Math.max(0, Math.round(Number(bObj.net_cost) - 20)) : "",
                 },
               ],
         payment_method: bObj.payment_method || (bObj as any).paymentMethod || "To Pay",
@@ -823,23 +828,23 @@ export default function ParcelBookingForm({
   // ─── Auto-calculate Net Cost (Final Bill Amount) ───────────────────────────
   const totalPackageAmount = useMemo(() => {
     return formData.packages.reduce((sum, pkg) => {
-      const price = typeof pkg.price === "number" ? pkg.price : Number(pkg.price) || 0;
-      const qty = typeof pkg.qty === "number" ? pkg.qty : Number(pkg.qty) || 0;
+      const price = typeof pkg.price === "number" ? Math.round(pkg.price) : Math.round(Number(pkg.price)) || 0;
+      const qty = typeof pkg.qty === "number" ? Math.round(pkg.qty) : Math.round(Number(pkg.qty)) || 0;
       const itemTotal = pkg.payment_type === "Per Package" ? price * qty : price;
-      return sum + itemTotal;
+      return sum + Math.round(itemTotal);
     }, 0);
   }, [formData.packages]);
 
   const calculatedNetCost = useMemo(() => {
     const pkgTotal = totalPackageAmount;
-    const bilty = Number(formData.bilty_charge) || 0;
-    const hamali = Number(formData.hamali_cost) || 0;
-    const pickup = Number(formData.pickup_charge) || 0;
-    const loading = Number(formData.loading_charge) || 0;
-    const delivery = Number(formData.delivery_charge) || 0;
-    const extra = Number(formData.extra_charge) || 0;
+    const bilty = Math.round(Number(formData.bilty_charge)) || 0;
+    const hamali = Math.round(Number(formData.hamali_cost)) || 0;
+    const pickup = Math.round(Number(formData.pickup_charge)) || 0;
+    const loading = Math.round(Number(formData.loading_charge)) || 0;
+    const delivery = Math.round(Number(formData.delivery_charge)) || 0;
+    const extra = Math.round(Number(formData.extra_charge)) || 0;
 
-    return Math.max(0, pkgTotal + bilty + hamali + pickup + loading + delivery + extra);
+    return Math.max(0, Math.round(pkgTotal + bilty + hamali + pickup + loading + delivery + extra));
   }, [
     totalPackageAmount,
     formData.bilty_charge,
@@ -917,6 +922,7 @@ export default function ParcelBookingForm({
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
 
+    // 1. Branch Validation
     if (!formData.from_branch_id) {
       errors.from_branch_id = "Please select From Branch";
     }
@@ -927,28 +933,86 @@ export default function ParcelBookingForm({
       errors.to_branch_id = "To Branch cannot be the same as From Branch";
     }
 
-    if (!formData.sender.contact_no?.trim()) {
-      errors.sender_contact = "Sender contact is required";
+    // 2. Bill No Validation (if With Bill)
+    if (billType === "with_bill" && !formData.bill_no?.trim()) {
+      errors.bill_no = "Bill No is required for With Bill";
     }
+
+    // 3. Sender Validation
+    const senderContact = formData.sender.contact_no?.trim() || "";
+    if (!senderContact) {
+      errors.sender_contact = "Sender contact is required";
+    } else if (!/^[6-9]\d{9}$/.test(senderContact)) {
+      errors.sender_contact = "Contact must be a 10-digit number starting with 6-9";
+    }
+
     if (!formData.sender.name?.trim()) {
       errors.sender_name = "Sender name is required";
     }
 
-    if (!formData.receiver.contact_no?.trim()) {
-      errors.receiver_contact = "Receiver contact is required";
+    if (formData.sender.gstin?.trim() && formData.sender.gstin.trim().length !== 15) {
+      errors.sender_gstin = "GSTIN must be 15 characters";
     }
+
+    if (formData.sender.show_details && formData.sender.pincode?.trim()) {
+      if (!/^\d{6}$/.test(formData.sender.pincode.trim())) {
+        errors.sender_pincode = "Pincode must be 6 digits";
+      }
+    }
+
+    // 4. Receiver Validation
+    const receiverContact = formData.receiver.contact_no?.trim() || "";
+    if (!receiverContact) {
+      errors.receiver_contact = "Receiver contact is required";
+    } else if (!/^[6-9]\d{9}$/.test(receiverContact)) {
+      errors.receiver_contact = "Contact must be a 10-digit number starting with 6-9";
+    }
+
     if (!formData.receiver.name?.trim()) {
       errors.receiver_name = "Receiver name is required";
     }
 
-    formData.packages.forEach((pkg, i) => {
-      if (!pkg.qty || Number(pkg.qty) <= 0) {
-        errors[`pkg_qty_${i}`] = "Qty required";
+    if (formData.receiver.gstin?.trim() && formData.receiver.gstin.trim().length !== 15) {
+      errors.receiver_gstin = "GSTIN must be 15 characters";
+    }
+
+    if (formData.receiver.show_details && formData.receiver.pincode?.trim()) {
+      if (!/^\d{6}$/.test(formData.receiver.pincode.trim())) {
+        errors.receiver_pincode = "Pincode must be 6 digits";
       }
-      if (pkg.price === "" || Number(pkg.price) < 0) {
-        errors[`pkg_price_${i}`] = "Price required";
-      }
-    });
+    }
+
+    // 5. Package Items Validation
+    if (!formData.packages || formData.packages.length === 0) {
+      errors.packages = "At least one package is required";
+    } else {
+      formData.packages.forEach((pkg, i) => {
+        const qtyNum = Math.round(Number(pkg.qty)) || 0;
+        const priceNum =
+          typeof pkg.price === "number"
+            ? Math.round(pkg.price)
+            : Math.round(Number(pkg.price)) || 0;
+        const itemTotal =
+          pkg.payment_type === "Per Package" ? qtyNum * priceNum : priceNum;
+
+        if (qtyNum <= 0) {
+          errors[`pkg_qty_${i}`] = "Qty must be greater than 0";
+        }
+        if (!pkg.material?.trim()) {
+          errors[`pkg_material_${i}`] = "Material is required";
+        }
+        if (pkg.price === "" || priceNum <= 0) {
+          errors[`pkg_price_${i}`] = "Price must be greater than 0";
+        } else if (itemTotal <= 0) {
+          errors[`pkg_price_${i}`] = "Row total must be greater than 0";
+        }
+      });
+    }
+
+    // 6. Net Cost / Final Bill Amount Validation
+    if (calculatedNetCost <= 0) {
+      errors.final_bill_amount = "Final bill amount must be greater than 0";
+    }
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -957,6 +1021,31 @@ export default function ParcelBookingForm({
   // ─── Submit (Create or Update) Mutation ─────────────────────────────────────
   const formMutation = useMutation({
     mutationFn: (data: ParcelBookingFormData) => {
+      // Determine booking status:
+      // When editing:
+      // 1. If existing booking status is "draft":
+      //    - If new Final Bill Amount is greater than old Final Bill Amount -> status becomes "confirmed".
+      //    - If new Final Bill Amount <= old Final Bill Amount -> status remains "draft".
+      // 2. Once confirmed or in any other status:
+      //    - Status NEVER reverts to "draft", preserving the exact existing status.
+      let resolvedStatus = bookingStatus;
+      if (isEdit && initialBooking) {
+        const bObj = (initialBooking as any)?.booking || (initialBooking as any)?.data || initialBooking;
+        const rawStatus = bObj?.status || "draft";
+        const oldStatus = String(rawStatus).toLowerCase();
+        const oldFinalBillAmount = Number(
+          bObj?.finalBillAmount ?? bObj?.net_cost ?? (initialBooking as any)?.finalBillAmount ?? 0
+        );
+        const newFinalBillAmount = Math.round(calculatedNetCost);
+
+        if (oldStatus === "draft") {
+          resolvedStatus = newFinalBillAmount > oldFinalBillAmount ? "confirmed" : "draft";
+        } else {
+          // Status has already been confirmed or moved to another state; never revert to draft
+          resolvedStatus = rawStatus;
+        }
+      }
+
       const payload = {
         fromBranchId: data.from_branch_id,
         toBranchId: data.to_branch_id,
@@ -977,8 +1066,8 @@ export default function ParcelBookingForm({
           pincode: data.receiver.pincode || "",
         },
         items: data.packages.map((pkg) => {
-          const parcel = Number(pkg.qty) || 0;
-          const rate = Number(pkg.price) || 0;
+          const parcel = Math.round(Number(pkg.qty)) || 0;
+          const rate = Math.round(Number(pkg.price)) || 0;
           const priceType = pkg.payment_type === "Per Package" ? "perPackage" : "direct";
           const amount = priceType === "perPackage" ? parcel * rate : rate;
           return {
@@ -987,18 +1076,18 @@ export default function ParcelBookingForm({
             packing: pkg.packing || "",
             priceType,
             rate,
-            amount,
+            amount: Math.round(amount),
           };
         }),
-        hamaliCost: Number(data.hamali_cost) || 0,
-        biltyCharge: Number(data.bilty_charge) || 0,
-        pickupCharge: Number(data.pickup_charge) || 0,
-        loadingCharge: Number(data.loading_charge) || 0,
-        deliveryCharge: Number(data.delivery_charge) || 0,
-        extraCharge: Number(data.extra_charge) || 0,
+        hamaliCost: Math.round(Number(data.hamali_cost)) || 0,
+        biltyCharge: Math.round(Number(data.bilty_charge)) || 0,
+        pickupCharge: Math.round(Number(data.pickup_charge)) || 0,
+        loadingCharge: Math.round(Number(data.loading_charge)) || 0,
+        deliveryCharge: Math.round(Number(data.delivery_charge)) || 0,
+        extraCharge: Math.round(Number(data.extra_charge)) || 0,
         discount: 0,
-        finalBillAmount: calculatedNetCost,
-        goodsValue: Number(data.goods_value) || 500,
+        finalBillAmount: Math.round(calculatedNetCost),
+        goodsValue: Math.round(Number(data.goods_value)) || 500,
         paymentMethod: data.payment_method || "To Pay",
         senderProof: data.sender_id_proof_url || "",
         hasBill: billType === "with_bill",
@@ -1014,7 +1103,7 @@ export default function ParcelBookingForm({
         },
         cancelReason: data.cancel_reason || "",
         cancelRemark: data.cancel_remark || "",
-        status: bookingStatus,
+        status: resolvedStatus,
         remark: data.remark || "",
       };
 
@@ -1070,12 +1159,18 @@ export default function ParcelBookingForm({
       window.scrollTo({ top: 100, behavior: "smooth" });
       return;
     }
+    if (calculatedNetCost <= 0) {
+      showToast("warning", "Final bill amount must be greater than 0.");
+      return;
+    }
     formMutation.mutate(formData);
   };
 
   const handleCloseSuccessModal = () => {
     setSuccessModal(null);
-    if (!isEdit) {
+    if (isEdit) {
+      router.back();
+    } else {
       setFormData({
         from_branch_id: isAdminOrSuperAdmin ? "" : ownBranchId,
         to_branch_id: "",
@@ -1396,7 +1491,13 @@ export default function ParcelBookingForm({
                     required
                     placeholder="Bill No / LR No"
                     value={formData.bill_no}
-                    onChange={(e) => setFormData((p) => ({ ...p, bill_no: e.target.value }))}
+                    onChange={(e) => {
+                      setFormData((p) => ({ ...p, bill_no: e.target.value }));
+                      if (formErrors.bill_no) {
+                        setFormErrors((p) => ({ ...p, bill_no: "" }));
+                      }
+                    }}
+                    error={formErrors.bill_no}
                   />
                 )}
 
@@ -1473,12 +1574,16 @@ export default function ParcelBookingForm({
                   placeholder="GST NO"
                   uppercase
                   value={formData.sender.gstin}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setFormData((p) => ({
                       ...p,
                       sender: { ...p.sender, gstin: e.target.value.toUpperCase() },
-                    }))
-                  }
+                    }));
+                    if (formErrors.sender_gstin) {
+                      setFormErrors((p) => ({ ...p, sender_gstin: "" }));
+                    }
+                  }}
+                  error={formErrors.sender_gstin}
                 />
 
                 <FormInput
@@ -1559,12 +1664,16 @@ export default function ParcelBookingForm({
                       label="Pincode"
                       placeholder="Pincode"
                       value={formData.sender.pincode || ""}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setFormData((p) => ({
                           ...p,
                           sender: { ...p.sender, pincode: e.target.value },
-                        }))
-                      }
+                        }));
+                        if (formErrors.sender_pincode) {
+                          setFormErrors((p) => ({ ...p, sender_pincode: "" }));
+                        }
+                      }}
+                      error={formErrors.sender_pincode}
                     />
                   </div>
                 </div>
@@ -1618,12 +1727,16 @@ export default function ParcelBookingForm({
                   placeholder="GST NO"
                   uppercase
                   value={formData.receiver.gstin}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setFormData((p) => ({
                       ...p,
                       receiver: { ...p.receiver, gstin: e.target.value.toUpperCase() },
-                    }))
-                  }
+                    }));
+                    if (formErrors.receiver_gstin) {
+                      setFormErrors((p) => ({ ...p, receiver_gstin: "" }));
+                    }
+                  }}
+                  error={formErrors.receiver_gstin}
                 />
 
                 <FormInput
@@ -1704,12 +1817,16 @@ export default function ParcelBookingForm({
                       label="Pincode"
                       placeholder="Pincode"
                       value={formData.receiver.pincode || ""}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setFormData((p) => ({
                           ...p,
                           receiver: { ...p.receiver, pincode: e.target.value },
-                        }))
-                      }
+                        }));
+                        if (formErrors.receiver_pincode) {
+                          setFormErrors((p) => ({ ...p, receiver_pincode: "" }));
+                        }
+                      }}
+                      error={formErrors.receiver_pincode}
                     />
                   </div>
                 </div>
@@ -1732,16 +1849,15 @@ export default function ParcelBookingForm({
                       required
                       type="number"
                       min="0"
+                      step="1"
                       placeholder="Qty"
-                      value={pkg.qty === 0 ? "" : pkg.qty}
+                      value={pkg.qty === 0 ? "0" : pkg.qty}
                       disabled={isView || isNonAdminEdit}
-                      onChange={(e) =>
-                        updatePackageField(
-                          idx,
-                          "qty",
-                          e.target.value === "" ? "" : Math.max(0, Number(e.target.value))
-                        )
-                      }
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/\D/g, "");
+                        const val = raw === "" ? 0 : Math.max(0, parseInt(raw, 10));
+                        updatePackageField(idx, "qty", val);
+                      }}
                       error={formErrors[`pkg_qty_${idx}`]}
                     />
                   </div>
@@ -1750,9 +1866,11 @@ export default function ParcelBookingForm({
                   <div className="lg:col-span-2">
                     <FormInput
                       label="Material"
+                      required
                       placeholder="e.g. Cotton Box"
                       value={pkg.material}
                       onChange={(e) => updatePackageField(idx, "material", e.target.value)}
+                      error={formErrors[`pkg_material_${idx}`]}
                     />
                   </div>
 
@@ -1788,16 +1906,15 @@ export default function ParcelBookingForm({
                       required
                       type="number"
                       min="0"
+                      step="1"
                       placeholder="Price"
                       value={pkg.price}
                       disabled={isView || isNonAdminEdit}
-                      onChange={(e) =>
-                        updatePackageField(
-                          idx,
-                          "price",
-                          e.target.value === "" ? "" : Math.max(0, Number(e.target.value))
-                        )
-                      }
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/\D/g, "");
+                        const val = raw === "" ? "" : Math.max(0, parseInt(raw, 10));
+                        updatePackageField(idx, "price", val);
+                      }}
                       error={formErrors[`pkg_price_${idx}`]}
                     />
                   </div>
@@ -1809,8 +1926,8 @@ export default function ParcelBookingForm({
                       type="text"
                       value={
                         pkg.payment_type === "Per Package"
-                          ? (Number(pkg.qty) || 0) * (Number(pkg.price) || 0)
-                          : (Number(pkg.price) || 0)
+                          ? Math.round((Number(pkg.qty) || 0) * (Number(pkg.price) || 0))
+                          : Math.round(Number(pkg.price) || 0)
                       }
                       disabled
                       readOnly
@@ -1944,21 +2061,23 @@ export default function ParcelBookingForm({
                 label="Bilty Charge (₹)"
                 type="number"
                 min="0"
+                step="1"
                 value={formData.bilty_charge}
                 disabled={isView || isNonAdminEdit}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, "");
                   setFormData((p) => ({
                     ...p,
-                    bilty_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
-                  }))
-                }
+                    bilty_charge: raw === "" ? 0 : Math.max(0, parseInt(raw, 10)),
+                  }));
+                }}
               />
 
               {/* Final Bill Amount (Disabled Input Field) */}
               <FormInput
                 label="Final Bill Amount (₹)"
                 type="text"
-                value={calculatedNetCost}
+                value={Math.round(calculatedNetCost)}
                 disabled
                 readOnly
               />
@@ -2042,14 +2161,16 @@ export default function ParcelBookingForm({
                         label="Hamali Cost (₹)"
                         type="number"
                         min="0"
+                        step="1"
                         value={formData.hamali_cost}
                         disabled={isView || isNonAdminEdit}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/\D/g, "");
                           setFormData((p) => ({
                             ...p,
-                            hamali_cost: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
-                          }))
-                        }
+                            hamali_cost: raw === "" ? 0 : Math.max(0, parseInt(raw, 10)),
+                          }));
+                        }}
                       />
 
                       {/* Pickup Charge */}
@@ -2057,14 +2178,16 @@ export default function ParcelBookingForm({
                         label="Pickup Charge (₹)"
                         type="number"
                         min="0"
+                        step="1"
                         value={formData.pickup_charge}
                         disabled={isView || isNonAdminEdit}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/\D/g, "");
                           setFormData((p) => ({
                             ...p,
-                            pickup_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
-                          }))
-                        }
+                            pickup_charge: raw === "" ? 0 : Math.max(0, parseInt(raw, 10)),
+                          }));
+                        }}
                       />
 
                       {/* Loading Charge */}
@@ -2072,14 +2195,16 @@ export default function ParcelBookingForm({
                         label="Loading Charge (₹)"
                         type="number"
                         min="0"
+                        step="1"
                         value={formData.loading_charge}
                         disabled={isView || isNonAdminEdit}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/\D/g, "");
                           setFormData((p) => ({
                             ...p,
-                            loading_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
-                          }))
-                        }
+                            loading_charge: raw === "" ? 0 : Math.max(0, parseInt(raw, 10)),
+                          }));
+                        }}
                       />
 
                       {/* Delivery Charge */}
@@ -2087,14 +2212,16 @@ export default function ParcelBookingForm({
                         label="Delivery Charge (₹)"
                         type="number"
                         min="0"
+                        step="1"
                         value={formData.delivery_charge}
                         disabled={isView || isNonAdminEdit}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/\D/g, "");
                           setFormData((p) => ({
                             ...p,
-                            delivery_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
-                          }))
-                        }
+                            delivery_charge: raw === "" ? 0 : Math.max(0, parseInt(raw, 10)),
+                          }));
+                        }}
                       />
 
                       {/* Extra Charge */}
@@ -2102,14 +2229,16 @@ export default function ParcelBookingForm({
                         label="Extra Charge (₹)"
                         type="number"
                         min="0"
+                        step="1"
                         value={formData.extra_charge}
                         disabled={isView || isNonAdminEdit}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/\D/g, "");
                           setFormData((p) => ({
                             ...p,
-                            extra_charge: e.target.value === "" ? 0 : Math.max(0, Number(e.target.value)),
-                          }))
-                        }
+                            extra_charge: raw === "" ? 0 : Math.max(0, parseInt(raw, 10)),
+                          }));
+                        }}
                       />
                     </div>
                   </div>

@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   MapPin,
   Truck,
@@ -10,16 +10,15 @@ import {
   UserCheck,
   Package,
   CreditCard,
-  ArrowLeft,
   Plus,
   Trash2,
   Loader2,
   Check,
   RotateCcw,
   Save,
+  Printer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { FormInput } from "@/components/ui/form-input";
 import { FormSelect, type FormSelectOption } from "@/components/ui/form-select";
 import { FormCard } from "@/components/ui/form-card";
@@ -31,20 +30,16 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { usePublicBranchList, useUpload } from "@/lib/hooks";
+import { usePublicBranchList } from "@/lib/hooks";
 import {
   CUSTOMER_BOOKING_REPORTS_QUERY_KEY,
   BOOKING_REPORTS_QUERY_KEY,
 } from "@/lib/hooks/useReports";
-import {
-  getBookingById,
-  createParcelBooking,
-  updateParcelBooking,
-} from "@/lib/api/booking";
+import { createParcelBooking } from "@/lib/api/booking";
 import { PublicBranchItem } from "@/lib/api/branch";
 import { getStoredUser, getStoredUserRole } from "@/lib/api/auth";
 import { showToast } from "@/lib/toast";
-import { FileUploadPreview } from "@/components/ui/file-upload-preview";
+import { printBookingSlip } from "@/components/booking/BookingPrintSlip";
 import type {
   GoodsValue,
   DeliveryType,
@@ -105,29 +100,18 @@ export interface CustomerBookingFormData {
 }
 
 export interface CustomerBookingFormProps {
-  bookingId?: string;
-  isEdit?: boolean;
-  isView?: boolean;
-  prefetchedBooking?: any;
-  hideHeader?: boolean;
   initialFromBranchId?: string;
   isPublic?: boolean;
   onBackToBranchSelection?: () => void;
 }
 
 export default function CustomerBookingForm({
-  bookingId,
-  isEdit = false,
-  isView = false,
-  prefetchedBooking,
-  hideHeader = false,
   initialFromBranchId,
   isPublic = false,
   onBackToBranchSelection,
 }: CustomerBookingFormProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { uploadFile, uploadingFields } = useUpload();
 
   // ─── Current User & Role ───────────────────────────────────────────────────
   const currentUser = useMemo(() => getStoredUser(), []);
@@ -155,16 +139,7 @@ export default function CustomerBookingForm({
     });
   }, [branchList]);
 
-  // ─── Fetch Booking by ID (for Edit or View) ─────────────────────────────────
-  const { data: fetchedBooking, isLoading: isBookingLoading } = useQuery<any>({
-    queryKey: ["customer-booking", bookingId],
-    queryFn: () => getBookingById(bookingId!),
-    enabled: Boolean((isEdit || isView) && bookingId && !prefetchedBooking),
-  });
-
-  const activeBooking = prefetchedBooking || fetchedBooking;
-
-  // ─── Form State (Default Without Bill) ──────────────────────────────────────
+  // ─── Form State ───────────────────────────────────────────────────────────
   const [formData, setFormData] = useState<CustomerBookingFormData>({
     from_branch_id: initialFromBranchId || ownBranchId || "",
     to_branch_id: "",
@@ -207,7 +182,10 @@ export default function CustomerBookingForm({
   const [successModal, setSuccessModal] = useState<{
     isOpen: boolean;
     docketNo?: string;
+    docketNo1?: string;
+    docketNo2?: string;
     message?: string;
+    bookingData?: any;
   } | null>(null);
 
   // Set default from_branch
@@ -218,67 +196,6 @@ export default function CustomerBookingForm({
       setFormData((p) => ({ ...p, from_branch_id: ownBranchId }));
     }
   }, [initialFromBranchId, isAdminOrSuperAdmin, ownBranchId, formData.from_branch_id]);
-
-  // ─── Pre-fill on Edit / View ───────────────────────────────────────────────
-  useEffect(() => {
-    if (activeBooking) {
-      const b = activeBooking.booking || activeBooking;
-      const hasBill = b.hasBill === true || Boolean(b.billNo || b.bill_no);
-
-      const items = Array.isArray(b.items) && b.items.length > 0 ? b.items : b.packages;
-      const pkgs: CustomerPackageItem[] =
-        Array.isArray(items) && items.length > 0
-          ? items.map((it: any, i: number) => ({
-            id: it._id || `pkg-${i + 1}`,
-            material: it.material || "",
-            packing: it.packing || "",
-            qty: Number(it.parcel ?? it.qty ?? it.quantity ?? 1),
-          }))
-          : [
-            {
-              id: "pkg-1",
-              material: "",
-              packing: "",
-              qty: 1,
-            },
-          ];
-
-      setFormData({
-        from_branch_id: String(
-          b.from_branch_id || b.fromBranch?._id || b.fromBranch || ""
-        ),
-        to_branch_id: String(
-          b.to_branch_id || b.toBranch?._id || b.toBranch || ""
-        ),
-        delivery_type: (b.deliveryInfo?.deliveryType || b.delivery_type || "office") as DeliveryType,
-        has_bill: hasBill,
-        bill_no: b.billNo || b.bill_no || "",
-        bill_image: b.billImage || b.bill_image || "",
-        goods_value: Number(b.goodsValue || b.goods_value || 500) as GoodsValue,
-        sender: {
-          name: b.sender?.name || "",
-          contact_no: b.sender?.contact_no || b.sender?.mobile || "",
-          gstin: b.sender?.gstin || b.sender?.gst || "",
-          address: b.sender?.address || "",
-          city: b.sender?.city || "",
-          pincode: b.sender?.pincode || "",
-          show_details: Boolean(b.sender?.address || b.sender?.city || b.sender?.gstin),
-        },
-        receiver: {
-          name: b.receiver?.name || "",
-          contact_no: b.receiver?.contact_no || b.receiver?.mobile || "",
-          gstin: b.receiver?.gstin || b.receiver?.gst || "",
-          address: b.receiver?.address || "",
-          city: b.receiver?.city || "",
-          pincode: b.receiver?.pincode || "",
-          show_details: Boolean(b.receiver?.address || b.receiver?.city || b.receiver?.gstin),
-        },
-        packages: pkgs,
-        payment_method: "To Pay",
-        remark: b.remark || "",
-      });
-    }
-  }, [activeBooking]);
 
   // ─── Package Row Management ────────────────────────────────────────────────
   const addPackageRow = () => {
@@ -298,7 +215,7 @@ export default function CustomerBookingForm({
 
   const removePackageRow = (index: number) => {
     if (formData.packages.length <= 1) {
-      showToast("warning", "At least one package is required.");
+      showToast("warning", "Warning", "At least one package is required.");
       return;
     }
     setFormData((p) => ({
@@ -432,26 +349,27 @@ export default function CustomerBookingForm({
         remark: data.remark.trim(),
       };
 
-      if (isEdit && bookingId) {
-        return await updateParcelBooking(bookingId, payload);
-      }
       return await createParcelBooking(payload);
     },
     onSuccess: (result: any) => {
-      const apiMessage =
-        result?.message ||
-        (isEdit ? "Customer Booking Updated Successfully!" : "Customer Booking Created Successfully!");
+      const apiMessage = result?.message || "Customer Booking Created Successfully!";
       showToast("success", "Success", apiMessage);
 
       queryClient.invalidateQueries({ queryKey: CUSTOMER_BOOKING_REPORTS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: BOOKING_REPORTS_QUERY_KEY });
-      queryClient.invalidateQueries({ queryKey: ["customer-booking"] });
 
-      const docketNo = result?.data?.docketNo1 || result?.data?.docketNo || result?.docketNo1 || "";
+      const bookingData = result?.data || result;
+      const docketNo1 = bookingData?.docketNo1 || "";
+      const docketNo2 = bookingData?.docketNo2 || "";
+      const docketNo = docketNo2 || docketNo1 || bookingData?.docketNo || "";
+
       setSuccessModal({
         isOpen: true,
         docketNo,
+        docketNo1,
+        docketNo2,
         message: apiMessage,
+        bookingData,
       });
     },
     onError: (err: any) => {
@@ -545,590 +463,532 @@ export default function CustomerBookingForm({
     }
   };
 
-  if (isBookingLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12 space-y-3">
-        <Loader2 className="w-8 h-8 animate-spin text-[#2980b9]" />
-        <p className="text-xs font-semibold text-slate-600">Loading booking details...</p>
-      </div>
-    );
-  }
-
   return (
     <div className="w-full space-y-1 pb-6">
-      {/* ─── Top Header Navigation Bar (Hidden on Public View) ────────────────── */}
-      {!hideHeader && !isPublic && (
-        <div className="bg-white rounded border border-slate-200/80 shadow-2xs px-3 py-2 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded bg-[#2980b9]/10 text-[#2980b9] flex items-center justify-center font-bold">
-              <Package className="w-4 h-4" />
-            </div>
-            <div>
-              <h1 className="text-base sm:text-lg font-bold text-black tracking-tight leading-tight">
-                {isView
-                  ? "View Customer Booking"
-                  : isEdit
-                    ? "Edit Customer Booking"
-                    : "Customer Booking Parcel"}
-              </h1>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              onClick={() => router.push("/reports/customer-booking")}
-              className="bg-[#2980b9] hover:bg-[#2471a3] text-white h-7 px-3 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-            >
-              <ArrowLeft className="w-3 h-3 mr-1" />
-              View Customer Bookings
-            </Button>
-          </div>
-        </div>
-      )}
-
       <form
         data-booking-form="true"
         onSubmit={handleSubmit}
         onKeyDown={handleFormKeyDown}
         className="customer-booking-form space-y-1"
       >
-        <fieldset disabled={isView} className={`contents space-y-1 ${isView ? "pointer-events-none select-text" : ""}`}>
-          {/* ─── 1. Destination & Transport Section ────────────────────────────── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
-            {/* Destination Card */}
-            <FormCard title="Destination" icon={MapPin}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                <FormSelect
-                  label="Select From Branch"
-                  required
-                  searchable
-                  options={branchOptions}
-                  value={formData.from_branch_id}
-                  onChange={(val) => {
-                    setFormData((p) => ({ ...p, from_branch_id: val }));
-                    if (formErrors.from_branch_id) {
-                      setFormErrors((p) => ({ ...p, from_branch_id: "" }));
-                    }
-                  }}
-                  placeholder="Select From Branch"
-                  searchPlaceholder="Search branch..."
-                  error={formErrors.from_branch_id}
-                  disabled={Boolean(initialFromBranchId) || (!isAdminOrSuperAdmin && !isPublic) || isEdit || isView}
-                />
-
-                <FormSelect
-                  label="Select To Branch"
-                  required
-                  searchable
-                  options={branchOptions.filter((b) => b.value !== formData.from_branch_id)}
-                  value={formData.to_branch_id}
-                  onChange={(val) => {
-                    setFormData((p) => ({ ...p, to_branch_id: val }));
-                    if (formErrors.to_branch_id) {
-                      setFormErrors((p) => ({ ...p, to_branch_id: "" }));
-                    }
-                  }}
-                  placeholder="Select To Branch"
-                  searchPlaceholder="Search branch..."
-                  error={formErrors.to_branch_id}
-                  disabled={isEdit || isView}
-                />
-              </div>
-            </FormCard>
-
-            {/* Transport Card */}
-            <FormCard title="Transport" icon={Truck}>
-              <div className="grid grid-cols-1 gap-1.5">
-                {/* Goods Value */}
-                <FormSelect
-                  label="Goods Value"
-                  required
-                  options={GOODS_VALUE_OPTIONS}
-                  value={String(formData.goods_value)}
-                  onChange={(val) =>
-                    setFormData((p) => ({ ...p, goods_value: Number(val) as GoodsValue }))
+        {/* ─── 1. Destination & Transport Section ────────────────────────────── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+          {/* Destination Card */}
+          <FormCard title="Destination" icon={MapPin}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              <FormSelect
+                label="Select From Branch"
+                required
+                searchable
+                options={branchOptions}
+                value={formData.from_branch_id}
+                onChange={(val) => {
+                  setFormData((p) => ({ ...p, from_branch_id: val }));
+                  if (formErrors.from_branch_id) {
+                    setFormErrors((p) => ({ ...p, from_branch_id: "" }));
                   }
-                  placeholder="Select Goods Value"
-                />
-              </div>
-            </FormCard>
-          </div>
+                }}
+                placeholder="Select From Branch"
+                searchPlaceholder="Search branch..."
+                error={formErrors.from_branch_id}
+                disabled={Boolean(initialFromBranchId)}
+              />
 
-          {/* ─── 2. Sender & Receiver Section ──────────────────────────────────── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
-            {/* Sender Details */}
-            <FormCard
-              title="Sender"
-              icon={User}
-              action={
-                !isView && !formData.sender.show_details ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    tabIndex={-1}
-                    onClick={() =>
-                      setFormData((p) => ({
-                        ...p,
-                        sender: { ...p.sender, show_details: true },
-                      }))
-                    }
-                    className="h-6 px-2 text-[10px] font-semibold bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-none"
-                  >
-                    <Plus className="w-2.5 h-2.5 mr-0.5" />
-                    Add Details
-                  </Button>
-                ) : null
-              }
-            >
-              {/* Sender Primary Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <FormInput
-                  label="Contact No"
-                  required
-                  type="tel"
-                  maxLength={10}
-                  placeholder="10-digit mobile"
-                  value={formData.sender.contact_no}
-                  disabled={isView}
-                  onChange={(e) => {
-                    const raw = e.target.value.replace(/\D/g, "");
-                    if (raw.length > 0 && !/^[6-9]/.test(raw)) {
-                      return;
-                    }
-                    const clean = raw.slice(0, 10);
-                    setFormData((p) => ({ ...p, sender: { ...p.sender, contact_no: clean } }));
-                    if (formErrors.sender_contact) {
-                      setFormErrors((p) => ({ ...p, sender_contact: "" }));
-                    }
-                  }}
-                  error={formErrors.sender_contact}
-                />
+              <FormSelect
+                label="Select To Branch"
+                required
+                searchable
+                options={branchOptions.filter((b) => b.value !== formData.from_branch_id)}
+                value={formData.to_branch_id}
+                onChange={(val) => {
+                  setFormData((p) => ({ ...p, to_branch_id: val }));
+                  if (formErrors.to_branch_id) {
+                    setFormErrors((p) => ({ ...p, to_branch_id: "" }));
+                  }
+                }}
+                placeholder="Select To Branch"
+                searchPlaceholder="Search branch..."
+                error={formErrors.to_branch_id}
+              />
+            </div>
+          </FormCard>
 
-                <FormInput
-                  label="GSTIN"
-                  placeholder="GST NO"
-                  uppercase
-                  value={formData.sender.gstin}
-                  onChange={(e) =>
+          {/* Transport Card */}
+          <FormCard title="Transport" icon={Truck}>
+            <div className="grid grid-cols-1 gap-1.5">
+              {/* Goods Value */}
+              <FormSelect
+                label="Goods Value"
+                required
+                options={GOODS_VALUE_OPTIONS}
+                value={String(formData.goods_value)}
+                onChange={(val) =>
+                  setFormData((p) => ({ ...p, goods_value: Number(val) as GoodsValue }))
+                }
+                placeholder="Select Goods Value"
+              />
+            </div>
+          </FormCard>
+        </div>
+
+        {/* ─── 2. Sender & Receiver Section ──────────────────────────────────── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+          {/* Sender Details */}
+          <FormCard
+            title="Sender"
+            icon={User}
+            action={
+              !formData.sender.show_details ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  tabIndex={-1}
+                  onClick={() =>
                     setFormData((p) => ({
                       ...p,
-                      sender: { ...p.sender, gstin: e.target.value.toUpperCase() },
+                      sender: { ...p.sender, show_details: true },
                     }))
                   }
-                />
-
-                <FormInput
-                  label="Name"
-                  required
-                  placeholder="Customer Name"
-                  value={formData.sender.name}
-                  onChange={(e) => {
-                    setFormData((p) => ({
-                      ...p,
-                      sender: { ...p.sender, name: e.target.value },
-                    }));
-                    if (formErrors.sender_name) {
-                      setFormErrors((p) => ({ ...p, sender_name: "" }));
-                    }
-                  }}
-                  error={formErrors.sender_name}
-                />
-              </div>
-
-              {/* Sender Collapsible Address Block */}
-              {formData.sender.show_details && (
-                <div className="relative p-2 rounded-md bg-slate-50 border border-slate-200/70 space-y-2 mt-2 animate-in fade-in-50 duration-150">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
-                      Sender Address Details
-                    </span>
-                    {!isView && (
-                      <button
-                        type="button"
-                        tabIndex={-1}
-                        onClick={() =>
-                          setFormData((p) => ({
-                            ...p,
-                            sender: {
-                              ...p.sender,
-                              show_details: false,
-                              address: "",
-                              city: "",
-                              pincode: "",
-                            },
-                          }))
-                        }
-                        className="p-0.5 rounded text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
-                        title="Remove address details"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-
-                  <FormInput
-                    label="Address"
-                    placeholder="Enter street / area address"
-                    value={formData.sender.address || ""}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        sender: { ...p.sender, address: e.target.value },
-                      }))
-                    }
-                  />
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <FormInput
-                      label="City"
-                      placeholder="City Name"
-                      value={formData.sender.city || ""}
-                      onChange={(e) =>
-                        setFormData((p) => ({
-                          ...p,
-                          sender: { ...p.sender, city: e.target.value },
-                        }))
-                      }
-                    />
-
-                    <FormInput
-                      label="Pincode"
-                      placeholder="Pincode"
-                      value={formData.sender.pincode || ""}
-                      onChange={(e) =>
-                        setFormData((p) => ({
-                          ...p,
-                          sender: { ...p.sender, pincode: e.target.value },
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-              )}
-            </FormCard>
-
-            {/* Receiver Details */}
-            <FormCard
-              title="Receiver"
-              icon={UserCheck}
-              action={
-                !isView && !formData.receiver.show_details ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    tabIndex={-1}
-                    onClick={() =>
-                      setFormData((p) => ({
-                        ...p,
-                        receiver: { ...p.receiver, show_details: true },
-                      }))
-                    }
-                    className="h-6 px-2 text-[10px] font-semibold bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-none"
-                  >
-                    <Plus className="w-2.5 h-2.5 mr-0.5" />
-                    Add Details
-                  </Button>
-                ) : null
-              }
-            >
-              {/* Receiver Primary Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
-                <FormInput
-                  label="Contact No"
-                  required
-                  type="tel"
-                  maxLength={10}
-                  placeholder="10-digit mobile"
-                  value={formData.receiver.contact_no}
-                  disabled={isView}
-                  onChange={(e) => {
-                    const raw = e.target.value.replace(/\D/g, "");
-                    if (raw.length > 0 && !/^[6-9]/.test(raw)) {
-                      return;
-                    }
-                    const clean = raw.slice(0, 10);
-                    setFormData((p) => ({ ...p, receiver: { ...p.receiver, contact_no: clean } }));
-                    if (formErrors.receiver_contact) {
-                      setFormErrors((p) => ({ ...p, receiver_contact: "" }));
-                    }
-                  }}
-                  error={formErrors.receiver_contact}
-                />
-
-                <FormInput
-                  label="GSTIN"
-                  placeholder="GST NO"
-                  uppercase
-                  value={formData.receiver.gstin}
-                  onChange={(e) =>
-                    setFormData((p) => ({
-                      ...p,
-                      receiver: { ...p.receiver, gstin: e.target.value.toUpperCase() },
-                    }))
-                  }
-                />
-
-                <FormInput
-                  label="Name"
-                  required
-                  placeholder="Customer Name"
-                  value={formData.receiver.name}
-                  onChange={(e) => {
-                    setFormData((p) => ({
-                      ...p,
-                      receiver: { ...p.receiver, name: e.target.value },
-                    }));
-                    if (formErrors.receiver_name) {
-                      setFormErrors((p) => ({ ...p, receiver_name: "" }));
-                    }
-                  }}
-                  error={formErrors.receiver_name}
-                />
-              </div>
-
-              {/* Receiver Collapsible Address Block */}
-              {formData.receiver.show_details && (
-                <div className="relative p-2 rounded bg-slate-50 border border-slate-200/70 space-y-1.5 mt-2 animate-in fade-in-50 duration-150">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
-                      Receiver Address Details
-                    </span>
-                    {!isView && (
-                      <button
-                        type="button"
-                        tabIndex={-1}
-                        onClick={() =>
-                          setFormData((p) => ({
-                            ...p,
-                            receiver: {
-                              ...p.receiver,
-                              show_details: false,
-                              address: "",
-                              city: "",
-                              pincode: "",
-                            },
-                          }))
-                        }
-                        className="p-0.5 rounded text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors"
-                        title="Hide address details"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-
-                  <FormInput
-                    label="Address"
-                    placeholder="Address Line"
-                    value={formData.receiver.address || ""}
-                    onChange={(e) =>
-                      setFormData((p) => ({
-                        ...p,
-                        receiver: { ...p.receiver, address: e.target.value },
-                      }))
-                    }
-                  />
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                    <FormInput
-                      label="City"
-                      placeholder="City"
-                      value={formData.receiver.city || ""}
-                      onChange={(e) =>
-                        setFormData((p) => ({
-                          ...p,
-                          receiver: { ...p.receiver, city: e.target.value },
-                        }))
-                      }
-                    />
-
-                    <FormInput
-                      label="Pincode"
-                      placeholder="Pincode"
-                      value={formData.receiver.pincode || ""}
-                      onChange={(e) =>
-                        setFormData((p) => ({
-                          ...p,
-                          receiver: { ...p.receiver, pincode: e.target.value },
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-              )}
-            </FormCard>
-          </div>
-
-          {/* ─── 3. Package Items Section (Simplified for Customer) ───────────── */}
-          <FormCard title="Package Details" icon={Package}>
-            <div className="space-y-1">
-              {formData.packages.map((pkg, idx) => (
-                <div
-                  key={pkg.id}
-                  className="grid grid-cols-1 sm:grid-cols-12 gap-1.5 items-start p-2 rounded bg-slate-50/70 border border-slate-200/60 transition-colors"
+                  className="h-6 px-2 text-[10px] font-semibold bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-none cursor-pointer"
                 >
-                  {/* Qty (span 2) */}
-                  <div className="sm:col-span-2">
-                    <FormInput
-                      label="Qty"
-                      required
-                      type="number"
-                      min="1"
-                      placeholder="Qty"
-                      value={pkg.qty === 0 ? "" : pkg.qty}
-                      disabled={isView}
-                      onChange={(e) =>
-                        updatePackageField(
-                          idx,
-                          "qty",
-                          e.target.value === "" ? "" : Math.max(1, Number(e.target.value))
-                        )
-                      }
-                      error={formErrors[`pkg_qty_${idx}`]}
-                    />
-                  </div>
-
-                  {/* Material (span 5) */}
-                  <div className="sm:col-span-5">
-                    <FormInput
-                      label="Material"
-                      required
-                      placeholder="e.g. Cotton Box / Sarees / Clothes"
-                      value={pkg.material}
-                      disabled={isView}
-                      onChange={(e) => updatePackageField(idx, "material", e.target.value)}
-                      error={formErrors[`pkg_material_${idx}`]}
-                    />
-                  </div>
-
-                  {/* Packing (span 4) */}
-                  <div className="sm:col-span-4">
-                    <FormInput
-                      label="Packing"
-                      placeholder="e.g. Carton / Bag / Box"
-                      value={pkg.packing}
-                      disabled={isView}
-                      onChange={(e) => updatePackageField(idx, "packing", e.target.value)}
-                    />
-                  </div>
-
-                  {/* Action buttons (span 1) */}
-                  {!isView && (
-                    <div className="sm:col-span-1 space-y-1">
-                      <span className="text-[11px] font-bold invisible select-none leading-none block">&nbsp;</span>
-                      <div className="flex items-center justify-end sm:justify-center gap-1 h-8">
-                        {idx === formData.packages.length - 1 && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            tabIndex={-1}
-                            onClick={addPackageRow}
-                            className="h-8 w-7 p-0 bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-none cursor-pointer"
-                            title="Add row"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </Button>
-                        )}
-
-                        {formData.packages.length > 1 && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            tabIndex={-1}
-                            variant="destructive"
-                            onClick={() => removePackageRow(idx)}
-                            className="h-8 w-7 p-0 bg-[#e74c3c] hover:bg-[#c0392b] text-white shadow-none cursor-pointer"
-                            title="Remove row"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </FormCard>
-
-          {/* ─── 4. Payment & Additional Details Section ───────────────────────── */}
-          <FormCard title="Payment & Additional Details" icon={CreditCard}>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 items-start">
-              {/* Payment Method (Default 'To Pay' and Locked/Disabled) */}
-              <div>
-                <FormSelect
-                  label="Payment Method"
-                  required
-                  options={PAYMENT_METHOD_LOCKED_OPTIONS}
-                  value="To Pay"
-                  onChange={() => { }}
-                  disabled={true}
-                  placeholder="To Pay"
-                />
-              </div>
-
-              {/* Delivery Type */}
-              <div>
-                <FormSelect
-                  label="Delivery Type"
-                  required
-                  options={DELIVERY_TYPE_OPTIONS}
-                  value={formData.delivery_type}
-                  disabled={isView}
-                  onChange={(val) =>
-                    setFormData((p) => ({ ...p, delivery_type: val as DeliveryType }))
+                  <Plus className="w-2.5 h-2.5 mr-0.5" />
+                  Add Details
+                </Button>
+              ) : null
+            }
+          >
+            {/* Sender Primary Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <FormInput
+                label="Contact No"
+                required
+                type="tel"
+                maxLength={10}
+                placeholder="10-digit mobile"
+                value={formData.sender.contact_no}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, "");
+                  if (raw.length > 0 && !/^[6-9]/.test(raw)) {
+                    return;
                   }
-                  placeholder="Select Delivery Type"
-                />
-              </div>
+                  const clean = raw.slice(0, 10);
+                  setFormData((p) => ({ ...p, sender: { ...p.sender, contact_no: clean } }));
+                  if (formErrors.sender_contact) {
+                    setFormErrors((p) => ({ ...p, sender_contact: "" }));
+                  }
+                }}
+                error={formErrors.sender_contact}
+              />
 
-              {/* Remark */}
-              <div>
-                <FormInput
-                  label="Remark"
-                  placeholder="Enter remarks or instructions"
-                  value={formData.remark}
-                  disabled={isView}
-                  onChange={(e) => setFormData((p) => ({ ...p, remark: e.target.value }))}
-                />
-              </div>
+              <FormInput
+                label="GSTIN"
+                placeholder="GST NO"
+                uppercase
+                value={formData.sender.gstin}
+                onChange={(e) =>
+                  setFormData((p) => ({
+                    ...p,
+                    sender: { ...p.sender, gstin: e.target.value.toUpperCase() },
+                  }))
+                }
+              />
+
+              <FormInput
+                label="Name"
+                required
+                placeholder="Customer Name"
+                value={formData.sender.name}
+                onChange={(e) => {
+                  setFormData((p) => ({
+                    ...p,
+                    sender: { ...p.sender, name: e.target.value },
+                  }));
+                  if (formErrors.sender_name) {
+                    setFormErrors((p) => ({ ...p, sender_name: "" }));
+                  }
+                }}
+                error={formErrors.sender_name}
+              />
             </div>
+
+            {/* Sender Collapsible Address Block */}
+            {formData.sender.show_details && (
+              <div className="relative p-2 rounded-md bg-slate-50 border border-slate-200/70 space-y-2 mt-2 animate-in fade-in-50 duration-150">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                    Sender Address Details
+                  </span>
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() =>
+                      setFormData((p) => ({
+                        ...p,
+                        sender: {
+                          ...p.sender,
+                          show_details: false,
+                          address: "",
+                          city: "",
+                          pincode: "",
+                        },
+                      }))
+                    }
+                    className="p-0.5 rounded text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors cursor-pointer"
+                    title="Remove address details"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <FormInput
+                  label="Address"
+                  placeholder="Enter street / area address"
+                  value={formData.sender.address || ""}
+                  onChange={(e) =>
+                    setFormData((p) => ({
+                      ...p,
+                      sender: { ...p.sender, address: e.target.value },
+                    }))
+                  }
+                />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <FormInput
+                    label="City"
+                    placeholder="City Name"
+                    value={formData.sender.city || ""}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        sender: { ...p.sender, city: e.target.value },
+                      }))
+                    }
+                  />
+
+                  <FormInput
+                    label="Pincode"
+                    placeholder="Pincode"
+                    value={formData.sender.pincode || ""}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        sender: { ...p.sender, pincode: e.target.value },
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+            )}
           </FormCard>
 
-          {/* ─── Form Actions ──────────────────────────────────────────────────── */}
-          {!isView && (
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleReset}
-                className="h-8 px-4 text-xs font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5 mr-1" />
-                Reset
-              </Button>
+          {/* Receiver Details */}
+          <FormCard
+            title="Receiver"
+            icon={UserCheck}
+            action={
+              !formData.receiver.show_details ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  tabIndex={-1}
+                  onClick={() =>
+                    setFormData((p) => ({
+                      ...p,
+                      receiver: { ...p.receiver, show_details: true },
+                    }))
+                  }
+                  className="h-6 px-2 text-[10px] font-semibold bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-none cursor-pointer"
+                >
+                  <Plus className="w-2.5 h-2.5 mr-0.5" />
+                  Add Details
+                </Button>
+              ) : null
+            }
+          >
+            {/* Receiver Primary Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+              <FormInput
+                label="Contact No"
+                required
+                type="tel"
+                maxLength={10}
+                placeholder="10-digit mobile"
+                value={formData.receiver.contact_no}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, "");
+                  if (raw.length > 0 && !/^[6-9]/.test(raw)) {
+                    return;
+                  }
+                  const clean = raw.slice(0, 10);
+                  setFormData((p) => ({ ...p, receiver: { ...p.receiver, contact_no: clean } }));
+                  if (formErrors.receiver_contact) {
+                    setFormErrors((p) => ({ ...p, receiver_contact: "" }));
+                  }
+                }}
+                error={formErrors.receiver_contact}
+              />
 
-              <Button
-                type="submit"
-                disabled={mutation.isPending}
-                className="h-8 px-6 bg-[#2980b9] hover:bg-[#2471a3] text-white font-semibold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-              >
-                {mutation.isPending ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Submitting...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-3.5 h-3.5" />
-                    <span>{isEdit ? "Update Booking" : "Submit Booking"}</span>
-                  </>
-                )}
-              </Button>
+              <FormInput
+                label="GSTIN"
+                placeholder="GST NO"
+                uppercase
+                value={formData.receiver.gstin}
+                onChange={(e) =>
+                  setFormData((p) => ({
+                    ...p,
+                    receiver: { ...p.receiver, gstin: e.target.value.toUpperCase() },
+                  }))
+                }
+              />
+
+              <FormInput
+                label="Name"
+                required
+                placeholder="Customer Name"
+                value={formData.receiver.name}
+                onChange={(e) => {
+                  setFormData((p) => ({
+                    ...p,
+                    receiver: { ...p.receiver, name: e.target.value },
+                  }));
+                  if (formErrors.receiver_name) {
+                    setFormErrors((p) => ({ ...p, receiver_name: "" }));
+                  }
+                }}
+                error={formErrors.receiver_name}
+              />
             </div>
-          )}
-        </fieldset>
+
+            {/* Receiver Collapsible Address Block */}
+            {formData.receiver.show_details && (
+              <div className="relative p-2 rounded bg-slate-50 border border-slate-200/70 space-y-1.5 mt-2 animate-in fade-in-50 duration-150">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                    Receiver Address Details
+                  </span>
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() =>
+                      setFormData((p) => ({
+                        ...p,
+                        receiver: {
+                          ...p.receiver,
+                          show_details: false,
+                          address: "",
+                          city: "",
+                          pincode: "",
+                        },
+                      }))
+                    }
+                    className="p-0.5 rounded text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors cursor-pointer"
+                    title="Hide address details"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <FormInput
+                  label="Address"
+                  placeholder="Address Line"
+                  value={formData.receiver.address || ""}
+                  onChange={(e) =>
+                    setFormData((p) => ({
+                      ...p,
+                      receiver: { ...p.receiver, address: e.target.value },
+                    }))
+                  }
+                />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  <FormInput
+                    label="City"
+                    placeholder="City"
+                    value={formData.receiver.city || ""}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        receiver: { ...p.receiver, city: e.target.value },
+                      }))
+                    }
+                  />
+
+                  <FormInput
+                    label="Pincode"
+                    placeholder="Pincode"
+                    value={formData.receiver.pincode || ""}
+                    onChange={(e) =>
+                      setFormData((p) => ({
+                        ...p,
+                        receiver: { ...p.receiver, pincode: e.target.value },
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+            )}
+          </FormCard>
+        </div>
+
+        {/* ─── 3. Package Items Section (Simplified for Customer) ────────────── */}
+        <FormCard title="Package Details" icon={Package}>
+          <div className="space-y-1">
+            {formData.packages.map((pkg, idx) => (
+              <div
+                key={pkg.id}
+                className="grid grid-cols-1 sm:grid-cols-12 gap-1.5 items-start p-2 rounded bg-slate-50/70 border border-slate-200/60 transition-colors"
+              >
+                {/* Qty (span 2) */}
+                <div className="sm:col-span-2">
+                  <FormInput
+                    label="Qty"
+                    required
+                    type="number"
+                    min="1"
+                    placeholder="Qty"
+                    value={pkg.qty === 0 ? "" : pkg.qty}
+                    onChange={(e) =>
+                      updatePackageField(
+                        idx,
+                        "qty",
+                        e.target.value === "" ? "" : Math.max(1, Number(e.target.value))
+                      )
+                    }
+                    error={formErrors[`pkg_qty_${idx}`]}
+                  />
+                </div>
+
+                {/* Material (span 5) */}
+                <div className="sm:col-span-5">
+                  <FormInput
+                    label="Material"
+                    required
+                    placeholder="e.g. Cotton Box / Sarees / Clothes"
+                    value={pkg.material}
+                    onChange={(e) => updatePackageField(idx, "material", e.target.value)}
+                    error={formErrors[`pkg_material_${idx}`]}
+                  />
+                </div>
+
+                {/* Packing (span 4) */}
+                <div className="sm:col-span-4">
+                  <FormInput
+                    label="Packing"
+                    placeholder="e.g. Carton / Bag / Box"
+                    value={pkg.packing}
+                    onChange={(e) => updatePackageField(idx, "packing", e.target.value)}
+                  />
+                </div>
+
+                {/* Action buttons (span 1) */}
+                <div className="sm:col-span-1 space-y-1">
+                  <span className="text-[11px] font-bold invisible select-none leading-none block">&nbsp;</span>
+                  <div className="flex items-center justify-end sm:justify-center gap-1 h-8">
+                    {idx === formData.packages.length - 1 && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        tabIndex={-1}
+                        onClick={addPackageRow}
+                        className="h-8 w-7 p-0 bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-none cursor-pointer"
+                        title="Add row"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+
+                    {formData.packages.length > 1 && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        tabIndex={-1}
+                        variant="destructive"
+                        onClick={() => removePackageRow(idx)}
+                        className="h-8 w-7 p-0 bg-[#e74c3c] hover:bg-[#c0392b] text-white shadow-none cursor-pointer"
+                        title="Remove row"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </FormCard>
+
+        {/* ─── 4. Payment & Additional Details Section ───────────────────────── */}
+        <FormCard title="Payment & Additional Details" icon={CreditCard}>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 items-start">
+            {/* Payment Method (Default 'To Pay' and Locked/Disabled) */}
+            <div>
+              <FormSelect
+                label="Payment Method"
+                required
+                options={PAYMENT_METHOD_LOCKED_OPTIONS}
+                value="To Pay"
+                onChange={() => {}}
+                disabled={true}
+                placeholder="To Pay"
+              />
+            </div>
+
+            {/* Delivery Type */}
+            <div>
+              <FormSelect
+                label="Delivery Type"
+                required
+                options={DELIVERY_TYPE_OPTIONS}
+                value={formData.delivery_type}
+                onChange={(val) =>
+                  setFormData((p) => ({ ...p, delivery_type: val as DeliveryType }))
+                }
+                placeholder="Select Delivery Type"
+              />
+            </div>
+
+            {/* Remark */}
+            <div>
+              <FormInput
+                label="Remark"
+                placeholder="Enter remarks or instructions"
+                value={formData.remark}
+                onChange={(e) => setFormData((p) => ({ ...p, remark: e.target.value }))}
+              />
+            </div>
+          </div>
+        </FormCard>
+
+        {/* ─── Form Actions ──────────────────────────────────────────────────── */}
+        <div className="flex items-center justify-end gap-2 pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleReset}
+            className="h-8 px-4 text-xs font-semibold border-slate-300 text-slate-700 hover:bg-slate-100 cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5 mr-1" />
+            Reset
+          </Button>
+
+          <Button
+            type="submit"
+            disabled={mutation.isPending}
+            className="h-8 px-6 bg-[#2980b9] hover:bg-[#2471a3] text-white font-semibold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            {mutation.isPending ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Submitting...</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-3.5 h-3.5" />
+                <span>Submit Booking</span>
+              </>
+            )}
+          </Button>
+        </div>
       </form>
 
       {/* ─── Success Dialog Modal ────────────────────────────────────────────── */}
@@ -1154,18 +1014,62 @@ export default function CustomerBookingForm({
             </DialogDescription>
           </DialogHeader>
 
-          {successModal?.docketNo && (
-            <div className="bg-slate-50 border border-slate-200 rounded p-3 text-center my-2">
-              <span className="text-[11px] text-slate-500 block uppercase font-medium">
-                Docket / Tracking Number
-              </span>
-              <span className="text-lg font-mono font-bold text-[#2980b9] tracking-wide">
-                {successModal.docketNo}
-              </span>
-            </div>
-          )}
+          {/* Docket / Tracking Information Box */}
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-1.5 text-center my-2">
+            {successModal?.docketNo1 && (
+              <div className="flex items-center justify-between text-xs px-2">
+                <span className="text-slate-500 font-medium">Docket No:</span>
+                <span className="font-mono font-bold text-slate-900 text-sm">
+                  {successModal.docketNo1}
+                </span>
+              </div>
+            )}
+            {successModal?.docketNo2 && (
+              <div className="flex items-center justify-between text-xs px-2">
+                <span className="text-slate-500 font-medium">Tracking No:</span>
+                <span className="font-mono font-bold text-[#2980b9] text-sm">
+                  {successModal.docketNo2}
+                </span>
+              </div>
+            )}
+            {!successModal?.docketNo1 && !successModal?.docketNo2 && successModal?.docketNo && (
+              <div className="flex items-center justify-between text-xs px-2">
+                <span className="text-slate-500 font-medium">Tracking No:</span>
+                <span className="font-mono font-bold text-[#2980b9] text-sm">
+                  {successModal.docketNo}
+                </span>
+              </div>
+            )}
+          </div>
 
-          <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2">
+          {/* Action Button: PDF Slip */}
+          <div className="my-2">
+            <Button
+              type="button"
+              onClick={() => {
+                const bData = successModal?.bookingData;
+                if (!bData) return;
+                const fromBranchObj =
+                  bData.fromBranch ||
+                  branchList.find((b) => String(b._id) === String(formData.from_branch_id));
+                const toBranchObj =
+                  bData.toBranch ||
+                  branchList.find((b) => String(b._id) === String(formData.to_branch_id));
+                printBookingSlip({
+                  booking: bData,
+                  fromBranch: fromBranchObj,
+                  toBranch: toBranchObj,
+                  user: getStoredUser(),
+                });
+              }}
+              className="w-full bg-[#2980b9] hover:bg-[#2471a3] text-white h-9 text-xs font-semibold shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Download / Print PDF Slip</span>
+            </Button>
+          </div>
+
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-3 border-t border-slate-100">
             <Button
               type="button"
               variant="outline"
@@ -1177,29 +1081,16 @@ export default function CustomerBookingForm({
             >
               Book Another Parcel
             </Button>
-            {isPublic ? (
-              onBackToBranchSelection && (
-                <Button
-                  type="button"
-                  onClick={() => {
-                    setSuccessModal(null);
-                    onBackToBranchSelection();
-                  }}
-                  className="flex-1 bg-[#2980b9] hover:bg-[#2471a3] text-white text-xs cursor-pointer"
-                >
-                  Change Branch
-                </Button>
-              )
-            ) : (
+            {onBackToBranchSelection && (
               <Button
                 type="button"
                 onClick={() => {
                   setSuccessModal(null);
-                  router.push("/reports/customer-booking");
+                  onBackToBranchSelection();
                 }}
                 className="flex-1 bg-[#2980b9] hover:bg-[#2471a3] text-white text-xs cursor-pointer"
               >
-                View Booking Reports
+                Change Branch
               </Button>
             )}
           </DialogFooter>

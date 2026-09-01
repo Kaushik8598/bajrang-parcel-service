@@ -27,43 +27,43 @@ export function getBookingPrintSlipHtml(props: BookingPrintSlipProps): string {
   const { booking } = props;
 
   // Exact direct keys from response data
-  const lrNo = booking?.docketNo2 || "";
-  const bookingDate = booking?.bookingDate || "";
-  const bookingTime = booking?.bookingTime || "";
+  const lrNo = booking?.docketNo2 || booking?.docketNo1 || booking?.docketNo || "";
+  const bookingDate = booking?.bookingDate || booking?.date || "";
+  const bookingTime = booking?.bookingTime || booking?.time || "";
 
   // Branch Details (from response object)
   const fromBranchObj = booking?.fromBranch || props.fromBranch || {};
   const toBranchObj = booking?.toBranch || props.toBranch || {};
 
-  // Branch Name with Code (e.g. SARTHANA (SRTN))
-  const fromBranchName = fromBranchObj?.branchName || "";
-  const fromBranchCode = fromBranchObj?.branchCode || "";
+  // Branch Name with Code (e.g. SARTHANA (SRTN) or BRANCH 1 (BR1))
+  const fromBranchName = fromBranchObj?.branchName || fromBranchObj?.name || "";
+  const fromBranchCode = fromBranchObj?.branchCode || fromBranchObj?.code || "";
   const fromName = fromBranchName
     ? `${fromBranchName}${fromBranchCode ? ` (${fromBranchCode})` : ""}`
     : "";
 
-  const toBranchName = toBranchObj?.branchName || "";
-  const toBranchCode = toBranchObj?.branchCode || "";
+  const toBranchName = toBranchObj?.branchName || toBranchObj?.name || "";
+  const toBranchCode = toBranchObj?.branchCode || toBranchObj?.code || "";
   const toName = toBranchName
     ? `${toBranchName}${toBranchCode ? ` (${toBranchCode})` : ""}`
     : "";
 
   // Branch Mobiles
-  const fromMobile = fromBranchObj?.mobile1 || fromBranchObj?.mobile2 || "";
-  const toMobile = toBranchObj?.mobile1 || toBranchObj?.mobile2 || "";
+  const fromMobile = fromBranchObj?.mobile1 || fromBranchObj?.mobile2 || fromBranchObj?.phone || "";
+  const toMobile = toBranchObj?.mobile1 || toBranchObj?.mobile2 || toBranchObj?.phone || "";
   const transportId = "24ENEPR0248J1ZW";
 
   // Sender Details
   const sender = booking?.sender || {};
   const senderName = sender?.name || "";
-  const senderMobile = maskMobileNumber(sender?.mobile || "");
-  const senderGst = sender?.gst || "";
+  const senderMobile = maskMobileNumber(sender?.mobile || sender?.contact_no || "");
+  const senderGst = sender?.gstin || sender?.gst || "";
 
   // Receiver Details
   const receiver = booking?.receiver || {};
   const receiverName = receiver?.name || "";
-  const receiverMobile = maskMobileNumber(receiver?.mobile || "");
-  const receiverGst = receiver?.gst || "";
+  const receiverMobile = maskMobileNumber(receiver?.mobile || receiver?.contact_no || "");
+  const receiverGst = receiver?.gstin || receiver?.gst || "";
 
   // Delivery Address: toBranch destination address + mobile
   const toAddress = toBranchObj?.address || {};

@@ -16,24 +16,24 @@ export interface BookingBarcodeStickerProps {
 export function getBookingBarcodeStickerHtml(props: BookingBarcodeStickerProps): string {
   const { booking } = props;
 
-  const docketNo = booking?.docketNo2 || booking?.docketNo || "";
+  const docketNo = booking?.docketNo2 || booking?.docketNo1 || booking?.docketNo || "";
   const fromBranchObj = booking?.fromBranch || props.fromBranch || {};
   const toBranchObj = booking?.toBranch || props.toBranch || {};
 
-  const fromBranchName = fromBranchObj?.branchName || "";
-  const fromBranchCode = fromBranchObj?.branchCode || "";
+  const fromBranchName = fromBranchObj?.branchName || fromBranchObj?.name || "";
+  const fromBranchCode = fromBranchObj?.branchCode || fromBranchObj?.code || "";
   const fromName = fromBranchName
     ? `${fromBranchName}${fromBranchCode ? ` (${fromBranchCode})` : ""}`
     : "";
 
-  const toBranchName = toBranchObj?.branchName || "";
-  const toBranchCode = toBranchObj?.branchCode || "";
+  const toBranchName = toBranchObj?.branchName || toBranchObj?.name || "";
+  const toBranchCode = toBranchObj?.branchCode || toBranchObj?.code || "";
   const toName = toBranchName
     ? `${toBranchName}${toBranchCode ? ` (${toBranchCode})` : ""}`
     : "";
 
-  const fromPhone = fromBranchObj?.mobile1 || fromBranchObj?.mobile2 || "";
-  const toPhone = toBranchObj?.mobile1 || toBranchObj?.mobile2 || "";
+  const fromPhone = fromBranchObj?.mobile1 || fromBranchObj?.mobile2 || fromBranchObj?.phone || "";
+  const toPhone = toBranchObj?.mobile1 || toBranchObj?.mobile2 || toBranchObj?.phone || "";
 
   const items = Array.isArray(booking?.items) && booking.items.length > 0
     ? booking.items
