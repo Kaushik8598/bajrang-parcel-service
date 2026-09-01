@@ -374,6 +374,117 @@ export async function getCustomerBookingReports(
   return response;
 }
 
+// ─── Memo Report Types & APIs ──────────────────────────────────────────────────
+
+export interface MemoReportFromBranch {
+  _id?: string;
+  name?: string;
+  code?: string;
+}
+
+export interface MemoReportItem {
+  _id: string;
+  memoNo: string;
+  fromBranch?: MemoReportFromBranch;
+  cashAmount: number;
+  onlineAmount: number;
+  totalAmount: number;
+  memoDate: string;
+  remark?: string;
+  createdBy?: string;
+  createdAt?: string;
+  status?: "pending" | "approved" | "rejected" | string;
+  [key: string]: unknown;
+}
+
+export interface GetMemoReportsParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  startDate?: string;
+  endDate?: string;
+  branchId?: string;
+  status?: string;
+}
+
+export interface MemoReportsApiResponse {
+  success: boolean;
+  message?: string;
+  data: {
+    memos: MemoReportItem[];
+    pagination: {
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    };
+  };
+}
+
+/**
+ * Fetch memo reports with pagination and filter support via GET /report/memo
+ */
+export async function getMemoReports(
+  params: GetMemoReportsParams = {}
+): Promise<MemoReportsApiResponse> {
+  const {
+    page = 1,
+    limit = 10,
+    search = "",
+    startDate,
+    endDate,
+    branchId,
+    status,
+  } = params;
+
+  const queryParams: Record<string, string | number | boolean> = {
+    page,
+    limit,
+  };
+
+  if (search) queryParams.search = search;
+  if (branchId) queryParams.branchId = branchId;
+  if (startDate) queryParams.startDate = startDate;
+  if (endDate) queryParams.endDate = endDate;
+  if (status) queryParams.status = status;
+
+  const response = await request<MemoReportsApiResponse>("/report/memo", {
+    method: "GET",
+    params: queryParams,
+  });
+  return response;
+}
+
+/**
+ * Update memo status (approve/reject) via PUT /memo/status/:id or PATCH /memo/:id/status
+ */
+export async function updateMemoStatus(
+  id: string,
+  status: "approved" | "rejected" | string,
+  reason?: string
+): Promise<any> {
+  const payload: { status: string; reason?: string } = {
+    status,
+  };
+  if (status === "rejected" && reason) {
+    payload.reason = reason;
+  }
+
+  try {
+    return await request<any>(`/memo/status/${id}`, {
+      method: "PUT",
+      body: payload,
+    });
+  } catch {
+    return await request<any>(`/memo/${id}`, {
+      method: "PATCH",
+      body: payload,
+    });
+  }
+}
+
+
+
 
 
 

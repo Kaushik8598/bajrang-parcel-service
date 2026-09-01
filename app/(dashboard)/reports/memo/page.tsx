@@ -1,64 +1,31 @@
 "use client";
 
-import { useState } from "react";
-import { Search, RotateCcw } from "lucide-react";
+import React, { useState, useMemo, useEffect } from "react";
+import {
+  RotateCcw,
+  Eye,
+  CheckCircle,
+  XCircle,
+  FileText,
+  Building2,
+  Calendar,
+  User,
+  IndianRupee,
+} from "lucide-react";
 import DataTable from "@/components/DataTable/DataTable";
-import { Button } from "@/components/ui/button";
+import DeleteConfirmDialog from "@/components/DataTable/DeleteConfirmDialog";
 import { FormInput } from "@/components/ui/form-input";
 import { FormSelect } from "@/components/ui/form-select";
+import { Button } from "@/components/ui/button";
+import AppModal from "@/components/ui/AppModal";
 import { showToast } from "@/lib/toast";
-import { formatCurrency, formatDateTime, getCurrentDate } from "@/lib/utils";
+import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { useOnlyBranchList } from "@/lib/hooks";
+import { useMemoReports, useUpdateMemoStatusMutation } from "@/lib/hooks/useReports";
+import { getStoredUserRole, getStoredUser } from "@/lib/api/auth";
+import type { MemoReportItem } from "@/lib/api/reports";
+import type { BranchDropdownItem } from "@/lib/api/branch";
 import type { ColumnDef, TablePermissions } from "@/lib/types/common";
-
-interface MemoReportItem {
-  id: number | string;
-  created_on: string;
-  sender: string;
-  receiver: string;
-  branch: string;
-  amount: number;
-  status: string;
-  [key: string]: unknown;
-}
-
-const MOCK_MEMO_REPORTS: MemoReportItem[] = [
-  {
-    id: 1,
-    created_on: "2026-08-24 10:15:00",
-    sender: "Radhe Krishna Textiles",
-    receiver: "Shreeji Enterprise",
-    branch: "Surat Main Branch",
-    amount: 1450,
-    status: "Generated",
-  },
-  {
-    id: 2,
-    created_on: "2026-08-24 12:40:00",
-    sender: "Balaji Electronics",
-    receiver: "Bhavani Hardware",
-    branch: "Ahmedabad Central Hub",
-    amount: 2800,
-    status: "Completed",
-  },
-  {
-    id: 3,
-    created_on: "2026-08-24 15:20:00",
-    sender: "Apex Pharma",
-    receiver: "Lifeline Care",
-    branch: "Vadodara Logistics Hub",
-    amount: 920,
-    status: "In Transit",
-  },
-  {
-    id: 4,
-    created_on: "2026-08-24 17:05:00",
-    sender: "Shyam Enterprise",
-    receiver: "Om Trading",
-    branch: "Bhavnagar Branch",
-    amount: 1350,
-    status: "Completed",
-  },
-];
 
 const PERMISSIONS: TablePermissions = {
   canExcel: true,
@@ -70,128 +37,555 @@ const PERMISSIONS: TablePermissions = {
   canStatus: false,
 };
 
-const BRANCH_OPTIONS = [
-  { value: "", label: "All Branches" },
-  { value: "Surat Main Branch", label: "Surat Main Branch" },
-  { value: "Ahmedabad Central Hub", label: "Ahmedabad Central Hub" },
-  { value: "Vadodara Logistics Hub", label: "Vadodara Logistics Hub" },
-  { value: "Rajkot Transport Nagar", label: "Rajkot Transport Nagar" },
-  { value: "Bhavnagar Branch", label: "Bhavnagar Branch" },
-];
-
 export default function MemoReportPage() {
-  const [fromDate, setFromDate] = useState(getCurrentDate());
-  const [toDate, setToDate] = useState(getCurrentDate());
-  const [branch, setBranch] = useState("");
-  const [data, setData] = useState<MemoReportItem[]>(MOCK_MEMO_REPORTS);
+  // Current user role
+  const [userRole, setUserRole] = useState<string>("");
+  useEffect(() => {
+    const role = getStoredUserRole() || getStoredUser()?.role || "";
+    setUserRole(role.toLowerCase());
+  }, []);
 
-  const handleFilterSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    let filtered = [...MOCK_MEMO_REPORTS];
-    if (branch) filtered = filtered.filter((r) => r.branch === branch);
-    setData(filtered);
-    showToast("success", `Filtered: ${filtered.length} memo records found`);
-  };
+  const isAdminOrSuperAdmin =
+    userRole === "admin" ||
+    userRole === "superadmin" ||
+    userRole === "super_admin" ||
+    userRole === "super-admin";
 
+  // Filter input states (trigger live on change)
+  const [fromDateInput, setFromDateInput] = useState("");
+  const [toDateInput, setToDateInput] = useState("");
+  const [branchInput, setBranchInput] = useState("");
+
+  // Table pagination & search state
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [search, setSearch] = useState("");
+
+  // Fetch branches dropdown list via GET /user/onlyBranch
+  const { data: branchDropdownRes } = useOnlyBranchList();
+  const branchDropdownList = useMemo(() => {
+    const rawData = branchDropdownRes?.data;
+    if (Array.isArray(rawData)) return rawData;
+    if (rawData && typeof rawData === "object") {
+      if (Array.isArray(rawData.branches)) return rawData.branches;
+      if (Array.isArray(rawData.users)) return rawData.users;
+      if (Array.isArray(rawData.data)) return rawData.data;
+    }
+    return [];
+  }, [branchDropdownRes]);
+
+  const branchOptions = useMemo(() => {
+    const opts = branchDropdownList.map((b: BranchDropdownItem) => {
+      const branchCode = b.branchInfo?.branchCode;
+      const branchName = b.branchInfo?.branchName || b.name || "Branch";
+      const label = branchCode ? `${branchCode} - ${branchName}` : branchName;
+      return {
+        value: b._id,
+        label,
+      };
+    });
+    return [{ value: "", label: "All Branches" }, ...opts];
+  }, [branchDropdownList]);
+
+  // Live data fetching hook via GET /report/memo
+  const {
+    data: apiResponse,
+    isLoading,
+    isFetching,
+  } = useMemoReports({
+    page,
+    limit,
+    search,
+    startDate: fromDateInput || undefined,
+    endDate: toDateInput || undefined,
+    branchId: branchInput || undefined,
+  });
+
+  // Extract memo records from API response
+  const memoRecords: MemoReportItem[] = useMemo(() => {
+    const rawData = apiResponse?.data;
+    if (!rawData) return [];
+    if (Array.isArray(rawData)) return rawData;
+    if (Array.isArray(rawData.memos)) return rawData.memos;
+    return [];
+  }, [apiResponse]);
+
+  const paginationMeta = useMemo(() => {
+    const p = apiResponse?.data?.pagination || (apiResponse as any)?.pagination;
+    return (
+      p || {
+        total: memoRecords.length,
+        page,
+        limit,
+        totalPages: Math.ceil(memoRecords.length / limit) || 1,
+        hasNextPage: false,
+        hasPrevPage: false,
+      }
+    );
+  }, [apiResponse, memoRecords.length, page, limit]);
+
+  // Handle Reset Filters
   const handleResetFilter = () => {
-    setFromDate(getCurrentDate());
-    setToDate(getCurrentDate());
-    setBranch("");
-    setData(MOCK_MEMO_REPORTS);
-    showToast("info", "Filter reset to default");
+    setFromDateInput("");
+    setToDateInput("");
+    setBranchInput("");
+    setPage(1);
+    setSearch("");
+    showToast("info", "Filters reset to default");
   };
 
-  const columns: ColumnDef<MemoReportItem>[] = [
-    {
-      key: "created_on",
-      label: "Created On",
-      sortable: true,
-      render: (val) => formatDateTime(String(val)),
-    },
-    { key: "sender", label: "Sender", sortable: true },
-    { key: "receiver", label: "Receiver", sortable: true },
-    { key: "branch", label: "Branch", sortable: true },
-    {
-      key: "amount",
-      label: "Amount",
-      sortable: true,
-      render: (val) => formatCurrency(Number(val)),
-    },
-    {
-      key: "status",
-      label: "Status",
-      sortable: true,
-      render: (val) => (
-        <span className="text-xs font-semibold text-slate-900">
-          {String(val)}
-        </span>
-      ),
-    },
-  ];
+  // ─── View Modal State ────────────────────────────────────────────────────────
+  const [selectedMemo, setSelectedMemo] = useState<MemoReportItem | null>(null);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
 
+  // ─── Status Confirmation Dialog State ────────────────────────────────────────
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [memoToUpdate, setMemoToUpdate] = useState<MemoReportItem | null>(null);
+  const [targetStatus, setTargetStatus] = useState<"approved" | "rejected">("approved");
+  const [reasonInput, setReasonInput] = useState("");
+
+  const updateStatusMutation = useUpdateMemoStatusMutation();
+
+  const handleOpenStatusConfirm = (
+    memo: MemoReportItem,
+    status: "approved" | "rejected"
+  ) => {
+    setMemoToUpdate(memo);
+    setTargetStatus(status);
+    setReasonInput("");
+    setConfirmDialogOpen(true);
+  };
+
+  const handleConfirmStatusUpdate = async () => {
+    if (!memoToUpdate) return;
+
+    if (targetStatus === "rejected" && !reasonInput.trim()) {
+      showToast("warning", "Please enter a reason for rejection.");
+      return;
+    }
+
+    try {
+      await updateStatusMutation.mutateAsync({
+        id: memoToUpdate._id,
+        status: targetStatus,
+        reason: targetStatus === "rejected" ? reasonInput.trim() : undefined,
+      });
+
+      showToast(
+        "success",
+        `Memo ${memoToUpdate.memoNo} ${
+          targetStatus === "approved" ? "approved" : "rejected"
+        } successfully!`
+      );
+
+      setConfirmDialogOpen(false);
+      setMemoToUpdate(null);
+      setReasonInput("");
+    } catch (error: any) {
+      showToast(
+        "error",
+        error?.message || `Failed to update memo status to ${targetStatus}`
+      );
+    }
+  };
+
+  // ─── Table Columns Definition (Clean Black & White Text Formatting) ──────────
+  const columns: ColumnDef<MemoReportItem>[] = useMemo(
+    () => [
+      {
+        key: "memoNo",
+        label: "Memo No",
+        sortable: true,
+        render: (val, row) => (
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedMemo(row);
+              setViewModalOpen(true);
+            }}
+            className="font-mono text-xs font-semibold text-black hover:underline cursor-pointer"
+            title="View Details"
+          >
+            {String(val || "—")}
+          </button>
+        ),
+      },
+      {
+        key: "memoDate",
+        label: "Memo Date",
+        sortable: true,
+        render: (val, row) => (
+          <span className="text-xs text-black whitespace-nowrap">
+            {val ? String(val) : row.createdAt ? formatDateTime(row.createdAt) : "—"}
+          </span>
+        ),
+      },
+      {
+        key: "fromBranch",
+        label: "From Branch",
+        sortable: true,
+        render: (_val, row) => {
+          const name = row.fromBranch?.name || "";
+          const code = row.fromBranch?.code || "";
+          return (
+            <div className="text-xs text-black whitespace-nowrap">
+              <span className="font-semibold">{name}</span>
+              {code ? <span className="font-mono text-slate-500 font-normal ml-1">({code})</span> : ""}
+            </div>
+          );
+        },
+      },
+      {
+        key: "cashAmount",
+        label: "Cash Amount",
+        sortable: true,
+        align: "right",
+        render: (val) => (
+          <span className="font-mono text-xs text-black">
+            {formatCurrency(Number(val) || 0)}
+          </span>
+        ),
+      },
+      {
+        key: "onlineAmount",
+        label: "Online Amount",
+        sortable: true,
+        align: "right",
+        render: (val) => (
+          <span className="font-mono text-xs text-black">
+            {formatCurrency(Number(val) || 0)}
+          </span>
+        ),
+      },
+      {
+        key: "totalAmount",
+        label: "Total Amount",
+        sortable: true,
+        align: "right",
+        render: (val) => (
+          <span className="font-mono text-xs font-bold text-black">
+            {formatCurrency(Number(val) || 0)}
+          </span>
+        ),
+      },
+      {
+        key: "createdBy",
+        label: "Created By",
+        sortable: true,
+        render: (val) => (
+          <span className="text-xs text-black">
+            {String(val || "—")}
+          </span>
+        ),
+      },
+      {
+        key: "remark",
+        label: "Remark",
+        render: (val) => (
+          <span className="text-xs text-slate-600 truncate max-w-[140px] block" title={String(val || "")}>
+            {val ? String(val) : "—"}
+          </span>
+        ),
+      },
+      {
+        key: "status",
+        label: "Status",
+        sortable: true,
+        align: "center",
+        render: (val) => {
+          const status = String(val || "pending").toLowerCase();
+          return (
+            <span className="text-xs font-semibold text-black capitalize">
+              {status}
+            </span>
+          );
+        },
+      },
+      {
+        key: "action",
+        label: "Action",
+        align: "center",
+        width: "w-56",
+        render: (_val, row) => {
+          const status = String(row.status || "pending").toLowerCase();
+          const isPending = status === "pending";
+
+          return (
+            <div className="flex items-center justify-center gap-1.5 flex-nowrap">
+              {/* View Button with icon and text */}
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  setSelectedMemo(row);
+                  setViewModalOpen(true);
+                }}
+                className="h-7 px-2.5 text-xs bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-xs transition-colors cursor-pointer"
+              >
+                <Eye className="w-3 h-3 mr-1" />
+                View
+              </Button>
+
+              {/* Status Action Buttons for Pending Memos */}
+              {isPending && (
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => handleOpenStatusConfirm(row, "approved")}
+                    className="h-7 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors cursor-pointer"
+                  >
+                    <CheckCircle className="w-3 h-3 mr-1" />
+                    Approve
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => handleOpenStatusConfirm(row, "rejected")}
+                    className="h-7 px-2.5 text-xs bg-[#e74c3c] hover:bg-[#c0392b] text-white shadow-xs transition-colors cursor-pointer"
+                  >
+                    <XCircle className="w-3 h-3 mr-1" />
+                    Reject
+                  </Button>
+                </>
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    []
+  );
 
   return (
     <div className="space-y-4 pb-12">
-      {/* ─── Top Filter Card ────────────────────────────────────────────────── */}
-      <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-3 space-y-3">
-        <h1 className="text-base font-bold text-black tracking-tight pb-2 border-b border-slate-100">
-          Memo Report
-        </h1>
+      {/* ─── Top Filter Card (3 Standard Filters, Live OnChange) ───────────── */}
+      <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-3.5 space-y-3">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+          <h1 className="text-base font-bold text-black tracking-tight flex items-center gap-2">
+            <FileText className="w-4 h-4 text-black" />
+            <span>Memo Report</span>
+          </h1>
 
-        <form onSubmit={handleFilterSubmit} className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            <FormInput
-              label="From Date:"
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-            />
-            <FormInput
-              label="To Date:"
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-            />
-            <FormSelect
-              label="Branch:"
-              options={BRANCH_OPTIONS}
-              value={branch}
-              onChange={(val) => setBranch(val as string)}
-              placeholder="All Branches"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 pt-1">
-            <Button
-              type="submit"
-              size="sm"
-              className="bg-[#2980b9] hover:bg-[#2471a3] text-white h-8 px-4 text-xs font-semibold shadow-xs"
-            >
-              <Search className="w-3.5 h-3.5 mr-1.5" />
-              Filter Records
-            </Button>
+          {(fromDateInput || toDateInput || branchInput) && (
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={handleResetFilter}
-              className="h-8 px-3 text-xs text-slate-600 border border-slate-300 hover:bg-slate-50"
+              className="h-7 px-2.5 text-xs text-slate-600 border border-slate-300 hover:bg-slate-50 cursor-pointer shadow-none"
             >
               <RotateCcw className="w-3 h-3 mr-1" />
-              Reset
+              Reset Filters
             </Button>
-          </div>
-        </form>
+          )}
+        </div>
+
+        {/* 3 Live Inputs */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <FormInput
+            label="From Date:"
+            type="date"
+            value={fromDateInput}
+            onChange={(e) => {
+              setFromDateInput(e.target.value);
+              setPage(1);
+            }}
+          />
+          <FormInput
+            label="To Date:"
+            type="date"
+            value={toDateInput}
+            onChange={(e) => {
+              setToDateInput(e.target.value);
+              setPage(1);
+            }}
+          />
+          <FormSelect
+            label="Branch:"
+            options={branchOptions}
+            value={branchInput}
+            onChange={(val) => {
+              setBranchInput(val as string);
+              setPage(1);
+            }}
+            placeholder="All Branches"
+          />
+        </div>
       </div>
 
-      {/* ─── Report Data Table ──────────────────────────────────────────────── */}
+      {/* ─── Memo Report Data Table (Clean Black & White) ──────────────────── */}
       <DataTable<MemoReportItem>
         title="Memo Report"
         columns={columns}
-        data={data}
+        data={memoRecords}
         permissions={PERMISSIONS}
-        clientSide
+        isLoading={isLoading || isFetching}
+        clientSide={false}
+        searchValue={search}
+        onSearch={(query: string) => {
+          setSearch(query);
+          setPage(1);
+        }}
+        pagination={{
+          page,
+          pageSize: limit,
+          total: paginationMeta.total,
+          onPageChange: (newPage: number) => setPage(newPage),
+          onPageSizeChange: (newLimit: number) => {
+            setLimit(newLimit);
+            setPage(1);
+          },
+        }}
       />
+
+      {/* ─── 1. View Memo Details Modal ────────────────────────────────────── */}
+      {viewModalOpen && selectedMemo && (
+        <AppModal
+          open={viewModalOpen}
+          onOpenChange={(open) => setViewModalOpen(open)}
+          title={`Memo Details - ${selectedMemo.memoNo}`}
+          maxWidth="sm:max-w-xl"
+        >
+          <div className="space-y-4 p-1">
+            {/* Header Status & Memo Number */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
+              <div>
+                <span className="text-[11px] font-bold uppercase text-slate-500 block">Memo Number</span>
+                <span className="text-base font-extrabold font-mono text-black">{selectedMemo.memoNo}</span>
+              </div>
+              <div>
+                <span className="text-xs font-bold uppercase text-black">
+                  Status: {selectedMemo.status || "Pending"}
+                </span>
+              </div>
+            </div>
+
+            {/* Info Grid */}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
+                <span className="text-slate-500 font-semibold flex items-center gap-1 mb-1">
+                  <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                  From Branch:
+                </span>
+                <span className="font-bold text-black">
+                  {selectedMemo.fromBranch?.name || "—"}{" "}
+                  {selectedMemo.fromBranch?.code ? `(${selectedMemo.fromBranch.code})` : ""}
+                </span>
+              </div>
+
+              <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
+                <span className="text-slate-500 font-semibold flex items-center gap-1 mb-1">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                  Memo Date:
+                </span>
+                <span className="font-bold text-black font-mono">
+                  {selectedMemo.memoDate || (selectedMemo.createdAt ? formatDateTime(selectedMemo.createdAt) : "—")}
+                </span>
+              </div>
+
+              <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
+                <span className="text-slate-500 font-semibold flex items-center gap-1 mb-1">
+                  <User className="w-3.5 h-3.5 text-slate-400" />
+                  Created By:
+                </span>
+                <span className="font-bold text-black">
+                  {selectedMemo.createdBy || "—"}
+                </span>
+              </div>
+
+              <div className="p-2.5 rounded-lg border border-slate-200 bg-white">
+                <span className="text-slate-500 font-semibold flex items-center gap-1 mb-1">
+                  <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                  Created At:
+                </span>
+                <span className="font-bold text-slate-700 font-mono">
+                  {selectedMemo.createdAt ? formatDateTime(selectedMemo.createdAt) : "—"}
+                </span>
+              </div>
+            </div>
+
+            {/* Financials Breakdown Card */}
+            <div className="p-3.5 rounded-lg border border-slate-200 bg-slate-50 space-y-2">
+              <h3 className="text-xs font-bold text-black uppercase tracking-wider flex items-center gap-1.5">
+                <IndianRupee className="w-3.5 h-3.5 text-black" />
+                Amount Summary
+              </h3>
+
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                <div className="p-2 bg-white rounded border border-slate-200 text-center">
+                  <span className="text-[11px] text-slate-500 font-semibold block">Cash Amount</span>
+                  <span className="text-sm font-bold font-mono text-black">
+                    {formatCurrency(selectedMemo.cashAmount || 0)}
+                  </span>
+                </div>
+                <div className="p-2 bg-white rounded border border-slate-200 text-center">
+                  <span className="text-[11px] text-slate-500 font-semibold block">Online Amount</span>
+                  <span className="text-sm font-bold font-mono text-black">
+                    {formatCurrency(selectedMemo.onlineAmount || 0)}
+                  </span>
+                </div>
+                <div className="p-2 bg-white rounded border border-slate-200 text-center">
+                  <span className="text-[11px] text-slate-500 font-semibold block">Total Amount</span>
+                  <span className="text-sm font-extrabold font-mono text-black">
+                    {formatCurrency(selectedMemo.totalAmount || 0)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Remark */}
+            {selectedMemo.remark && (
+              <div className="p-3 rounded-lg border border-slate-200 bg-white text-xs">
+                <span className="text-slate-500 font-semibold block mb-0.5">Remark:</span>
+                <p className="text-black font-medium">{selectedMemo.remark}</p>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setViewModalOpen(false)}
+                className="h-8 px-4 font-bold border-slate-300 text-slate-700 cursor-pointer"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </AppModal>
+      )}
+
+      {/* ─── 2. Common Confirmation Dialog (DeleteConfirmDialog) ──────────── */}
+      <DeleteConfirmDialog
+        open={confirmDialogOpen}
+        onOpenChange={setConfirmDialogOpen}
+        onConfirm={handleConfirmStatusUpdate}
+        title={targetStatus === "approved" ? "Approve Memo" : "Reject Memo"}
+        description={
+          memoToUpdate
+            ? `Are you sure you want to ${targetStatus} memo "${memoToUpdate.memoNo}" of amount ${formatCurrency(
+                memoToUpdate.totalAmount || 0
+              )} from branch "${memoToUpdate.fromBranch?.name || "—"}"?`
+            : undefined
+        }
+        confirmText={targetStatus === "approved" ? "Approve" : "Reject"}
+        isLoading={updateStatusMutation.isPending}
+      >
+        {targetStatus === "rejected" && (
+          <div className="pt-2">
+            <FormInput
+              label="Reason for Rejection:"
+              placeholder="Enter rejection reason..."
+              value={reasonInput}
+              onChange={(e) => setReasonInput(e.target.value)}
+              required
+            />
+          </div>
+        )}
+      </DeleteConfirmDialog>
     </div>
   );
 }

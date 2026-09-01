@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getAllBookingReports,
   getParcelPendingReports,
@@ -7,7 +7,10 @@ import {
   getCustomerDiscountReports,
   getPendingDeliveryReports,
   getCustomerBookingReports,
+  getMemoReports,
+  updateMemoStatus,
   GetBookingReportsParams,
+  GetMemoReportsParams,
 } from "@/lib/api/reports";
 
 export const BOOKING_REPORTS_QUERY_KEY = ["booking-reports-list"] as const;
@@ -331,6 +334,76 @@ export function useCustomerBookingReports(params: GetBookingReportsParams = {}) 
     refetchOnWindowFocus: true,
   });
 }
+
+export const MEMO_REPORTS_QUERY_KEY = ["memo-reports-list"] as const;
+
+/**
+ * React Query hook to fetch memo reports list via GET /report/memo
+ */
+export function useMemoReports(params: GetMemoReportsParams = {}) {
+  const {
+    page = 1,
+    limit = 10,
+    search = "",
+    startDate = "",
+    endDate = "",
+    branchId = "",
+    status = "",
+  } = params;
+
+  return useQuery({
+    queryKey: [
+      ...MEMO_REPORTS_QUERY_KEY,
+      page,
+      limit,
+      search,
+      startDate,
+      endDate,
+      branchId,
+      status,
+    ],
+    queryFn: () =>
+      getMemoReports({
+        page,
+        limit,
+        search,
+        startDate,
+        endDate,
+        branchId,
+        status,
+      }),
+    placeholderData: (previousData) => previousData,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
+}
+
+/**
+ * Mutation hook to approve or reject a memo
+ */
+export function useUpdateMemoStatusMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      status,
+      reason,
+      remark,
+    }: {
+      id: string;
+      status: "approved" | "rejected" | string;
+      reason?: string;
+      remark?: string;
+    }) => updateMemoStatus(id, status, reason || remark),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: MEMO_REPORTS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ["memo-list"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+    },
+  });
+}
+
 
 
 
