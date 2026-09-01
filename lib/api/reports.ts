@@ -475,6 +475,106 @@ export async function updateMemoStatus(
   return response;
 }
 
+// ─── Expense Report Types & APIs ───────────────────────────────────────────────
+
+export interface ExpenseReportFromBranch {
+  _id?: string;
+  name?: string;
+  code?: string;
+}
+
+export interface ExpenseReportTruck {
+  _id?: string;
+  name?: string;
+  truckNumber?: string;
+}
+
+export interface ExpenseReportItem {
+  _id: string;
+  memoNo: string;
+  fromBranch?: ExpenseReportFromBranch;
+  expenseType: string;
+  cashAmount: number;
+  onlineAmount: number;
+  totalAmount: number;
+  memoDate: string;
+  remark?: string;
+  truck?: ExpenseReportTruck;
+  fuelType?: string;
+  startKM?: number;
+  endKM?: number;
+  liter?: number;
+  labourMonth?: string;
+  labourWeek?: string;
+  labourCount?: number;
+  ratePerLabour?: number;
+  labourTotal?: number;
+  expenseDeducted?: boolean;
+  expenseDeductedAmount?: number;
+  createdBy?: string;
+  createdAt?: string;
+  [key: string]: unknown;
+}
+
+export interface GetExpenseReportsParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  startDate?: string;
+  endDate?: string;
+  branchId?: string;
+  expenseType?: string;
+}
+
+export interface ExpenseReportsApiResponse {
+  success: boolean;
+  message?: string;
+  data: {
+    expenses: ExpenseReportItem[];
+    pagination: {
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    };
+  };
+}
+
+/**
+ * Fetch expense reports with pagination and filter support via GET /report/expense
+ */
+export async function getExpenseReports(
+  params: GetExpenseReportsParams = {}
+): Promise<ExpenseReportsApiResponse> {
+  const {
+    page = 1,
+    limit = 10,
+    search = "",
+    startDate,
+    endDate,
+    branchId,
+    expenseType,
+  } = params;
+
+  const queryParams: Record<string, string | number | boolean> = {
+    page,
+    limit,
+  };
+
+  if (search) queryParams.search = search;
+  if (branchId) queryParams.branchId = branchId;
+  if (startDate) queryParams.startDate = startDate;
+  if (endDate) queryParams.endDate = endDate;
+  if (expenseType) queryParams.expenseType = expenseType;
+
+  const response = await request<ExpenseReportsApiResponse>("/report/expense", {
+    method: "GET",
+    params: queryParams,
+  });
+  return response;
+}
+
+
 
 
 

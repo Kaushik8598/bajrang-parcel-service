@@ -9,8 +9,10 @@ import {
   getCustomerBookingReports,
   getMemoReports,
   updateMemoStatus,
+  getExpenseReports,
   GetBookingReportsParams,
   GetMemoReportsParams,
+  GetExpenseReportsParams,
 } from "@/lib/api/reports";
 
 export const BOOKING_REPORTS_QUERY_KEY = ["booking-reports-list"] as const;
@@ -403,6 +405,50 @@ export function useUpdateMemoStatusMutation() {
     },
   });
 }
+
+export const EXPENSE_REPORTS_QUERY_KEY = ["expense-reports-list"] as const;
+
+/**
+ * React Query hook to fetch expense reports list via GET /report/expense
+ */
+export function useExpenseReports(params: GetExpenseReportsParams = {}) {
+  const {
+    page = 1,
+    limit = 10,
+    search = "",
+    startDate = "",
+    endDate = "",
+    branchId = "",
+    expenseType = "",
+  } = params;
+
+  return useQuery({
+    queryKey: [
+      ...EXPENSE_REPORTS_QUERY_KEY,
+      page,
+      limit,
+      search,
+      startDate,
+      endDate,
+      branchId,
+      expenseType,
+    ],
+    queryFn: () =>
+      getExpenseReports({
+        page,
+        limit,
+        search,
+        startDate,
+        endDate,
+        branchId,
+        expenseType,
+      }),
+    placeholderData: (previousData) => previousData,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
+}
+
 
 
 
