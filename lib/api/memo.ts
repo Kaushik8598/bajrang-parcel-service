@@ -182,3 +182,13 @@ export async function getMemoById(id: string): Promise<MemoApiResponse> {
     method: "GET",
   });
 }
+
+/**
+ * Get memo by memoNo via GET /memo/:memoNo
+ */
+export async function getMemoByMemoNo(memoNo: string): Promise<DataForAddMemoResponse> {
+  return await request<DataForAddMemoResponse>(`/memo/${memoNo}`, {
+    method: "GET",
+  });
+}
+

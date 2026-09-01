@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
     FileText,
     Truck,
@@ -21,6 +21,7 @@ import SimpleDataTable from "@/components/DataTable/SimpleDataTable";
 import { showToast } from "@/lib/toast";
 import {
     useDataForAddMemo,
+    useMemoByMemoNo,
     useOnlyAdminList,
     useUserRoleVise,
     useUpload,
@@ -29,7 +30,6 @@ import {
 import { getStoredUser, getStoredUserRole } from "@/lib/api/auth";
 import { CreateMemoPayload } from "@/lib/api/memo";
 import type { ColumnDef } from "@/lib/types/common";
-import { cn } from "@/lib/utils";
 
 export interface DocketItem extends Record<string, any> {
     id: string;
@@ -46,6 +46,10 @@ export interface DocketItem extends Record<string, any> {
 
 export default function CreateMemoPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const viewMemoNo = searchParams.get("memoNo") || searchParams.get("view") || "";
+    const isViewMode = Boolean(viewMemoNo);
+
     const { uploadFile, uploadingFields } = useUpload();
     const createMemoMutation = useCreateMemoMutation();
 
@@ -56,7 +60,7 @@ export default function CreateMemoPage() {
     const ownBranchId = String(currentUser?._id || "");
 
     // ─── Fetch Branch List (Only for Admin via getUserRoleVise) ────────────────
-    const { data: roleViseRes } = useUserRoleVise(isAdminOrSuperAdmin);
+    const { data: roleViseRes } = useUserRoleVise(isAdminOrSuperAdmin && !isViewMode);
 
     const branchOptions = useMemo<FormSelectOption[]>(() => {
         if (!isAdminOrSuperAdmin) return [];
@@ -78,6 +82,7 @@ export default function CreateMemoPage() {
     const [selectedBranchId, setSelectedBranchId] = useState<string>("");
 
     useEffect(() => {
+        if (isViewMode) return;
         if (isAdminOrSuperAdmin) {
             if (branchOptions.length > 0 && !selectedBranchId) {
                 setSelectedBranchId(branchOptions[0].value);
@@ -87,15 +92,32 @@ export default function CreateMemoPage() {
                 setSelectedBranchId(ownBranchId);
             }
         }
-    }, [isAdminOrSuperAdmin, ownBranchId, branchOptions, selectedBranchId]);
+    }, [isAdminOrSuperAdmin, ownBranchId, branchOptions, selectedBranchId, isViewMode]);
 
     const targetBranchId = isAdminOrSuperAdmin ? selectedBranchId : ownBranchId;
 
-    // ─── Fetch Memo Data via GET /memo/dataForAddMemo ──────────────────────────
-    const { data: memoData, isLoading: isMemoDataLoading } = useDataForAddMemo(
+    // ─── 1. Fetch Memo Data for CREATE Mode via GET /memo/dataForAddMemo ───────
+    const { data: createMemoData, isLoading: isCreateMemoDataLoading } = useDataForAddMemo(
         targetBranchId ? { branchId: targetBranchId } : undefined,
-        Boolean(!isAdminOrSuperAdmin || selectedBranchId)
+        !isViewMode && Boolean(!isAdminOrSuperAdmin || selectedBranchId)
     );
+
+    // ─── 2. Fetch Memo Data for VIEW Mode via GET /memo/:memoNo ────────────────
+    const { data: viewMemoDataRes, isLoading: isViewMemoDataLoading } = useMemoByMemoNo(
+        viewMemoNo || undefined,
+        isViewMode
+    );
+
+    // Active memo data resolution
+    const memoData: any = useMemo(() => {
+        if (isViewMode) {
+            const raw = (viewMemoDataRes as any)?.data || viewMemoDataRes;
+            return raw || null;
+        }
+        return createMemoData || null;
+    }, [isViewMode, viewMemoDataRes, createMemoData]);
+
+    const isMemoDataLoading = isViewMode ? isViewMemoDataLoading : isCreateMemoDataLoading;
 
     // ─── Fetch Admins for "Send To User" via GET /user/onlyAdmin ───────────────
     const { data: onlyAdminRes } = useOnlyAdminList();
@@ -111,7 +133,7 @@ export default function CreateMemoPage() {
     }, [onlyAdminRes]);
 
     // ─── Memo Form States ──────────────────────────────────────────────────────
-    const amountToSend = memoData?.totalSummary?.amountToSend ?? 0;
+    const amountToSend = memoData?.totalSummary?.amountToSend ?? memoData?.memo?.totalAmount ?? 0;
     const [totalAmountToSend, setTotalAmountToSend] = useState<number | "">(0);
     const [sendToUserId, setSendToUserId] = useState<string>("");
     const [cashAmount, setCashAmount] = useState<number | "">(0);
@@ -121,22 +143,41 @@ export default function CreateMemoPage() {
     const [remark, setRemark] = useState<string>("");
     const [errors, setErrors] = useState<Record<string, string>>({});
 
-    // Auto-update amountToSend from API response
+    // Populate data in View Mode or Create Mode
     useEffect(() => {
-        setTotalAmountToSend(amountToSend);
-        setCashAmount(amountToSend);
-        setOnlineAmount(0);
-    }, [amountToSend]);
+        if (isViewMode && memoData) {
+            const m = memoData.memo || memoData;
+            const total = Number(m.totalAmount ?? memoData?.totalSummary?.amountToSend ?? 0);
+            const cash = Number(m.cashAmount ?? 0);
+            const online = Number(m.onlineAmount ?? 0);
+            const pUrl = String(m.proofUrl || "");
+            const rem = String(m.remark || "");
+            const sendUser = String(m.sendToUserId || m.sendToUser?._id || m.sendToUser || "");
 
-    // Default Send To User
+            setTotalAmountToSend(total);
+            setCashAmount(cash);
+            setOnlineAmount(online);
+            setProofUrl(pUrl);
+            setProofName(pUrl ? "Uploaded Proof" : "");
+            setRemark(rem);
+            if (sendUser) setSendToUserId(sendUser);
+        } else if (!isViewMode) {
+            setTotalAmountToSend(amountToSend);
+            setCashAmount(amountToSend);
+            setOnlineAmount(0);
+        }
+    }, [isViewMode, memoData, amountToSend]);
+
+    // Default Send To User (Only in create mode)
     useEffect(() => {
-        if (userOptions.length > 0 && !sendToUserId) {
+        if (!isViewMode && userOptions.length > 0 && !sendToUserId) {
             setSendToUserId(userOptions[0].value);
         }
-    }, [userOptions, sendToUserId]);
+    }, [userOptions, sendToUserId, isViewMode]);
 
     // ─── Dual-Sync Amount Handlers ─────────────────────────────────────────────
     const handleCashChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (isViewMode) return;
         const raw = e.target.value;
         const total = typeof amountToSend === "number" ? amountToSend : Number(amountToSend) || 0;
 
@@ -158,6 +199,7 @@ export default function CreateMemoPage() {
     };
 
     const handleOnlineChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (isViewMode) return;
         const raw = e.target.value;
         const total = typeof amountToSend === "number" ? amountToSend : Number(amountToSend) || 0;
 
@@ -180,6 +222,7 @@ export default function CreateMemoPage() {
 
     // ─── Proof Upload ──────────────────────────────────────────────────────────
     const handleProofUpload = async (file: File) => {
+        if (isViewMode) return;
         const res = await uploadFile(file, "proof");
         if (res?.url) {
             setProofName(res.fileName || file.name);
@@ -188,11 +231,11 @@ export default function CreateMemoPage() {
         }
     };
 
-    // ─── Combined Docket Table Rows from dataForAddMemo ────────────────────────
+    // ─── Combined Docket Table Rows from memoData ───────────────────────────────
     const allDockets: DocketItem[] = useMemo(() => {
         const list: DocketItem[] = [];
-        const bookings = memoData?.data?.bookings || [];
-        const expenses = memoData?.data?.expenses || [];
+        const bookings = memoData?.data?.bookings || memoData?.bookings || [];
+        const expenses = memoData?.data?.expenses || memoData?.expenses || [];
 
         bookings.forEach((b: any, idx: number) => {
             list.push({
@@ -213,8 +256,8 @@ export default function CreateMemoPage() {
             list.push({
                 id: ex._id || `expense-${idx}`,
                 type: "EXPENSE",
-                docketNo: ex.memoNo || "",
-                date: ex.memoDate?.split("T")[0] || "",
+                docketNo: ex.memoNo || ex.expenseNo || "",
+                date: ex.memoDate?.split("T")[0] || ex.date || "",
                 from: ex.fromBranch?.name || "",
                 to: "",
                 party: ex.expenseType ? `Expense: ${ex.expenseType}` : "",
@@ -224,7 +267,7 @@ export default function CreateMemoPage() {
                         : ex.onlineAmount > 0
                             ? "Online"
                             : "Cash",
-                amount: Number(ex.totalAmount || 0),
+                amount: Number(ex.totalAmount || ex.amount || 0),
                 status: ex.status || "",
             });
         });
@@ -319,6 +362,7 @@ export default function CreateMemoPage() {
     // ─── Submit Memo (POST /memo/add-memo) ──────────────────────────────────────
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isViewMode) return;
 
         const newErrors: Record<string, string> = {};
         const total = Number(amountToSend) || 0;
@@ -377,15 +421,20 @@ export default function CreateMemoPage() {
                         <FileText className="w-4 h-4" />
                     </div>
                     <div>
-                        <h1 className="text-base sm:text-lg font-bold text-black tracking-tight leading-tight">
-                            Create New Memo
+                        <h1 className="text-base sm:text-lg font-bold text-black tracking-tight leading-tight flex items-center gap-2">
+                            <span>{isViewMode ? `View Memo Details (${viewMemoNo})` : "Create New Memo"}</span>
+                            {isViewMode && memoData?.memo?.status && (
+                                <span className="text-xs font-semibold text-slate-700 capitalize">
+                                    (Status: {memoData.memo.status})
+                                </span>
+                            )}
                         </h1>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                    {/* Admin Branch Selector (Only shown to Admin) */}
-                    {isAdminOrSuperAdmin && branchOptions.length > 0 && (
+                    {/* Admin Branch Selector (Only shown in create mode to Admin) */}
+                    {!isViewMode && isAdminOrSuperAdmin && branchOptions.length > 0 && (
                         <div className="w-56">
                             <FormSelect
                                 label=""
@@ -404,14 +453,14 @@ export default function CreateMemoPage() {
                         className="bg-[#2980b9] hover:bg-[#2471a3] text-white h-7 px-3 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
                     >
                         <ArrowLeft className="w-3 h-3 mr-1" />
-                        View Memo Reports
+                        Back to Memo Reports
                     </Button>
                 </div>
             </div>
 
             {/* ─── 1. Memo Information Form (Top Section) ─────────────────────────── */}
             <form onSubmit={handleSubmit} className="space-y-1.5">
-                <FormCard title="Memo Details" icon={FileText}>
+                <FormCard title={isViewMode ? `Memo Details - ${viewMemoNo}` : "Memo Details"} icon={FileText}>
                     <div className="space-y-1.5">
                         {/* Row 1: Total Amount (Disabled) & Send To User */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -422,7 +471,7 @@ export default function CreateMemoPage() {
                                     disabled
                                     type="text"
                                     placeholder="0"
-                                    value={amountToSend === 0 ? "0" : String(amountToSend)}
+                                    value={totalAmountToSend === 0 ? "0" : String(totalAmountToSend)}
                                     className="bg-slate-100 font-mono font-bold text-slate-900 cursor-not-allowed"
                                     error={errors.totalAmountToSend}
                                 />
@@ -433,6 +482,7 @@ export default function CreateMemoPage() {
                                     label="Send To User"
                                     required
                                     searchable
+                                    disabled={isViewMode}
                                     options={userOptions}
                                     value={sendToUserId}
                                     onChange={(val) => {
@@ -453,6 +503,7 @@ export default function CreateMemoPage() {
                                     label="Cash Amount (₹)"
                                     type="text"
                                     inputMode="numeric"
+                                    disabled={isViewMode}
                                     placeholder="Enter cash amount"
                                     value={cashAmount === "" ? "" : String(cashAmount)}
                                     onChange={handleCashChange}
@@ -464,6 +515,7 @@ export default function CreateMemoPage() {
                                     label="Online Amount (₹)"
                                     type="text"
                                     inputMode="numeric"
+                                    disabled={isViewMode}
                                     placeholder="Enter online amount"
                                     value={onlineAmount === "" ? "" : String(onlineAmount)}
                                     onChange={handleOnlineChange}
@@ -473,18 +525,20 @@ export default function CreateMemoPage() {
                             <div className="space-y-1">
                                 <Label className="text-[11px] font-bold text-black flex items-center gap-0.5 leading-none">
                                     Proof
-                                    {Number(onlineAmount) > 0 && (
+                                    {!isViewMode && Number(onlineAmount) > 0 && (
                                         <span className="text-red-500 font-bold ml-0.5">* (Required for Online)</span>
                                     )}
                                 </Label>
                                 <FileUploadWithCamera
                                     label="Proof"
-                                    required={Number(onlineAmount) > 0}
+                                    required={!isViewMode && Number(onlineAmount) > 0}
+                                    disabled={isViewMode}
                                     fileName={proofName}
                                     fileUrl={proofUrl}
                                     isUploading={uploadingFields["proof"]}
                                     onFileSelect={handleProofUpload}
                                     onRemove={() => {
+                                        if (isViewMode) return;
                                         setProofName("");
                                         setProofUrl("");
                                     }}
@@ -504,29 +558,32 @@ export default function CreateMemoPage() {
                                 <FormInput
                                     label="Remark"
                                     type="text"
+                                    disabled={isViewMode}
                                     placeholder="Enter remark"
                                     value={remark}
                                     onChange={(e) => setRemark(e.target.value)}
                                 />
                             </div>
 
-                            <Button
-                                type="submit"
-                                disabled={createMemoMutation.isPending}
-                                className="h-8 px-6 bg-[#2980b9] hover:bg-[#2471a3] text-white font-semibold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
-                            >
-                                {createMemoMutation.isPending ? (
-                                    <>
-                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                        <span>Sending...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Save className="w-3.5 h-3.5" />
-                                        <span>Send Memo</span>
-                                    </>
-                                )}
-                            </Button>
+                            {!isViewMode && (
+                                <Button
+                                    type="submit"
+                                    disabled={createMemoMutation.isPending}
+                                    className="h-8 px-6 bg-[#2980b9] hover:bg-[#2471a3] text-white font-semibold text-xs shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
+                                >
+                                    {createMemoMutation.isPending ? (
+                                        <>
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            <span>Sending...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Save className="w-3.5 h-3.5" />
+                                            <span>Send Memo</span>
+                                        </>
+                                    )}
+                                </Button>
+                            )}
                         </div>
 
                         {errors.amount && (

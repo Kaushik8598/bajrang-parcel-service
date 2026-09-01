@@ -456,31 +456,23 @@ export async function getMemoReports(
 }
 
 /**
- * Update memo status (approve/reject) via PUT /memo/status/:id or PATCH /memo/:id/status
+ * Update memo status via PUT /memo/status/:status/:id
+ * For approved: PUT /memo/status/approved/:id (no payload)
+ * For rejected: PUT /memo/status/rejected/:id (body: { reason })
  */
 export async function updateMemoStatus(
   id: string,
   status: "approved" | "rejected" | string,
   reason?: string
 ): Promise<any> {
-  const payload: { status: string; reason?: string } = {
-    status,
-  };
-  if (status === "rejected" && reason) {
-    payload.reason = reason;
-  }
+  const url = `/memo/status/${status}/${id}`;
+  const body = status === "rejected" && reason ? { reason } : undefined;
 
-  try {
-    return await request<any>(`/memo/status/${id}`, {
-      method: "PUT",
-      body: payload,
-    });
-  } catch {
-    return await request<any>(`/memo/${id}`, {
-      method: "PATCH",
-      body: payload,
-    });
-  }
+  const response = await request<any>(url, {
+    method: "PUT",
+    body,
+  });
+  return response;
 }
 
 

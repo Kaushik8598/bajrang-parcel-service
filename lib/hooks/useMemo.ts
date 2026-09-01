@@ -3,6 +3,7 @@ import {
   createMemo,
   getMemoList,
   getMemoById,
+  getMemoByMemoNo,
   getDataForAddMemo,
   CreateMemoPayload,
 } from "@/lib/api/memo";
@@ -15,6 +16,14 @@ export function useDataForAddMemo(params?: { branchId?: string }, enabled = true
     queryKey: [...DATA_FOR_ADD_MEMO_QUERY_KEY, params],
     queryFn: () => getDataForAddMemo(params),
     enabled,
+  });
+}
+
+export function useMemoByMemoNo(memoNo?: string, enabled = true) {
+  return useQuery({
+    queryKey: ["memo-detail-by-no", memoNo],
+    queryFn: () => getMemoByMemoNo(memoNo!),
+    enabled: Boolean(memoNo) && enabled,
   });
 }
 
@@ -44,3 +53,4 @@ export function useCreateMemoMutation() {
     },
   });
 }
+
