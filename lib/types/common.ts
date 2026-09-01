@@ -53,3 +53,48 @@ export interface DashboardStats {
   cancel_booking: number;
   pending_memo: number;
 }
+
+export interface DashboardUser {
+  id: string;
+  name: string;
+  role: string;
+}
+
+export interface DashboardDateRange {
+  startDate: string | null;
+  endDate: string | null;
+}
+
+export interface DashboardSummary {
+  totalBookings?: number;
+  todayBookings?: number;
+  totalDeliveries?: number;
+  todayDeliveries?: number;
+  totalCancelled?: number;
+  pendingDeliveries?: number;
+  pendingParcels?: number;
+  pendingPayment?: number;
+  totalBranch?: number;
+  branchUsers?: number;
+  totalCustomers?: number;
+  totalServices?: number;
+  pendingMemo?: number;
+}
+
+export interface DashboardBranchSummary {
+  branchId?: string;
+  branchName?: string;
+  branchCode?: string;
+  totalBookings?: number;
+  delivered?: number;
+  cancelled?: number;
+  pending?: number;
+}
+
+export interface DashboardResponseData {
+  user?: DashboardUser;
+  dateRange?: DashboardDateRange;
+  summary: DashboardSummary;
+  branchSummary?: DashboardBranchSummary;
+}
+
