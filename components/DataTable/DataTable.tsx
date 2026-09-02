@@ -7,94 +7,7 @@ import TableToolbar from "./TableToolbar";
 import TablePagination from "./TablePagination";
 import { cn } from "@/lib/utils";
 import type { ColumnDef, TablePermissions, SortDirection } from "@/lib/types/common";
-
-// ─── Export helpers ────────────────────────────────────────────────────────────
-async function exportToExcel<T>(
-  columns: ColumnDef<T>[],
-  data: T[],
-  title: string
-) {
-  const { utils, writeFile } = await import("xlsx").then((m) => m);
-  const exportableCols = columns.filter(
-    (c) => !["action", "actions"].includes(String(c.key).toLowerCase())
-  );
-  const headers = exportableCols.map((c) => c.label);
-  const rows = data.map((row) =>
-    exportableCols.map((c) => {
-      const val = (row as Record<string, unknown>)[c.key as string];
-      return val ?? "";
-    })
-  );
-  const ws = utils.aoa_to_sheet([headers, ...rows]);
-  const wb = utils.book_new();
-  utils.book_append_sheet(wb, ws, title.slice(0, 31));
-  writeFile(wb, `${title}.xlsx`);
-}
-
-async function exportToPDF<T>(
-  columns: ColumnDef<T>[],
-  data: T[],
-  title: string
-) {
-  const jsPDF = (await import("jspdf")).default;
-  const autoTable = (await import("jspdf-autotable")).default;
-  const exportableCols = columns.filter(
-    (c) => !["action", "actions"].includes(String(c.key).toLowerCase())
-  );
-  const doc = new jsPDF();
-  doc.setFontSize(14);
-  doc.text(title, 14, 15);
-  autoTable(doc, {
-    startY: 22,
-    head: [exportableCols.map((c) => c.label)],
-    body: data.map((row) =>
-      exportableCols.map((c) => {
-        const val = (row as Record<string, unknown>)[c.key as string];
-        return String(val ?? "");
-      })
-    ),
-    styles: { fontSize: 8 },
-    headStyles: { fillColor: [44, 62, 80] },
-  });
-  doc.save(`${title}.pdf`);
-}
-
-function printTable<T>(columns: ColumnDef<T>[], data: T[], title: string) {
-  const exportableCols = columns.filter(
-    (c) => !["action", "actions"].includes(String(c.key).toLowerCase())
-  );
-  const headers = exportableCols.map((c) => `<th>${c.label}</th>`).join("");
-  const rows = data
-    .map(
-      (row) =>
-        `<tr>${exportableCols
-          .map((c) => {
-            const val = (row as Record<string, unknown>)[c.key as string];
-            return `<td>${val ?? ""}</td>`;
-          })
-          .join("")}</tr>`
-    )
-    .join("");
-
-  const html = `<!DOCTYPE html><html><head><title>${title}</title>
-  <style>
-    body{font-family:Arial,sans-serif;font-size:12px;padding:20px}
-    table{width:100%;border-collapse:collapse;margin-top:10px}
-    th,td{border:1px solid #ccc;padding:8px 12px;text-align:left}
-    th{background:#2c3e50;color:#fff}
-    h2{margin-bottom:12px;color:#2c3e50}
-  </style>
-  </head><body><h2>${title}</h2><table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table></body></html>`;
-
-  const w = window.open("", "_blank");
-  if (w) {
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    w.print();
-    w.close();
-  }
-}
+import { exportToExcel, exportToPDF, printTable } from "@/lib/exportUtils";
 
 // ─── Universal Sort Value Extractor (Completely Generic) ──────────────────────
 function getSortableValue<T>(row: T, col?: ColumnDef<T>): string | number {
@@ -270,9 +183,10 @@ export default function DataTable<T extends Record<string, unknown>>({
   };
 
   // ── Export handlers ──
-  const handleExcel = () => exportToExcel(columns, paginatedRows, title);
-  const handlePDF = () => exportToPDF(columns, paginatedRows, title);
-  const handlePrint = () => printTable(columns, paginatedRows, title);
+  const exportData = clientSide ? (search ? processed : data) : data;
+  const handleExcel = () => exportToExcel(columns, exportData, title);
+  const handlePDF = () => exportToPDF(columns, exportData, title);
+  const handlePrint = () => printTable(columns, exportData, title);
 
   return (
     <div

@@ -37,10 +37,26 @@ apiClient.interceptors.request.use(
   }
 );
 
+// ─── Server Time Tracking ───────────────────────────────────────────────────
+let serverTimeOffset = 0;
+
+/**
+ * Returns the current reliable time synchronized with server headers
+ */
+export function getServerTime(): Date {
+  return new Date(Date.now() + serverTimeOffset);
+}
+
 // ─── Response Interceptor & Error Handling ────────────────────────────────────
 // Formats errors and handles authentication expiration (401)
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
+    if (response.headers && response.headers["date"]) {
+      const serverTime = new Date(response.headers["date"]).getTime();
+      if (!isNaN(serverTime)) {
+        serverTimeOffset = serverTime - Date.now();
+      }
+    }
     return response;
   },
   (error: AxiosError<{ message?: string; error?: string; errors?: Record<string, string[]> | string[] }>) => {
