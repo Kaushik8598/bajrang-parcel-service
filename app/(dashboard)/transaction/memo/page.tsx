@@ -10,6 +10,8 @@ import {
     Loader2,
     ArrowLeft,
     Receipt,
+    Check,
+    X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormInput } from "@/components/ui/form-input";
@@ -18,7 +20,9 @@ import { FormCard } from "@/components/ui/form-card";
 import { Label } from "@/components/ui/label";
 import { FileUploadWithCamera } from "@/components/ui/file-upload-with-camera";
 import SimpleDataTable from "@/components/DataTable/SimpleDataTable";
+import DeleteConfirmDialog from "@/components/DataTable/DeleteConfirmDialog";
 import { showToast } from "@/lib/toast";
+import { formatCurrency } from "@/lib/utils";
 import {
     useDataForAddMemo,
     useMemoByMemoNo,
@@ -26,7 +30,9 @@ import {
     useUserRoleVise,
     useUpload,
     useCreateMemoMutation,
+    useModulePermissions,
 } from "@/lib/hooks";
+import { useUpdateMemoStatusMutation } from "@/lib/hooks/useReports";
 import { getStoredUser, getStoredUserRole } from "@/lib/api/auth";
 import { CreateMemoPayload, PaymentSummaryItem } from "@/lib/api/memo";
 import type { ColumnDef } from "@/lib/types/common";
@@ -52,6 +58,13 @@ export default function CreateMemoPage() {
 
     const { uploadFile, uploadingFields } = useUpload();
     const createMemoMutation = useCreateMemoMutation();
+    const updateStatusMutation = useUpdateMemoStatusMutation();
+    const permissions = useModulePermissions("memo");
+
+    // ─── Status Action States (Approve / Reject in View Mode) ──────────────────
+    const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+    const [targetStatus, setTargetStatus] = useState<"approved" | "rejected">("approved");
+    const [reasonInput, setReasonInput] = useState("");
 
     // ─── Current User & Role ───────────────────────────────────────────────────
     const currentUser = useMemo(() => getStoredUser(), []);
@@ -524,6 +537,51 @@ export default function CreateMemoPage() {
         }
     };
 
+    // ─── Status Update Handlers (Approve / Reject) ─────────────────────────────
+    const currentMemoStatus = String(memoData?.status || memoData?.memo?.status || "").toLowerCase();
+    const isPending = currentMemoStatus === "pending";
+    const canApproveOrReject = isViewMode && isPending && Boolean(permissions?.canEdit);
+    const memoId = String(memoData?.memoId || memoData?._id || memoData?.id || memoData?.memo?._id || "");
+
+    const handleOpenStatusConfirm = (status: "approved" | "rejected") => {
+        setTargetStatus(status);
+        setReasonInput("");
+        setConfirmDialogOpen(true);
+    };
+
+    const handleConfirmStatusUpdate = async () => {
+        if (!memoId) {
+            showToast("error", "Memo ID not found.");
+            return;
+        }
+
+        if (targetStatus === "rejected" && !reasonInput.trim()) {
+            showToast("warning", "Please enter a reason for rejection.");
+            return;
+        }
+
+        try {
+            const res = await updateStatusMutation.mutateAsync({
+                id: memoId,
+                status: targetStatus,
+                reason: targetStatus === "rejected" ? reasonInput.trim() : undefined,
+            });
+
+            showToast(
+                "success",
+                res?.message || res?.data?.message || "Success"
+            );
+
+            setConfirmDialogOpen(false);
+            setReasonInput("");
+        } catch (error: any) {
+            showToast(
+                "error",
+                error?.message || "Failed to update memo status"
+            );
+        }
+    };
+
     return (
         <div className="w-full space-y-1.5 pb-6">
             {/* ─── Top Navigation Bar ──────────────────────────────────────────────── */}
@@ -545,6 +603,30 @@ export default function CreateMemoPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    {/* Status Action Buttons (Approve / Reject) in View Mode for Pending Memos */}
+                    {canApproveOrReject && (
+                        <div className="flex items-center gap-1.5">
+                            <Button
+                                type="button"
+                                disabled={updateStatusMutation.isPending}
+                                onClick={() => handleOpenStatusConfirm("approved")}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 px-3 text-xs font-semibold shadow-xs transition-colors cursor-pointer flex items-center gap-1"
+                            >
+                                <Check className="w-3.5 h-3.5" />
+                                <span>Approve</span>
+                            </Button>
+                            <Button
+                                type="button"
+                                disabled={updateStatusMutation.isPending}
+                                onClick={() => handleOpenStatusConfirm("rejected")}
+                                className="bg-red-600 hover:bg-red-700 text-white h-7 px-3 text-xs font-semibold shadow-xs transition-colors cursor-pointer flex items-center gap-1"
+                            >
+                                <X className="w-3.5 h-3.5" />
+                                <span>Reject</span>
+                            </Button>
+                        </div>
+                    )}
+
                     {/* Admin Branch Selector (Only shown in create mode to Admin) */}
                     {!isViewMode && isAdminOrSuperAdmin && branchOptions.length > 0 && (
                         <div className="w-56">
@@ -572,7 +654,7 @@ export default function CreateMemoPage() {
 
             {/* ─── 1. Memo Information Form (Top Section) ─────────────────────────── */}
             <form onSubmit={handleSubmit} className="space-y-1.5">
-                <FormCard title={isViewMode ? `Memo Details - ${viewMemoNo}` : "Memo Details"} icon={FileText}>
+                <FormCard title="Memo Details" icon={FileText}>
                     <div className="space-y-1.5">
                         {/* Row 1: Total Amount (Disabled) & Send To User */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -908,6 +990,35 @@ export default function CreateMemoPage() {
                     emptyMessage="No pending bookings or expenses found for this memo."
                 />
             </div>
+
+            {/* ─── Status Confirmation Dialog (Approve / Reject) ─────────────── */}
+            <DeleteConfirmDialog
+                open={confirmDialogOpen}
+                onOpenChange={setConfirmDialogOpen}
+                onConfirm={handleConfirmStatusUpdate}
+                title={targetStatus === "approved" ? "Approve Memo" : "Reject Memo"}
+                description={
+                    memoData
+                        ? `Are you sure you want to ${targetStatus} memo "${memoData?.memoNo || viewMemoNo}" of amount ${formatCurrency(
+                            Number(memoData?.totalAmount ?? calculatedAmountToSend ?? 0)
+                        )} from branch "${memoData?.fromBranch?.name || memoData?.senderBranch?.name || "—"}"?`
+                        : undefined
+                }
+                confirmText={targetStatus === "approved" ? "Approve" : "Reject"}
+                isLoading={updateStatusMutation.isPending}
+            >
+                {targetStatus === "rejected" && (
+                    <div className="pt-2">
+                        <FormInput
+                            label="Reason for Rejection:"
+                            placeholder="Enter rejection reason..."
+                            value={reasonInput}
+                            onChange={(e) => setReasonInput(e.target.value)}
+                            required
+                        />
+                    </div>
+                )}
+            </DeleteConfirmDialog>
         </div>
     );
 }

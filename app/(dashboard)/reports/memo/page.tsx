@@ -150,7 +150,7 @@ export default function MemoReportPage() {
     }
 
     try {
-      await updateStatusMutation.mutateAsync({
+      const res = await updateStatusMutation.mutateAsync({
         id: memoToUpdate._id,
         status: targetStatus,
         reason: targetStatus === "rejected" ? reasonInput.trim() : undefined,
@@ -158,9 +158,7 @@ export default function MemoReportPage() {
 
       showToast(
         "success",
-        `Memo ${memoToUpdate.memoNo} ${
-          targetStatus === "approved" ? "approved" : "rejected"
-        } successfully!`
+        res?.message || res?.data?.message || "Success"
       );
 
       setConfirmDialogOpen(false);
@@ -169,7 +167,7 @@ export default function MemoReportPage() {
     } catch (error: any) {
       showToast(
         "error",
-        error?.message || `Failed to update memo status to ${targetStatus}`
+        error?.message || "Failed to update memo status"
       );
     }
   };
@@ -293,7 +291,7 @@ export default function MemoReportPage() {
           const isPending = status === "pending";
 
           return (
-            <div className="flex items-center justify-center gap-1.5 flex-nowrap">
+            <div className="flex items-center justify-start gap-1.5 flex-nowrap">
               {/* View Button (Redirects to /transaction/memo?memoNo=...) */}
               <Button
                 type="button"
@@ -306,7 +304,7 @@ export default function MemoReportPage() {
               </Button>
 
               {/* Status Action Buttons for Pending Memos */}
-              {isPending && (
+              {isPending && permissions?.canEdit && (
                 <>
                   <Button
                     type="button"
@@ -428,8 +426,8 @@ export default function MemoReportPage() {
         description={
           memoToUpdate
             ? `Are you sure you want to ${targetStatus} memo "${memoToUpdate.memoNo}" of amount ${formatCurrency(
-                memoToUpdate.totalAmount || 0
-              )} from branch "${memoToUpdate.fromBranch?.name || "—"}"?`
+              memoToUpdate.totalAmount || 0
+            )} from branch "${memoToUpdate.fromBranch?.name || "—"}"?`
             : undefined
         }
         confirmText={targetStatus === "approved" ? "Approve" : "Reject"}

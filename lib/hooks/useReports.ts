@@ -401,6 +401,8 @@ export function useUpdateMemoStatusMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: MEMO_REPORTS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ["memo-list"] });
+      queryClient.invalidateQueries({ queryKey: ["memo-detail-by-no"] });
+      queryClient.invalidateQueries({ queryKey: ["memo-detail"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     },
   });

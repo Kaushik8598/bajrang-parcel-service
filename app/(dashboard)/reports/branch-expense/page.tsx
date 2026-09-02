@@ -506,52 +506,52 @@ export default function BranchExpenseReportPage() {
             {(selectedExpense.expenseType?.toLowerCase() === "petrol" ||
               selectedExpense.startKM ||
               selectedExpense.endKM ||
-              selectedExpense.liter) && (
-                <div className="p-3.5 rounded-lg border border-slate-200 bg-white space-y-2 text-xs">
-                  <h3 className="font-bold text-black uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-1.5">
-                    <Fuel className="w-3.5 h-3.5 text-black" />
-                    Fuel & Vehicle Details
-                  </h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    {selectedExpense.truck && (
-                      <div>
-                        <span className="text-slate-500 block">Truck:</span>
-                        <span className="font-semibold text-black">
-                          {selectedExpense.truck.name} {selectedExpense.truck.truckNumber ? `(${selectedExpense.truck.truckNumber})` : ""}
-                        </span>
-                      </div>
-                    )}
-                    {selectedExpense.fuelType && (
-                      <div>
-                        <span className="text-slate-500 block">Fuel Type:</span>
-                        <span className="font-semibold text-black capitalize">{selectedExpense.fuelType}</span>
-                      </div>
-                    )}
-                    {selectedExpense.liter ? (
-                      <div>
-                        <span className="text-slate-500 block">Liters:</span>
-                        <span className="font-semibold text-black font-mono">{selectedExpense.liter} L</span>
-                      </div>
-                    ) : null}
-                    {selectedExpense.startKM || selectedExpense.endKM ? (
-                      <div>
-                        <span className="text-slate-500 block">KM Range:</span>
-                        <span className="font-semibold text-black font-mono">
-                          {selectedExpense.startKM || 0} - {selectedExpense.endKM || 0} KM
-                        </span>
-                      </div>
-                    ) : null}
-                  </div>
+              selectedExpense.liter) ? (
+              <div className="p-3.5 rounded-lg border border-slate-200 bg-white space-y-2 text-xs">
+                <h3 className="font-bold text-black uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-1.5">
+                  <Fuel className="w-3.5 h-3.5 text-black" />
+                  Fuel & Vehicle Details
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {selectedExpense.truck && (
+                    <div>
+                      <span className="text-slate-500 block">Truck:</span>
+                      <span className="font-semibold text-black">
+                        {selectedExpense.truck.name} {selectedExpense.truck.truckNumber ? `(${selectedExpense.truck.truckNumber})` : ""}
+                      </span>
+                    </div>
+                  )}
+                  {selectedExpense.fuelType && (
+                    <div>
+                      <span className="text-slate-500 block">Fuel Type:</span>
+                      <span className="font-semibold text-black capitalize">{selectedExpense.fuelType}</span>
+                    </div>
+                  )}
+                  {selectedExpense.liter ? (
+                    <div>
+                      <span className="text-slate-500 block">Liters:</span>
+                      <span className="font-semibold text-black font-mono">{selectedExpense.liter} L</span>
+                    </div>
+                  ) : null}
+                  {selectedExpense.startKM || selectedExpense.endKM ? (
+                    <div>
+                      <span className="text-slate-500 block">KM Range:</span>
+                      <span className="font-semibold text-black font-mono">
+                        {selectedExpense.startKM || 0} - {selectedExpense.endKM || 0} KM
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
-              )}
+              </div>
+            ) : null}
 
             {/* Remark */}
-            {selectedExpense.remark && (
+            {selectedExpense.remark ? (
               <div className="p-3 rounded-lg border border-slate-200 bg-white text-xs">
                 <span className="text-slate-500 font-semibold block mb-0.5">Remark:</span>
                 <p className="text-black font-medium">{selectedExpense.remark}</p>
               </div>
-            )}
+            ) : null}
 
             <div className="flex items-center justify-end pt-2">
               <Button
