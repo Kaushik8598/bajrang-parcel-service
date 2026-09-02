@@ -23,6 +23,7 @@ import { getBookingById, updateBookingStatus } from "@/lib/api/booking";
 import { sendOtp, resendOtp, verifyOtp } from "@/lib/api/auth";
 import { useUpload } from "@/lib/hooks/useUpload";
 import { showToast } from "@/lib/toast";
+import { printBookingSlip } from "@/components/booking/BookingPrintSlip";
 
 export default function ParcelDeliveryPage() {
   const [searchInput, setSearchInput] = useState<string>("");
@@ -98,6 +99,7 @@ export default function ParcelDeliveryPage() {
       setDiscount(bookingData.discount ?? "");
       setOtp("");
       setOtpSent(false);
+      setOtpTimer(0);
       setReceiverProofFile(null);
       setReceiverProofUrl("");
     }
@@ -114,6 +116,9 @@ export default function ParcelDeliveryPage() {
 
     setIsSearching(true);
     setErrorMsg("");
+    setOtpTimer(0);
+    setOtpSent(false);
+    setOtp("");
 
     try {
       const data = await getBookingById(rawQuery);
@@ -153,6 +158,7 @@ export default function ParcelDeliveryPage() {
     setReceiverProofUrl("");
     setOtp("");
     setOtpSent(false);
+    setOtpTimer(0);
     searchInputRef.current?.focus();
   };
 
@@ -178,7 +184,7 @@ export default function ParcelDeliveryPage() {
     try {
       const res = otpSent ? await resendOtp(trimmed) : await sendOtp(trimmed);
       setOtpSent(true);
-      setOtpTimer(60);
+      setOtpTimer(10);
       showToast("success", res?.message || `OTP sent successfully to ${trimmed}`);
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || "Failed to send OTP.";
@@ -223,7 +229,11 @@ export default function ParcelDeliveryPage() {
       const verifyRes = await verifyOtp(trimmedContact, otp.trim());
 
       // 2. Call POST /booking/:id/:status with 'delivered'
-      const bookingId = bookingData?.docketNo1;
+      const bookingId =
+        bookingData?.docketNo1 ||
+        bookingData?.docketNo2 ||
+        bookingData?._id;
+
       if (bookingId) {
         const statusRes = await updateBookingStatus(bookingId, "delivered", {
           receiverContact: trimmedContact,
@@ -239,8 +249,55 @@ export default function ParcelDeliveryPage() {
           statusRes?.message || verifyRes?.message || "Parcel delivered successfully!"
         );
 
-        // Reload booking details
-        handleSearch(String(bookingId));
+        // 3. Open Delivery Slip with fresh delivered data
+        const returnedBooking = (statusRes as any)?.booking;
+
+        const fromBranch = {
+          _id: returnedBooking?.fromBranchId?._id || "",
+          name: returnedBooking?.fromBranchId?.branchInfo?.branchName || "",
+          code: returnedBooking?.fromBranchId?.branchInfo?.branchCode || "",
+          branchName: returnedBooking?.fromBranchId?.branchInfo?.branchName || "",
+          branchCode: returnedBooking?.fromBranchId?.branchInfo?.branchCode || "",
+          mobile1: returnedBooking?.fromBranchId?.branchInfo?.mobile1 || "",
+          mobile2: returnedBooking?.fromBranchId?.branchInfo?.mobile2 || "",
+          address: returnedBooking?.fromBranchId?.branchInfo?.address || {},
+        };
+
+        const toBranch = {
+          _id: returnedBooking?.toBranchId?._id || "",
+          name: returnedBooking?.toBranchId?.branchInfo?.branchName || "",
+          code: returnedBooking?.toBranchId?.branchInfo?.branchCode || "",
+          branchName: returnedBooking?.toBranchId?.branchInfo?.branchName || "",
+          branchCode: returnedBooking?.toBranchId?.branchInfo?.branchCode || "",
+          mobile1: returnedBooking?.toBranchId?.branchInfo?.mobile1 || "",
+          mobile2: returnedBooking?.toBranchId?.branchInfo?.mobile2 || "",
+          address: returnedBooking?.toBranchId?.branchInfo?.address || {},
+        };
+
+        const deliveredBooking = {
+          ...returnedBooking,
+          fromBranch,
+          toBranch,
+        };
+
+        printBookingSlip({
+          booking: deliveredBooking,
+          fromBranch,
+          toBranch,
+        });
+
+        // 4. Clear form and search data to reset screen
+        setSearchInput("");
+        setBookingData(null);
+        setErrorMsg("");
+        setReceiverContact("");
+        setReceiverName("");
+        setDiscount("");
+        setReceiverProofFile(null);
+        setReceiverProofUrl("");
+        setOtp("");
+        setOtpSent(false);
+        setOtpTimer(0);
       } else {
         showToast("success", verifyRes?.message || "Parcel delivered successfully!");
       }
