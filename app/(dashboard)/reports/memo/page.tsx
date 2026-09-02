@@ -16,25 +16,16 @@ import { FormSelect } from "@/components/ui/form-select";
 import { Button } from "@/components/ui/button";
 import { showToast } from "@/lib/toast";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
-import { useOnlyBranchList } from "@/lib/hooks";
+import { useOnlyBranchList, useModulePermissions } from "@/lib/hooks";
 import { useMemoReports, useUpdateMemoStatusMutation } from "@/lib/hooks/useReports";
 import { getStoredUserRole, getStoredUser } from "@/lib/api/auth";
 import type { MemoReportItem } from "@/lib/api/reports";
 import type { BranchDropdownItem } from "@/lib/api/branch";
-import type { ColumnDef, TablePermissions } from "@/lib/types/common";
-
-const PERMISSIONS: TablePermissions = {
-  canExcel: true,
-  canPDF: true,
-  canPrint: true,
-  canAdd: false,
-  canEdit: false,
-  canDelete: false,
-  canStatus: false,
-};
+import type { ColumnDef } from "@/lib/types/common";
 
 export default function MemoReportPage() {
   const router = useRouter();
+  const permissions = useModulePermissions("memo");
 
   // Current user role
   const [userRole, setUserRole] = useState<string>("");
@@ -408,7 +399,7 @@ export default function MemoReportPage() {
         title="Memo Report"
         columns={columns}
         data={memoRecords}
-        permissions={PERMISSIONS}
+        permissions={permissions}
         isLoading={isLoading || isFetching}
         clientSide={false}
         searchValue={search}

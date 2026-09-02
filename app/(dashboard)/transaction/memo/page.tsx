@@ -28,7 +28,7 @@ import {
     useCreateMemoMutation,
 } from "@/lib/hooks";
 import { getStoredUser, getStoredUserRole } from "@/lib/api/auth";
-import { CreateMemoPayload } from "@/lib/api/memo";
+import { CreateMemoPayload, PaymentSummaryItem } from "@/lib/api/memo";
 import type { ColumnDef } from "@/lib/types/common";
 
 export interface DocketItem extends Record<string, any> {
@@ -114,10 +114,36 @@ export default function CreateMemoPage() {
             const raw = (viewMemoDataRes as any)?.data || viewMemoDataRes;
             return raw || null;
         }
-        return createMemoData || null;
+        return (createMemoData as any)?.data || createMemoData || null;
     }, [isViewMode, viewMemoDataRes, createMemoData]);
 
     const isMemoDataLoading = isViewMode ? isViewMemoDataLoading : isCreateMemoDataLoading;
+
+    // ─── Summary Extractors ────────────────────────────────────────────────────
+    const branchInfo =
+        memoData?.metadata?.branchInfo ||
+        memoData?.branchInfo ||
+        memoData?.branch ||
+        {};
+    const bookingCommission =
+        branchInfo?.bookingCommission ?? branchInfo?.Bookingcommission ?? 0;
+    const deliveryCommission =
+        branchInfo?.deliveryCommission ?? branchInfo?.DeliveryCommission ?? 0;
+
+    const summary =
+        memoData?.metadata?.summary ||
+        memoData?.summary ||
+        memoData?.data?.metadata?.summary ||
+        memoData?.data?.summary ||
+        {};
+    const senderSummary: PaymentSummaryItem[] = summary?.sender || [];
+    const receiverSummary: PaymentSummaryItem[] = summary?.receiver || [];
+    const totals = summary?.totals || {};
+
+    const senderTotals = totals?.sender || {};
+    const receiverTotals = totals?.receiver || {};
+    const expenseTotals = totals?.expense || {};
+    const overallTotals = totals?.overall || {};
 
     // ─── Fetch Admins for "Send To User" via GET /user/onlyAdmin ───────────────
     const { data: onlyAdminRes } = useOnlyAdminList();
@@ -126,18 +152,35 @@ export default function CreateMemoPage() {
         const raw = (onlyAdminRes as any)?.data ?? onlyAdminRes ?? [];
         const list = Array.isArray(raw) ? raw : [];
 
-        return list.map((u: any) => ({
+        const opts = list.map((u: any) => ({
             value: String(u._id || ""),
             label: u.name || "",
         }));
-    }, [onlyAdminRes]);
+
+        if (isViewMode && memoData) {
+            const m = memoData.memo || memoData;
+            const toName = m.toBranch?.name || m.receiverBranch?.name || "Admin";
+            const toId = m.toBranch?.branchId || m.sendToUserId || m.sendToUser?._id || "view-admin";
+            if (toId && !opts.some((o) => o.value === toId)) {
+                opts.push({ value: toId, label: toName });
+            }
+        }
+
+        return opts;
+    }, [onlyAdminRes, isViewMode, memoData]);
 
     // ─── Memo Form States ──────────────────────────────────────────────────────
-    const amountToSend = memoData?.totalSummary?.amountToSend ?? memoData?.memo?.totalAmount ?? 0;
-    const [totalAmountToSend, setTotalAmountToSend] = useState<number | "">(0);
+    const calculatedAmountToSend =
+        overallTotals?.amountToSend ??
+        memoData?.totalSummary?.amountToSend ??
+        memoData?.memo?.totalAmount ??
+        memoData?.totalAmount ??
+        0;
+
+    const [totalAmountToSend, setTotalAmountToSend] = useState<number | string>(0);
     const [sendToUserId, setSendToUserId] = useState<string>("");
-    const [cashAmount, setCashAmount] = useState<number | "">(0);
-    const [onlineAmount, setOnlineAmount] = useState<number | "">(0);
+    const [cashAmount, setCashAmount] = useState<number | string>(0);
+    const [onlineAmount, setOnlineAmount] = useState<number | string>(0);
     const [proofName, setProofName] = useState<string>("");
     const [proofUrl, setProofUrl] = useState<string>("");
     const [remark, setRemark] = useState<string>("");
@@ -147,12 +190,17 @@ export default function CreateMemoPage() {
     useEffect(() => {
         if (isViewMode && memoData) {
             const m = memoData.memo || memoData;
-            const total = Number(m.totalAmount ?? memoData?.totalSummary?.amountToSend ?? 0);
+            const total = Number(
+                m.totalAmount ??
+                overallTotals?.amountToSend ??
+                memoData?.totalSummary?.amountToSend ??
+                0
+            );
             const cash = Number(m.cashAmount ?? 0);
             const online = Number(m.onlineAmount ?? 0);
-            const pUrl = String(m.proofUrl || "");
+            const pUrl = String(m.paymentScreenshot || m.documentUrl || m.proofUrl || "");
             const rem = String(m.remark || "");
-            const sendUser = String(m.sendToUserId || m.sendToUser?._id || m.sendToUser || "");
+            const sendUser = String(m.toBranch?.branchId || m.sendToUserId || m.sendToUser?._id || "view-admin");
 
             setTotalAmountToSend(total);
             setCashAmount(cash);
@@ -162,11 +210,11 @@ export default function CreateMemoPage() {
             setRemark(rem);
             if (sendUser) setSendToUserId(sendUser);
         } else if (!isViewMode) {
-            setTotalAmountToSend(amountToSend);
-            setCashAmount(amountToSend);
+            setTotalAmountToSend(calculatedAmountToSend);
+            setCashAmount(calculatedAmountToSend);
             setOnlineAmount(0);
         }
-    }, [isViewMode, memoData, amountToSend]);
+    }, [isViewMode, memoData, calculatedAmountToSend, overallTotals?.amountToSend]);
 
     // Default Send To User (Only in create mode)
     useEffect(() => {
@@ -175,11 +223,11 @@ export default function CreateMemoPage() {
         }
     }, [userOptions, sendToUserId, isViewMode]);
 
-    // ─── Dual-Sync Amount Handlers ─────────────────────────────────────────────
+    // ─── Dual-Sync Amount Handlers (Supports Positive and Negative Values) ──────
     const handleCashChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (isViewMode) return;
-        const raw = e.target.value;
-        const total = typeof amountToSend === "number" ? amountToSend : Number(amountToSend) || 0;
+        const raw = e.target.value.trim();
+        const total = typeof calculatedAmountToSend === "number" ? calculatedAmountToSend : Number(calculatedAmountToSend) || 0;
 
         if (raw === "") {
             setCashAmount("");
@@ -187,12 +235,21 @@ export default function CreateMemoPage() {
             return;
         }
 
-        const clean = raw.replace(/\D/g, "");
-        let intVal = clean === "" ? 0 : parseInt(clean, 10);
-        if (intVal > total) intVal = total;
+        if (raw === "-") {
+            setCashAmount("-");
+            return;
+        }
 
+        const isNegative = raw.startsWith("-");
+        const cleanDigits = raw.replace(/\D/g, "");
+        if (cleanDigits === "") {
+            setCashAmount(isNegative ? "-" : "");
+            return;
+        }
+
+        const intVal = parseInt(cleanDigits, 10) * (isNegative ? -1 : 1);
         setCashAmount(intVal);
-        setOnlineAmount(Math.max(0, total - intVal));
+        setOnlineAmount(total - intVal);
 
         if (errors.amount) setErrors((p) => ({ ...p, amount: "" }));
         if (errors.proof && total - intVal === 0) setErrors((p) => ({ ...p, proof: "" }));
@@ -200,8 +257,8 @@ export default function CreateMemoPage() {
 
     const handleOnlineChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (isViewMode) return;
-        const raw = e.target.value;
-        const total = typeof amountToSend === "number" ? amountToSend : Number(amountToSend) || 0;
+        const raw = e.target.value.trim();
+        const total = typeof calculatedAmountToSend === "number" ? calculatedAmountToSend : Number(calculatedAmountToSend) || 0;
 
         if (raw === "") {
             setOnlineAmount("");
@@ -209,12 +266,21 @@ export default function CreateMemoPage() {
             return;
         }
 
-        const clean = raw.replace(/\D/g, "");
-        let intVal = clean === "" ? 0 : parseInt(clean, 10);
-        if (intVal > total) intVal = total;
+        if (raw === "-") {
+            setOnlineAmount("-");
+            return;
+        }
 
+        const isNegative = raw.startsWith("-");
+        const cleanDigits = raw.replace(/\D/g, "");
+        if (cleanDigits === "") {
+            setOnlineAmount(isNegative ? "-" : "");
+            return;
+        }
+
+        const intVal = parseInt(cleanDigits, 10) * (isNegative ? -1 : 1);
         setOnlineAmount(intVal);
-        setCashAmount(Math.max(0, total - intVal));
+        setCashAmount(total - intVal);
 
         if (errors.amount) setErrors((p) => ({ ...p, amount: "" }));
         if (errors.proof && intVal === 0) setErrors((p) => ({ ...p, proof: "" }));
@@ -233,44 +299,94 @@ export default function CreateMemoPage() {
 
     // ─── Combined Docket Table Rows from memoData ───────────────────────────────
     const allDockets: DocketItem[] = useMemo(() => {
+        const rawBookings = memoData?.bookings || memoData?.data?.bookings || [];
+        const rawExpenses = memoData?.expenses || memoData?.data?.expenses || [];
+
         const list: DocketItem[] = [];
-        const bookings = memoData?.data?.bookings || memoData?.bookings || [];
-        const expenses = memoData?.data?.expenses || memoData?.expenses || [];
 
-        bookings.forEach((b: any, idx: number) => {
+        rawBookings.forEach((b: any, idx: number) => {
+            const isExpense =
+                b.type === "expense" ||
+                b.source === "expense" ||
+                Boolean(b.memoNo && !b.docketNo1);
+
+            const typeLabel: "BOOKING" | "DELIVERY" | "EXPENSE" = isExpense
+                ? "EXPENSE"
+                : b.type === "receiver" || b.status === "delivered"
+                    ? "DELIVERY"
+                    : "BOOKING";
+
+            const docketNo = b.docketNo1 || b.docketNo2 || b.memoNo || "—";
+            const date =
+                b.bookingDate
+                    ? `${b.bookingDate}${b.bookingTime ? ` ${b.bookingTime}` : ""}`
+                    : b.memoDate
+                        ? b.memoDate.split("T")[0]
+                        : b.createdAt
+                            ? b.createdAt.split("T")[0]
+                            : "—";
+
+            const from = b.fromBranch?.name || "—";
+            const to = b.toBranch?.name || (isExpense ? "—" : "—");
+            const party = isExpense
+                ? b.expenseType
+                    ? `Expense: ${b.expenseType}`
+                    : b.remark || "Expense"
+                : b.sender?.name || b.receiver?.name || b.remark || "—";
+
+            const paymentMethod = isExpense
+                ? b.cashAmount > 0 && b.onlineAmount > 0
+                    ? "Cash + Online"
+                    : b.onlineAmount > 0
+                        ? "Online"
+                        : "Cash"
+                : b.paymentMethod || "—";
+
+            const amount = Number(
+                b.amount ?? b.totalAmount ?? b.finalBillAmount ?? b.cashAmount ?? 0
+            );
+            const status = b.status || "—";
+
             list.push({
-                id: b._id || `booking-${idx}`,
-                type: b.status === "delivered" ? "DELIVERY" : "BOOKING",
-                docketNo: b.docketNo1 || b.docketNo2 || "",
-                date: b.bookingDate || b.createdAt?.split("T")[0] || "",
-                from: b.fromBranch?.name || "",
-                to: b.toBranch?.name || "",
-                party: b.sender?.name || b.receiver?.name || "",
-                paymentMethod: b.paymentMethod || "",
-                amount: Number(b.finalBillAmount || 0),
-                status: b.status || "",
+                id: b.id || b._id || `item-${idx}`,
+                type: typeLabel,
+                docketNo,
+                date,
+                from,
+                to,
+                party,
+                paymentMethod,
+                amount,
+                status,
             });
         });
 
-        expenses.forEach((ex: any, idx: number) => {
-            list.push({
-                id: ex._id || `expense-${idx}`,
-                type: "EXPENSE",
-                docketNo: ex.memoNo || ex.expenseNo || "",
-                date: ex.memoDate?.split("T")[0] || ex.date || "",
-                from: ex.fromBranch?.name || "",
-                to: "",
-                party: ex.expenseType ? `Expense: ${ex.expenseType}` : "",
-                paymentMethod:
-                    ex.cashAmount > 0 && ex.onlineAmount > 0
-                        ? "Cash + Online"
-                        : ex.onlineAmount > 0
-                            ? "Online"
-                            : "Cash",
-                amount: Number(ex.totalAmount || ex.amount || 0),
-                status: ex.status || "",
+        // Fallback if expenses were delivered in a separate array
+        if (rawExpenses.length > 0 && list.every((i) => i.type !== "EXPENSE")) {
+            rawExpenses.forEach((ex: any, idx: number) => {
+                list.push({
+                    id: ex.id || ex._id || `expense-${idx}`,
+                    type: "EXPENSE",
+                    docketNo: ex.memoNo || "—",
+                    date: ex.memoDate
+                        ? ex.memoDate.split("T")[0]
+                        : ex.createdAt
+                            ? ex.createdAt.split("T")[0]
+                            : "—",
+                    from: ex.fromBranch?.name || "—",
+                    to: "—",
+                    party: ex.expenseType ? `Expense: ${ex.expenseType}` : "Expense",
+                    paymentMethod:
+                        ex.cashAmount > 0 && ex.onlineAmount > 0
+                            ? "Cash + Online"
+                            : ex.onlineAmount > 0
+                                ? "Online"
+                                : "Cash",
+                    amount: Number(ex.totalAmount ?? ex.amount ?? ex.cashAmount ?? 0),
+                    status: ex.status || "—",
+                });
             });
-        });
+        }
 
         return list;
     }, [memoData]);
@@ -284,7 +400,7 @@ export default function CreateMemoPage() {
                 width: "w-24",
                 align: "center",
                 render: (_, r) => (
-                    <span className="font-semibold text-black uppercase">
+                    <span className="font-semibold text-black uppercase text-xs">
                         {r.type}
                     </span>
                 ),
@@ -295,31 +411,31 @@ export default function CreateMemoPage() {
                 sortable: true,
                 sortValue: (r) => r.docketNo,
                 render: (val) => (
-                    <span className="font-mono font-bold text-black">{String(val || "—")}</span>
+                    <span className="font-mono font-bold text-black text-xs">{String(val || "—")}</span>
                 ),
             },
             {
                 key: "date",
-                label: "DATE",
+                label: "DATE / TIME",
                 sortable: true,
                 sortValue: (r) => new Date(r.date || 0).getTime(),
-                render: (val) => <span className="font-mono text-black">{String(val || "—")}</span>,
+                render: (val) => <span className="font-mono text-black text-xs">{String(val || "—")}</span>,
             },
             {
                 key: "from",
                 label: "FROM",
-                render: (val) => <span className="text-black">{String(val || "—")}</span>,
+                render: (val) => <span className="text-black text-xs">{String(val || "—")}</span>,
             },
             {
                 key: "to",
                 label: "TO",
-                render: (val) => <span className="text-black">{String(val || "—")}</span>,
+                render: (val) => <span className="text-black text-xs">{String(val || "—")}</span>,
             },
             {
                 key: "party",
                 label: "PARTY / REMARK",
                 render: (val) => (
-                    <span className="font-medium text-black truncate max-w-[160px] block">
+                    <span className="font-medium text-black text-xs truncate max-w-[160px] block">
                         {String(val || "—")}
                     </span>
                 ),
@@ -340,7 +456,7 @@ export default function CreateMemoPage() {
                 align: "right",
                 sortValue: (r) => Number(r.amount || 0),
                 render: (val) => (
-                    <span className="font-mono font-bold text-black">
+                    <span className="font-mono font-bold text-black text-xs">
                         ₹{Number(val || 0)}
                     </span>
                 ),
@@ -365,23 +481,19 @@ export default function CreateMemoPage() {
         if (isViewMode) return;
 
         const newErrors: Record<string, string> = {};
-        const total = Number(amountToSend) || 0;
-        const cash = typeof cashAmount === "number" ? cashAmount : 0;
-        const online = typeof onlineAmount === "number" ? onlineAmount : 0;
+        const total = typeof calculatedAmountToSend === "number" ? calculatedAmountToSend : Number(calculatedAmountToSend) || 0;
+        const cash = typeof cashAmount === "number" ? cashAmount : Number(cashAmount) || 0;
+        const online = typeof onlineAmount === "number" ? onlineAmount : Number(onlineAmount) || 0;
 
         if (!sendToUserId) {
             newErrors.sendToUserId = "Please select a user to send memo.";
         }
 
-        if (total <= 0) {
-            newErrors.totalAmountToSend = "Total amount to send must be greater than 0.";
-        }
-
         if (cash + online !== total) {
-            newErrors.amount = "Cash and Online amount must exactly equal Total Amount to Send.";
+            newErrors.amount = `Cash (₹${cash}) and Online (₹${online}) amount must exactly equal Total Amount to Send (₹${total}).`;
         }
 
-        if (online > 0 && !proofUrl) {
+        if (online !== 0 && !proofUrl) {
             newErrors.proof = "Proof upload is required when online amount is entered.";
         }
 
@@ -422,10 +534,10 @@ export default function CreateMemoPage() {
                     </div>
                     <div>
                         <h1 className="text-base sm:text-lg font-bold text-black tracking-tight leading-tight flex items-center gap-2">
-                            <span>{isViewMode ? `View Memo Details (${viewMemoNo})` : "Create New Memo"}</span>
-                            {isViewMode && memoData?.memo?.status && (
+                            <span>{isViewMode ? `View Memo Details (${memoData?.memoNo || viewMemoNo})` : "Create New Memo"}</span>
+                            {isViewMode && (memoData?.status || memoData?.memo?.status) && (
                                 <span className="text-xs font-semibold text-slate-700 capitalize">
-                                    (Status: {memoData.memo.status})
+                                    (Status: {memoData.status || memoData.memo?.status})
                                 </span>
                             )}
                         </h1>
@@ -502,7 +614,6 @@ export default function CreateMemoPage() {
                                 <FormInput
                                     label="Cash Amount (₹)"
                                     type="text"
-                                    inputMode="numeric"
                                     disabled={isViewMode}
                                     placeholder="Enter cash amount"
                                     value={cashAmount === "" ? "" : String(cashAmount)}
@@ -514,7 +625,6 @@ export default function CreateMemoPage() {
                                 <FormInput
                                     label="Online Amount (₹)"
                                     type="text"
-                                    inputMode="numeric"
                                     disabled={isViewMode}
                                     placeholder="Enter online amount"
                                     value={onlineAmount === "" ? "" : String(onlineAmount)}
@@ -525,13 +635,13 @@ export default function CreateMemoPage() {
                             <div className="space-y-1">
                                 <Label className="text-[11px] font-bold text-black flex items-center gap-0.5 leading-none">
                                     Proof
-                                    {!isViewMode && Number(onlineAmount) > 0 && (
+                                    {!isViewMode && Number(onlineAmount) !== 0 && (
                                         <span className="text-red-500 font-bold ml-0.5">* (Required for Online)</span>
                                     )}
                                 </Label>
                                 <FileUploadWithCamera
                                     label="Proof"
-                                    required={!isViewMode && Number(onlineAmount) > 0}
+                                    required={!isViewMode && Number(onlineAmount) !== 0}
                                     disabled={isViewMode}
                                     fileName={proofName}
                                     fileUrl={proofUrl}
@@ -595,15 +705,15 @@ export default function CreateMemoPage() {
 
             {/* ─── 2. Middle Section: Summary Tables (Bookings, Deliveries, Final Summary) ── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5 items-start">
-                {/* Table 1: Bookings */}
+                {/* Table 1: Bookings (Sender) */}
                 <div className="bg-white rounded border border-slate-200/80 shadow-2xs overflow-hidden">
                     <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200">
                         <div className="flex items-center gap-1.5">
                             <FileText className="w-4 h-4 text-black" />
-                            <h3 className="text-xs font-bold text-black">Bookings</h3>
+                            <h3 className="text-xs font-bold text-black">Bookings (Sender)</h3>
                         </div>
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-black border border-emerald-200 font-mono">
-                            {memoData?.branch?.Bookingcommission ?? 0}%
+                            {bookingCommission}%
                         </span>
                     </div>
 
@@ -617,55 +727,47 @@ export default function CreateMemoPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200 text-black">
-                                <tr>
-                                    <td className="px-2 py-1 border-r border-slate-200">Paid</td>
-                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.bookingSummary?.paid?.count ?? 0}</td>
-                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.bookingSummary?.paid?.totalAmount ?? 0}</td>
-                                </tr>
-                                <tr>
-                                    <td className="px-2 py-1 border-r border-slate-200">To-Pay</td>
-                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.bookingSummary?.["to pay"]?.count ?? 0}</td>
-                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.bookingSummary?.["to pay"]?.totalAmount ?? 0}</td>
-                                </tr>
-                                <tr>
-                                    <td className="px-2 py-1 border-r border-slate-200">G Pay</td>
-                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.bookingSummary?.["g pay"]?.count ?? 0}</td>
-                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.bookingSummary?.["g pay"]?.totalAmount ?? 0}</td>
-                                </tr>
-                                <tr>
-                                    <td className="px-2 py-1 border-r border-slate-200">Credit</td>
-                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.bookingSummary?.credit?.count ?? 0}</td>
-                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.bookingSummary?.credit?.totalAmount ?? 0}</td>
-                                </tr>
-                                <tr>
-                                    <td className="px-2 py-1 border-r border-slate-200">Not Pay</td>
-                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.bookingSummary?.["not pay"]?.count ?? 0}</td>
-                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.bookingSummary?.["not pay"]?.totalAmount ?? 0}</td>
-                                </tr>
+                                {senderSummary.length > 0 ? (
+                                    senderSummary.map((item, idx) => (
+                                        <tr key={idx}>
+                                            <td className="px-2 py-1 border-r border-slate-200">{item.paymentMethod}</td>
+                                            <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{item.count}</td>
+                                            <td className="px-2 py-1 text-right font-mono font-semibold">₹{item.totalAmount}</td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan={3} className="px-2 py-2 text-center text-slate-400">No booking records</td>
+                                    </tr>
+                                )}
                             </tbody>
                             <tfoot className="bg-slate-50 font-bold border-t border-slate-200 text-black">
                                 <tr className="border-b border-slate-200">
                                     <td colSpan={2} className="px-2 py-1 border-r border-slate-200">Total Booking Amount</td>
-                                    <td className="px-2 py-1 text-right font-mono">₹{memoData?.totalSummary?.totalBookingAmount ?? 0}</td>
+                                    <td className="px-2 py-1 text-right font-mono">₹{senderTotals.totalAmount ?? 0}</td>
+                                </tr>
+                                <tr className="border-b border-slate-200">
+                                    <td colSpan={2} className="px-2 py-1 border-r border-slate-200 text-red-600">Commission ({bookingCommission}%)</td>
+                                    <td className="px-2 py-1 text-right font-mono text-red-600">-₹{senderTotals.commission ?? 0}</td>
                                 </tr>
                                 <tr>
-                                    <td colSpan={2} className="px-2 py-1 border-r border-slate-200 text-red-600">Commission ({memoData?.branch?.Bookingcommission ?? 0}%)</td>
-                                    <td className="px-2 py-1 text-right font-mono text-red-600">-₹{memoData?.totalSummary?.bookingCommission ?? 0}</td>
+                                    <td colSpan={2} className="px-2 py-1 border-r border-slate-200 text-emerald-700">Collected</td>
+                                    <td className="px-2 py-1 text-right font-mono text-emerald-700">₹{senderTotals.collected ?? 0}</td>
                                 </tr>
                             </tfoot>
                         </table>
                     </div>
                 </div>
 
-                {/* Table 2: Deliveries */}
+                {/* Table 2: Deliveries (Receiver) */}
                 <div className="bg-white rounded border border-slate-200/80 shadow-2xs overflow-hidden">
                     <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200">
                         <div className="flex items-center gap-1.5">
                             <Truck className="w-4 h-4 text-black" />
-                            <h3 className="text-xs font-bold text-black">Deliveries</h3>
+                            <h3 className="text-xs font-bold text-black">Deliveries (Receiver)</h3>
                         </div>
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-black border border-blue-200 font-mono">
-                            {memoData?.branch?.DeliveryCommission ?? 0}%
+                            {deliveryCommission}%
                         </span>
                     </div>
 
@@ -679,40 +781,32 @@ export default function CreateMemoPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200 text-black">
-                                <tr>
-                                    <td className="px-2 py-1 border-r border-slate-200">Paid</td>
-                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.deliverySummary?.paid?.count ?? 0}</td>
-                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.deliverySummary?.paid?.totalAmount ?? 0}</td>
-                                </tr>
-                                <tr>
-                                    <td className="px-2 py-1 border-r border-slate-200">To-Pay</td>
-                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.deliverySummary?.["to pay"]?.count ?? 0}</td>
-                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.deliverySummary?.["to pay"]?.totalAmount ?? 0}</td>
-                                </tr>
-                                <tr>
-                                    <td className="px-2 py-1 border-r border-slate-200">G Pay</td>
-                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.deliverySummary?.["g pay"]?.count ?? 0}</td>
-                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.deliverySummary?.["g pay"]?.totalAmount ?? 0}</td>
-                                </tr>
-                                <tr>
-                                    <td className="px-2 py-1 border-r border-slate-200">Credit</td>
-                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.deliverySummary?.credit?.count ?? 0}</td>
-                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.deliverySummary?.credit?.totalAmount ?? 0}</td>
-                                </tr>
-                                <tr>
-                                    <td className="px-2 py-1 border-r border-slate-200">Not Pay</td>
-                                    <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{memoData?.deliverySummary?.["not pay"]?.count ?? 0}</td>
-                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.deliverySummary?.["not pay"]?.totalAmount ?? 0}</td>
-                                </tr>
+                                {receiverSummary.length > 0 ? (
+                                    receiverSummary.map((item, idx) => (
+                                        <tr key={idx}>
+                                            <td className="px-2 py-1 border-r border-slate-200">{item.paymentMethod}</td>
+                                            <td className="px-2 py-1 text-center font-mono border-r border-slate-200">{item.count}</td>
+                                            <td className="px-2 py-1 text-right font-mono font-semibold">₹{item.totalAmount}</td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan={3} className="px-2 py-2 text-center text-slate-400">No delivery records</td>
+                                    </tr>
+                                )}
                             </tbody>
                             <tfoot className="bg-slate-50 font-bold border-t border-slate-200 text-black">
                                 <tr className="border-b border-slate-200">
                                     <td colSpan={2} className="px-2 py-1 border-r border-slate-200">Total Delivery Amount</td>
-                                    <td className="px-2 py-1 text-right font-mono">₹{memoData?.totalSummary?.totalDeliveryAmount ?? 0}</td>
+                                    <td className="px-2 py-1 text-right font-mono">₹{receiverTotals.totalAmount ?? 0}</td>
+                                </tr>
+                                <tr className="border-b border-slate-200">
+                                    <td colSpan={2} className="px-2 py-1 border-r border-slate-200 text-red-600">Commission ({deliveryCommission}%)</td>
+                                    <td className="px-2 py-1 text-right font-mono text-red-600">-₹{receiverTotals.commission ?? 0}</td>
                                 </tr>
                                 <tr>
-                                    <td colSpan={2} className="px-2 py-1 border-r border-slate-200 text-red-600">Commission ({memoData?.branch?.DeliveryCommission ?? 0}%)</td>
-                                    <td className="px-2 py-1 text-right font-mono text-red-600">-₹{memoData?.totalSummary?.deliveryCommission ?? 0}</td>
+                                    <td colSpan={2} className="px-2 py-1 border-r border-slate-200 text-emerald-700">Collected</td>
+                                    <td className="px-2 py-1 text-right font-mono text-emerald-700">₹{receiverTotals.collected ?? 0}</td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -739,42 +833,50 @@ export default function CreateMemoPage() {
                             <tbody className="divide-y divide-slate-200 text-black">
                                 <tr>
                                     <td className="px-2 py-1 border-r border-slate-200">Total Booking Amount</td>
-                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.totalSummary?.totalBookingAmount ?? 0}</td>
+                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{senderTotals.totalAmount ?? 0}</td>
                                 </tr>
                                 <tr>
                                     <td className="px-2 py-1 border-r border-slate-200">Total Delivery Amount</td>
-                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{memoData?.totalSummary?.totalDeliveryAmount ?? 0}</td>
+                                    <td className="px-2 py-1 text-right font-mono font-semibold">₹{receiverTotals.totalAmount ?? 0}</td>
                                 </tr>
                                 <tr className="bg-slate-50/70 font-semibold">
                                     <td className="px-2 py-1 border-r border-slate-200">Total Amount</td>
-                                    <td className="px-2 py-1 text-right font-mono">₹{memoData?.totalSummary?.totalAmount ?? 0}</td>
+                                    <td className="px-2 py-1 text-right font-mono">
+                                        ₹{overallTotals.totalAmount ?? ((senderTotals.totalAmount || 0) + (receiverTotals.totalAmount || 0))}
+                                    </td>
                                 </tr>
                                 <tr>
-                                    <td className="px-2 py-1 border-r border-slate-200">Booking Commission</td>
-                                    <td className="px-2 py-1 text-right font-mono text-red-600">-₹{memoData?.totalSummary?.bookingCommission ?? 0}</td>
+                                    <td className="px-2 py-1 border-r border-slate-200 text-red-600">Booking Commission</td>
+                                    <td className="px-2 py-1 text-right font-mono text-red-600">-₹{senderTotals.commission ?? 0}</td>
                                 </tr>
                                 <tr>
-                                    <td className="px-2 py-1 border-r border-slate-200">Delivery Commission</td>
-                                    <td className="px-2 py-1 text-right font-mono text-red-600">-₹{memoData?.totalSummary?.deliveryCommission ?? 0}</td>
+                                    <td className="px-2 py-1 border-r border-slate-200 text-red-600">Delivery Commission</td>
+                                    <td className="px-2 py-1 text-right font-mono text-red-600">-₹{receiverTotals.commission ?? 0}</td>
                                 </tr>
                                 <tr className="bg-amber-50/50 font-semibold text-red-600">
                                     <td className="px-2 py-1 border-r border-slate-200">Total Commission</td>
-                                    <td className="px-2 py-1 text-right font-mono">-₹{memoData?.totalSummary?.totalCommission ?? 0}</td>
+                                    <td className="px-2 py-1 text-right font-mono">
+                                        -₹{overallTotals.commission ?? ((senderTotals.commission || 0) + (receiverTotals.commission || 0))}
+                                    </td>
                                 </tr>
                                 <tr>
-                                    <td className="px-2 py-1 border-r border-slate-200">
-                                        Total Expense Amount ({memoData?.expenseSummary?.count ?? 0})
+                                    <td className="px-2 py-1 border-r border-slate-200 text-red-600">
+                                        Total Expense Amount ({expenseTotals.count ?? 0})
                                     </td>
                                     <td className="px-2 py-1 text-right font-mono text-red-600">
-                                        -₹{memoData?.totalSummary?.totalExpenseAmount ?? memoData?.expenseSummary?.totalAmount ?? 0}
+                                        -₹{expenseTotals.totalAmount ?? 0}
                                     </td>
+                                </tr>
+                                <tr className="bg-slate-50 font-semibold text-emerald-800">
+                                    <td className="px-2 py-1 border-r border-slate-200">Total Collected Amount</td>
+                                    <td className="px-2 py-1 text-right font-mono">₹{overallTotals.collected ?? 0}</td>
                                 </tr>
                             </tbody>
                             <tfoot className="bg-emerald-50/80 font-bold border-t-2 border-slate-300 text-black">
                                 <tr>
                                     <td className="px-2 py-1.5 border-r border-slate-200 text-black font-bold">Amount to Send</td>
                                     <td className="px-2 py-1.5 text-right font-mono text-sm font-bold text-black">
-                                        ₹{memoData?.totalSummary?.amountToSend ?? 0}
+                                        ₹{overallTotals.amountToSend ?? calculatedAmountToSend}
                                     </td>
                                 </tr>
                             </tfoot>

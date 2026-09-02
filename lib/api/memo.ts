@@ -40,100 +40,127 @@ export interface MemoSummaryItem {
   totalAmount: number;
 }
 
+export interface BranchInfoData {
+  compensationType?: string;
+  bookingCommission?: number;
+  deliveryCommission?: number;
+  [key: string]: unknown;
+}
+
+export interface PaymentSummaryItem {
+  paymentMethod: string;
+  count: number;
+  totalAmount: number;
+}
+
+export interface SummaryTotalsSenderReceiver {
+  totalAmount: number;
+  collected: number;
+  commission: number;
+}
+
+export interface SummaryTotalsExpense {
+  totalAmount: number;
+  cashAmount: number;
+  onlineAmount: number;
+  count: number;
+}
+
+export interface SummaryTotalsOverall {
+  totalAmount: number;
+  collected: number;
+  commission: number;
+  amountToSend: number;
+  balanceUpdate: number;
+}
+
+export interface SummaryTotals {
+  sender?: SummaryTotalsSenderReceiver;
+  receiver?: SummaryTotalsSenderReceiver;
+  expense?: SummaryTotalsExpense;
+  overall?: SummaryTotalsOverall;
+}
+
+export interface MemoDataSummary {
+  sender?: PaymentSummaryItem[];
+  receiver?: PaymentSummaryItem[];
+  totals?: SummaryTotals;
+}
+
+export interface MemoBookingOrExpenseItem {
+  id?: string;
+  _id?: string;
+  docketNo1?: string;
+  docketNo2?: string;
+  memoNo?: string;
+  type?: "sender" | "receiver" | "expense" | string;
+  fromBranch?: {
+    name?: string;
+    code?: string;
+  };
+  toBranch?: {
+    name?: string;
+    code?: string;
+  };
+  paymentMethod?: string;
+  amount?: number;
+  cashAmount?: number;
+  onlineAmount?: number;
+  totalAmount?: number;
+  status?: string;
+  remark?: string;
+  bookingDate?: string;
+  bookingTime?: string;
+  memoDate?: string;
+  expenseType?: string;
+  truckId?: string | null;
+  truckName?: string;
+  fuelType?: string;
+  startKM?: number | null;
+  endKM?: number | null;
+  liter?: number | null;
+  labourMonth?: string;
+  labourWeek?: string;
+  labourCount?: number | null;
+  ratePerLabour?: number | null;
+  labourTotal?: number | null;
+  createdBy?: string;
+  createdAt?: string;
+  source?: string;
+  [key: string]: unknown;
+}
+
 export interface DataForAddMemoResponse {
   success: boolean;
   message?: string;
   data: {
-    bookings: Array<{
-      docketNo1?: string;
-      docketNo2?: string;
-      fromBranch?: {
-        name?: string;
-        code?: string;
-      };
-      toBranch?: {
-        name?: string;
-        code?: string;
-      };
-      finalBillAmount?: number;
-      paymentMethod?: string;
-      status?: string;
-      bookingDate?: string;
-      bookingTime?: string;
-      isSenderMemoCreated?: boolean;
-      isReceiverMemoCreated?: boolean;
-      sender?: {
-        name?: string;
-      };
-      receiver?: {
-        name?: string;
-      };
-      [key: string]: unknown;
-    }>;
-    expenses: Array<{
-      memoNo?: string;
-      fromBranch?: {
-        name?: string;
-        code?: string;
-      };
-      toBranch?: {
-        name?: string;
-        code?: string;
-      };
+    branchInfo?: BranchInfoData;
+    bookings?: MemoBookingOrExpenseItem[];
+    expenses?: MemoBookingOrExpenseItem[];
+    summary?: MemoDataSummary;
+    // Fallback/legacy compatibility keys
+    branch?: {
+      compensationType?: string;
+      Bookingcommission?: number;
+      DeliveryCommission?: number;
+    };
+    totalSummary?: {
+      totalBookingAmount?: number;
+      totalDeliveryAmount?: number;
       totalAmount?: number;
-      cashAmount?: number;
-      onlineAmount?: number;
-      memoDate?: string;
-      remark?: string;
-      expenseType?: string;
-      status?: string;
-      expenseDeducted?: boolean;
-      expenseDeductedAmount?: number;
-      expenseDeductedAt?: string;
-      [key: string]: unknown;
-    }>;
+      totalExpenseAmount?: number;
+      bookingCommission?: number;
+      deliveryCommission?: number;
+      totalCommission?: number;
+      amountToSend?: number;
+    };
+    memo?: any;
+    [key: string]: unknown;
   };
-  total?: {
-    bookings?: number;
-    expenses?: number;
-  };
-  bookingSummary?: {
-    paid?: MemoSummaryItem;
-    "to pay"?: MemoSummaryItem;
-    "g pay"?: MemoSummaryItem;
-    credit?: MemoSummaryItem;
-    "not pay"?: MemoSummaryItem;
-  };
-  deliverySummary?: {
-    paid?: MemoSummaryItem;
-    "to pay"?: MemoSummaryItem;
-    "g pay"?: MemoSummaryItem;
-    credit?: MemoSummaryItem;
-    "not pay"?: MemoSummaryItem;
-  };
-  expenseSummary?: {
-    count?: number;
-    totalAmount?: number;
-  };
-  totalSummary?: {
-    totalBookingAmount?: number;
-    totalDeliveryAmount?: number;
-    totalAmount?: number;
-    totalExpenseAmount?: number;
-    bookingCommission?: number;
-    deliveryCommission?: number;
-    totalCommission?: number;
-    amountToSend?: number;
-    compensationType?: string;
-    salaryAmount?: number;
-  };
-  branch?: {
-    branchType?: string;
-    compensationType?: string;
-    salaryAmount?: number;
-    Bookingcommission?: number;
-    DeliveryCommission?: number;
-  };
+  // Fallbacks if backend sends top-level keys
+  branchInfo?: BranchInfoData;
+  summary?: MemoDataSummary;
+  totalSummary?: any;
 }
 
 export interface MemoApiResponse {
