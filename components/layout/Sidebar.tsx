@@ -116,46 +116,50 @@ function getItemBadgeCount(item: MenuItem, badges?: UserBadgesData): number | nu
   // Do not show total on parent main menus with children
   if (item.children && item.children.length > 0) return null;
 
+  const rawBadges = (badges as any)?.data || badges;
+
   switch (item.id) {
     // ─── Reports ────────────────────────
     case "booking-report":
-      return badges.parcelBookingReport ?? null;
+      return rawBadges.parcelBookingReport ?? 0;
     case "delivery-report":
-      return badges.parcelDeliveryReport ?? null;
+      return rawBadges.parcelDeliveryReport ?? 0;
     case "cancel-booking-report":
-      return badges.cancelBookingReport ?? null;
+      return rawBadges.cancelBookingReport ?? 0;
     case "parcel-pending-report":
-      return badges.parcelPendingReport ?? null;
+      return rawBadges.parcelPendingReport ?? 0;
     case "customer-discount-report":
-      return badges.customerDiscountReport ?? null;
+      return rawBadges.customerDiscountReport ?? 0;
     case "pending-delivery-report":
-      return badges.pendingDeliveryReport ?? null;
+      return rawBadges.pendingDeliveryReport ?? 0;
     case "memo-report":
-      return badges.memoReport ?? null;
+      return rawBadges.memoReport ?? 0;
     case "branch-expense-report":
-      return badges.expenseReport ?? null;
+      return rawBadges.expenseReport ?? 0;
 
     // ─── Transactions ────────────────────
     case "customer-booking-parcel":
-      return badges.draftCount ?? null;
+      return rawBadges.draftCount ?? 0;
     case "load-parcel":
-      return badges.loadableParcelCount ?? null;
+      return rawBadges.loadableParcelCount ?? 0;
     case "unload-parcel":
-      return badges.unloadableParcelCount ?? null;
+      return rawBadges.unloadableParcelCount ?? 0;
     case "delivery":
-      return badges.pendingPayment ?? null;
+      return rawBadges.pendingPayment ?? 0;
 
     // ─── Master / Users ──────────────────
     case "manage-admin":
-      return badges.usersCount?.totalAdmins ?? null;
+      return rawBadges.usersCount?.totalAdmins ?? 0;
     case "manage-branch":
-      return badges.usersCount?.totalBranches ?? null;
+      return rawBadges.usersCount?.totalBranches ?? 0;
     case "manage-staff":
-      return badges.usersCount?.totalStaff ?? null;
+      return rawBadges.usersCount?.totalStaff ?? 0;
     case "manage-truck":
-      return badges.usersCount?.totalTrucks ?? null;
+      return rawBadges.usersCount?.totalTrucks ?? 0;
     case "manage-driver":
-      return badges.usersCount?.totalDrivers ?? null;
+      return rawBadges.usersCount?.totalDrivers ?? 0;
+    case "manage-customer":
+      return rawBadges.usersCount?.totalCustomers ?? 0;
 
     default:
       return null;
@@ -265,7 +269,7 @@ function SidebarItem({
         )}
       >
         <Icon className="w-[20px] h-[20px]" />
-        {typeof badgeCount === "number" && badgeCount > 0 && (
+        {badgeCount != null && (
           <span className="absolute -top-1 -right-1 px-1 min-w-[16px] h-4 flex items-center justify-center text-[9px] font-bold bg-[#e74c3c] text-white rounded-full leading-none shadow-xs">
             {badgeCount > 99 ? "99+" : badgeCount}
           </span>
@@ -293,7 +297,7 @@ function SidebarItem({
         </TooltipTrigger>
         <TooltipContent side="right" className="text-xs font-medium">
           {item.label}
-          {typeof badgeCount === "number" && badgeCount > 0 ? ` (${badgeCount})` : ""}
+          {badgeCount != null ? ` (${badgeCount})` : ""}
         </TooltipContent>
       </Tooltip>
     );
@@ -394,7 +398,7 @@ function SidebarItem({
       </span>
 
       {/* Leaf Item Badge Count */}
-      {typeof badgeCount === "number" && badgeCount > 0 && (
+      {badgeCount != null && (
         <span
           className={cn(
             "ml-auto px-2 py-0.5 text-[10px] font-bold rounded-full transition-colors leading-none flex-shrink-0",
