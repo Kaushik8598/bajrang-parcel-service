@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Users,
   Building2,
@@ -22,6 +22,7 @@ import { FormCard } from "@/components/ui/form-card";
 import { FileUploadPreview } from "@/components/ui/file-upload-preview";
 import AppModal from "@/components/ui/AppModal";
 import { useUpload, useUserById, useBranchDropdownList } from "@/lib/hooks";
+import { getStoredUser, getStoredUserRole } from "@/lib/api/auth";
 import type { StaffUser, StaffPayload } from "@/lib/api/staff";
 import type { BranchDropdownItem } from "@/lib/api/branch";
 
@@ -70,7 +71,12 @@ const DISTANCE_OPTIONS = [
 
 // ─── Initial State Helper ──────────────────────────────────────────────────────
 
-function getInitialState(mode: "add" | "edit", user?: StaffUser | null) {
+function getInitialState(
+  mode: "add" | "edit",
+  user?: StaffUser | null,
+  defaultBranchId?: string,
+  isAdmin?: boolean
+) {
   const profile = user?.staffProfile || {};
   const bookingPref = user?.bookingPreferences || {};
 
@@ -90,12 +96,19 @@ function getInitialState(mode: "add" | "edit", user?: StaffUser | null) {
   const passbookUrl = extractPhotoUrl(user?.bankDetails?.passbookImage);
 
   // Extract branch ID
-  const branchId =
+  let branchId =
     typeof profile.branchId === "object" && profile.branchId
       ? profile.branchId._id
       : typeof profile.branchId === "string"
         ? profile.branchId
         : "";
+
+  // If non-admin user (e.g. branch), default to logged-in branch
+  if (!isAdmin && defaultBranchId) {
+    if (mode === "add" || !branchId) {
+      branchId = defaultBranchId;
+    }
+  }
 
   return {
     // Basic Details
@@ -198,6 +211,16 @@ export default function StaffFormModal({
 }: StaffFormModalProps) {
   const targetId = mode === "edit" ? editId || editData?._id : null;
 
+  // Logged-in user & role check
+  const currentUser = getStoredUser();
+  const currentRole = (getStoredUserRole() || currentUser?.role || "").toLowerCase();
+  const isAdminOrSuperAdmin =
+    currentRole === "admin" ||
+    currentRole === "superadmin" ||
+    currentRole === "super_admin" ||
+    currentRole === "super-admin";
+  const loggedInBranchId = String(currentUser?._id || "");
+
   // Live single user fetch via GET /user/:id on edit mode
   const { data: userDetailRes, isFetching: isFetchingUser } = useUserById<StaffUser>(
     targetId,
@@ -210,15 +233,27 @@ export default function StaffFormModal({
     ? branchListRes.data
     : branchListRes?.data?.branches || branchListRes?.data?.users || [];
 
-  const branchOptions = rawBranches.map((b: BranchDropdownItem) => {
-    const code = b?.code;
-    const name = b?.name;
-    const role = b?.role;
-    return {
-      value: b._id,
-      label: code ? `${role}-${name} (${code})` : `${role}-${name}`,
-    };
-  });
+  const branchOptions = useMemo(() => {
+    const opts = rawBranches.map((b: BranchDropdownItem) => {
+      const code = b?.code;
+      const name = b?.name || "Branch";
+      return {
+        value: b._id,
+        label: code ? `${name} (${code})` : `${name}`,
+      };
+    });
+
+    if (!isAdminOrSuperAdmin && loggedInBranchId && !opts.some((o: any) => o.value === loggedInBranchId)) {
+      const code = currentUser?.code || "";
+      const name = currentUser?.name || "Branch";
+      opts.unshift({
+        value: loggedInBranchId,
+        label: code ? `${name} (${code})` : `${name}`,
+      });
+    }
+
+    return opts;
+  }, [rawBranches, isAdminOrSuperAdmin, loggedInBranchId, currentUser]);
 
   const rawUser = userDetailRes?.data;
   const activeUserData: StaffUser | null =
@@ -226,7 +261,9 @@ export default function StaffFormModal({
       ? (rawUser.user as StaffUser)
       : (rawUser as StaffUser) || editData || null;
 
-  const [form, setForm] = useState(() => getInitialState(mode, activeUserData));
+  const [form, setForm] = useState(() =>
+    getInitialState(mode, activeUserData, loggedInBranchId, isAdminOrSuperAdmin)
+  );
   const [errors, setErrors] = useState<StaffFormErrors>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -237,19 +274,27 @@ export default function StaffFormModal({
   // Reset form when modal opens
   useEffect(() => {
     if (open) {
-      setForm(getInitialState(mode, activeUserData));
+      const initial = getInitialState(mode, activeUserData, loggedInBranchId, isAdminOrSuperAdmin);
+      if (!isAdminOrSuperAdmin && loggedInBranchId && (mode === "add" || !initial.branchId)) {
+        initial.branchId = loggedInBranchId;
+      }
+      setForm(initial);
       setErrors({});
       setShowPassword(false);
       setShowConfirm(false);
     }
-  }, [open, mode]);
+  }, [open, mode, loggedInBranchId, isAdminOrSuperAdmin]);
 
   // Sync form when fresh activeUserData is received from GET /user/:id
   useEffect(() => {
     if (open && activeUserData) {
-      setForm(getInitialState(mode, activeUserData));
+      const synced = getInitialState(mode, activeUserData, loggedInBranchId, isAdminOrSuperAdmin);
+      if (!isAdminOrSuperAdmin && loggedInBranchId && (mode === "add" || !synced.branchId)) {
+        synced.branchId = loggedInBranchId;
+      }
+      setForm(synced);
     }
-  }, [activeUserData]);
+  }, [activeUserData, loggedInBranchId, isAdminOrSuperAdmin]);
 
   // ─── Field Change Handlers ─────────────────────────────────────────────────
 
@@ -599,6 +644,7 @@ export default function StaffFormModal({
                 onChange={(val) => val && update("branchId", val)}
                 error={errors.branchId}
                 required
+                disabled={!isAdminOrSuperAdmin}
               />
 
               <FormSelect
