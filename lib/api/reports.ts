@@ -574,6 +574,181 @@ export async function getExpenseReports(
   return response;
 }
 
+/**
+ * Fetch return reports with pagination and filter support via GET /report/return
+ */
+export async function getReturnReports(
+  params: GetBookingReportsParams = {}
+): Promise<BookingReportsApiResponse> {
+  const {
+    page = 1,
+    limit = 10,
+    search = "",
+    fromBranchId,
+    toBranchId,
+    startDate,
+    endDate,
+    hasBill,
+  } = params;
+
+  const queryParams: Record<string, string | number | boolean> = {
+    page,
+    limit,
+  };
+
+  if (search) queryParams.search = search;
+  if (fromBranchId) queryParams.fromBranchId = fromBranchId;
+  if (toBranchId) queryParams.toBranchId = toBranchId;
+  if (startDate) queryParams.startDate = startDate;
+  if (endDate) queryParams.endDate = endDate;
+  if (hasBill !== undefined && hasBill !== "") {
+    queryParams.hasBill = hasBill === "true" || hasBill === true ? true : false;
+  }
+
+  const response = await request<BookingReportsApiResponse>("/report/return", {
+    method: "GET",
+    params: queryParams,
+  });
+  return response;
+}
+
+/**
+ * Fetch verify reports with pagination and filter support via GET /report/verify
+ */
+export async function getVerifyReports(
+  params: GetBookingReportsParams = {}
+): Promise<BookingReportsApiResponse> {
+  const {
+    page = 1,
+    limit = 10,
+    search = "",
+    fromBranchId,
+    toBranchId,
+    startDate,
+    endDate,
+    hasBill,
+  } = params;
+
+  const queryParams: Record<string, string | number | boolean> = {
+    page,
+    limit,
+  };
+
+  if (search) queryParams.search = search;
+  if (fromBranchId) queryParams.fromBranchId = fromBranchId;
+  if (toBranchId) queryParams.toBranchId = toBranchId;
+  if (startDate) queryParams.startDate = startDate;
+  if (endDate) queryParams.endDate = endDate;
+  if (hasBill !== undefined && hasBill !== "") {
+    queryParams.hasBill = hasBill === "true" || hasBill === true ? true : false;
+  }
+
+  const response = await request<BookingReportsApiResponse>("/report/verify", {
+    method: "GET",
+    params: queryParams,
+  });
+  return response;
+}
+
+// ─── Customer Report Types & API ─────────────────────────────────────────────
+
+export interface CustomerReportItem {
+  _id: string;
+  customerAs?: "sender" | "receiver" | "both" | string;
+  mobile?: string;
+  name?: string;
+  gst?: string;
+  address?: string;
+  city?: string;
+  pincode?: string;
+  associatedDocketIds?: string[];
+  totalDocketBookingAmount?: number;
+  totalDocketDeliveryAmount?: number;
+  lastBookingDate?: string;
+  lastDeliveryDate?: string;
+  daysSinceLastBooking?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+}
+
+export interface CustomerReportsSummary {
+  totalCustomers?: number;
+  totalBookingAmount?: number;
+  totalDeliveryAmount?: number;
+  senderCount?: number;
+  receiverCount?: number;
+  [key: string]: unknown;
+}
+
+export interface GetCustomerReportsParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  customerAs?: string;
+  docketNo?: string;
+  inactive?: boolean | string;
+  fromDate?: string;
+  toDate?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc" | string;
+}
+
+export interface CustomerReportsApiResponse {
+  success: boolean;
+  message?: string;
+  data: {
+    customers?: CustomerReportItem[];
+    summary?: CustomerReportsSummary;
+    filters?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
+  pagination?: BookingReportsPagination;
+}
+
+/**
+ * Fetch customer reports with pagination and filter support via GET /user/customer
+ */
+export async function getCustomerReports(
+  params: GetCustomerReportsParams = {}
+): Promise<CustomerReportsApiResponse> {
+  const {
+    page = 1,
+    limit = 20,
+    search = "",
+    customerAs,
+    docketNo,
+    inactive,
+    fromDate,
+    toDate,
+    sortBy = "createdAt",
+    sortOrder = "desc",
+  } = params;
+
+  const queryParams: Record<string, string | number | boolean> = {
+    page,
+    limit,
+    sortBy,
+    sortOrder,
+  };
+
+  if (search) queryParams.search = search;
+  if (customerAs) queryParams.customerAs = customerAs;
+  if (docketNo) queryParams.docketNo = docketNo;
+  if (inactive !== undefined && inactive !== "") {
+    queryParams.inactive = inactive === "true" || inactive === true ? true : false;
+  }
+  if (fromDate) queryParams.fromDate = fromDate;
+  if (toDate) queryParams.toDate = toDate;
+
+  const response = await request<CustomerReportsApiResponse>("/user/customer", {
+    method: "GET",
+    params: queryParams,
+  });
+  return response;
+}
+
+
 
 
 

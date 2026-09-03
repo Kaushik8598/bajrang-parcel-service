@@ -100,6 +100,9 @@ const DEFAULT_MENU: MenuItem[] = [
       { id: "parcel-pending-report", label: "Parcel Pending Report", path: "/reports/parcel-pending", permission_module: "pendingDelivery" },
       { id: "customer-discount-report", label: "Customer Discount Report", path: "/reports/customer-discount", permission_module: "discountBooking" },
       { id: "pending-delivery-report", label: "Pending Delivery Report", path: "/reports/pending-delivery", permission_module: "pendingDelivery" },
+      { id: "return-report", label: "Return Report", path: "/reports/return", permission_module: "booking" },
+      { id: "verify-report", label: "Verify Report", path: "/reports/verify", permission_module: "booking" },
+      { id: "customer-report", label: "Customer Report", path: "/reports/customer", permission_module: "customer" },
       { id: "memo-report", label: "Memo Report", path: "/reports/memo", permission_module: "memo" },
       { id: "branch-expense-report", label: "Branch Expense Report", path: "/reports/branch-expense", permission_module: "expense" },
     ],
@@ -132,6 +135,12 @@ function getItemBadgeCount(item: MenuItem, badges?: UserBadgesData): number | nu
       return rawBadges.customerDiscountReport ?? 0;
     case "pending-delivery-report":
       return rawBadges.pendingDeliveryReport ?? 0;
+    case "return-report":
+      return rawBadges.returnReport ?? rawBadges.returnCount ?? 0;
+    case "verify-report":
+      return rawBadges.verifyReport ?? rawBadges.verifyCount ?? 0;
+    case "customer-report":
+      return rawBadges.customerReport ?? rawBadges.usersCount?.totalCustomers ?? 0;
     case "memo-report":
       return rawBadges.memoReport ?? 0;
     case "branch-expense-report":

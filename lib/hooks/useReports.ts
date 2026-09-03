@@ -10,9 +10,13 @@ import {
   getMemoReports,
   updateMemoStatus,
   getExpenseReports,
+  getReturnReports,
+  getVerifyReports,
+  getCustomerReports,
   GetBookingReportsParams,
   GetMemoReportsParams,
   GetExpenseReportsParams,
+  GetCustomerReportsParams,
 } from "@/lib/api/reports";
 
 export const BOOKING_REPORTS_QUERY_KEY = ["booking-reports-list"] as const;
@@ -450,6 +454,151 @@ export function useExpenseReports(params: GetExpenseReportsParams = {}) {
     refetchOnWindowFocus: true,
   });
 }
+
+export const RETURN_REPORTS_QUERY_KEY = ["return-reports-list"] as const;
+
+/**
+ * React Query hook to fetch return reports list via GET /report/return
+ */
+export function useReturnReports(params: GetBookingReportsParams = {}) {
+  const {
+    page = 1,
+    limit = 10,
+    search = "",
+    fromBranchId = "",
+    toBranchId = "",
+    startDate = "",
+    endDate = "",
+    hasBill = "",
+  } = params;
+
+  return useQuery({
+    queryKey: [
+      ...RETURN_REPORTS_QUERY_KEY,
+      page,
+      limit,
+      search,
+      fromBranchId,
+      toBranchId,
+      startDate,
+      endDate,
+      hasBill,
+    ],
+    queryFn: () =>
+      getReturnReports({
+        page,
+        limit,
+        search,
+        fromBranchId,
+        toBranchId,
+        startDate,
+        endDate,
+        hasBill,
+      }),
+    placeholderData: (previousData) => previousData,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
+}
+
+export const VERIFY_REPORTS_QUERY_KEY = ["verify-reports-list"] as const;
+
+/**
+ * React Query hook to fetch verify reports list via GET /report/verify
+ */
+export function useVerifyReports(params: GetBookingReportsParams = {}) {
+  const {
+    page = 1,
+    limit = 10,
+    search = "",
+    fromBranchId = "",
+    toBranchId = "",
+    startDate = "",
+    endDate = "",
+    hasBill = "",
+  } = params;
+
+  return useQuery({
+    queryKey: [
+      ...VERIFY_REPORTS_QUERY_KEY,
+      page,
+      limit,
+      search,
+      fromBranchId,
+      toBranchId,
+      startDate,
+      endDate,
+      hasBill,
+    ],
+    queryFn: () =>
+      getVerifyReports({
+        page,
+        limit,
+        search,
+        fromBranchId,
+        toBranchId,
+        startDate,
+        endDate,
+        hasBill,
+      }),
+    placeholderData: (previousData) => previousData,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
+}
+
+export const CUSTOMER_REPORTS_QUERY_KEY = ["customer-reports-list"] as const;
+
+/**
+ * React Query hook to fetch customer reports list via GET /user/customer
+ */
+export function useCustomerReports(params: GetCustomerReportsParams = {}) {
+  const {
+    page = 1,
+    limit = 20,
+    search = "",
+    customerAs = "",
+    docketNo = "",
+    inactive = "",
+    fromDate = "",
+    toDate = "",
+    sortBy = "createdAt",
+    sortOrder = "desc",
+  } = params;
+
+  return useQuery({
+    queryKey: [
+      ...CUSTOMER_REPORTS_QUERY_KEY,
+      page,
+      limit,
+      search,
+      customerAs,
+      docketNo,
+      inactive,
+      fromDate,
+      toDate,
+      sortBy,
+      sortOrder,
+    ],
+    queryFn: () =>
+      getCustomerReports({
+        page,
+        limit,
+        search,
+        customerAs: customerAs || undefined,
+        docketNo: docketNo || undefined,
+        inactive: inactive !== "" ? inactive : undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        sortBy,
+        sortOrder,
+      }),
+    placeholderData: (previousData) => previousData,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
+}
+
 
 
 
