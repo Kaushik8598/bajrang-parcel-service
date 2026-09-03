@@ -47,6 +47,11 @@ export function useCreateTruck() {
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: USER_SINGLE_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: TRUCKS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ["trucks-dropdown-list"] });
+      queryClient.invalidateQueries({ queryKey: ["only-truck-dropdown-list"] });
+      queryClient.invalidateQueries({ queryKey: ["UNLOADABLE_TRUCKS"] });
+      queryClient.invalidateQueries({ queryKey: ["drivers-dropdown-list"] });
+      queryClient.invalidateQueries({ queryKey: ["drivers-list"] });
     },
   });
 }
@@ -63,6 +68,11 @@ export function useUpdateTruck() {
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: USER_SINGLE_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: TRUCKS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ["trucks-dropdown-list"] });
+      queryClient.invalidateQueries({ queryKey: ["only-truck-dropdown-list"] });
+      queryClient.invalidateQueries({ queryKey: ["UNLOADABLE_TRUCKS"] });
+      queryClient.invalidateQueries({ queryKey: ["drivers-dropdown-list"] });
+      queryClient.invalidateQueries({ queryKey: ["drivers-list"] });
     },
   });
 }

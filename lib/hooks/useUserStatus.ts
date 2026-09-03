@@ -19,16 +19,15 @@ export function useUpdateUserStatus(targetQueryKey?: QueryKey) {
       status: UserStatusType;
     }) => updateUserStatus(userId, status),
     onSuccess: () => {
-      // Invalidate target query key once, or fallback to active list queries
+      // Invalidate target query key
       if (targetQueryKey) {
         queryClient.invalidateQueries({ queryKey: targetQueryKey });
-      } else {
-        queryClient.invalidateQueries({
-          predicate: (query) =>
-            typeof query.queryKey[0] === "string" &&
-            (query.queryKey[0].endsWith("-list") || query.queryKey[0].includes("list")),
-        });
       }
+      queryClient.invalidateQueries({ queryKey: ["trucks-dropdown-list"] });
+      queryClient.invalidateQueries({ queryKey: ["only-truck-dropdown-list"] });
+      queryClient.invalidateQueries({ queryKey: ["drivers-dropdown-list"] });
+      queryClient.invalidateQueries({ queryKey: ["branch-dropdown-list"] });
+      queryClient.invalidateQueries({ queryKey: ["only-branch-dropdown-list"] });
     },
   });
 }
