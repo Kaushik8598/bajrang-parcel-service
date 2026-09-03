@@ -173,6 +173,7 @@ export default function BranchExpenseReportPage() {
         key: "memoDate",
         label: "Expense Date",
         sortable: true,
+        exportValue: (row) => row.memoDate || (row.createdAt ? formatDateTime(row.createdAt) : "—"),
         render: (val, row) => (
           <span className="text-xs text-black whitespace-nowrap">
             {val ? String(val) : row.createdAt ? formatDateTime(row.createdAt) : "—"}
@@ -183,6 +184,7 @@ export default function BranchExpenseReportPage() {
         key: "fromBranch",
         label: "Branch",
         sortable: true,
+        exportValue: (row) => row.fromBranch?.code ? `${row.fromBranch?.name || ""} [${row.fromBranch.code}]` : (row.fromBranch?.name || "—"),
         render: (_val, row) => {
           const name = row.fromBranch?.name || "";
           const code = row.fromBranch?.code || "";

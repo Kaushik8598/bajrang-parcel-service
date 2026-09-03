@@ -194,6 +194,7 @@ export default function MemoReportPage() {
         key: "memoDate",
         label: "Memo Date",
         sortable: true,
+        exportValue: (row) => row.memoDate || (row.createdAt ? formatDateTime(row.createdAt) : "—"),
         render: (val, row) => (
           <span className="text-xs text-black whitespace-nowrap">
             {val ? String(val) : row.createdAt ? formatDateTime(row.createdAt) : "—"}
@@ -204,6 +205,7 @@ export default function MemoReportPage() {
         key: "fromBranch",
         label: "From Branch",
         sortable: true,
+        exportValue: (row) => row.fromBranch?.code ? `${row.fromBranch?.name || ""} [${row.fromBranch.code}]` : (row.fromBranch?.name || "—"),
         render: (_val, row) => {
           const name = row.fromBranch?.name || "";
           const code = row.fromBranch?.code || "";

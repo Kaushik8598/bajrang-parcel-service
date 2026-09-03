@@ -16,7 +16,7 @@ import { useParcelDeliveredReports, useOnlyBranchList, useModulePermissions } fr
 import { getStoredUserRole, getStoredUser } from "@/lib/api/auth";
 import type { BranchDropdownItem } from "@/lib/api/branch";
 import type { ParcelBookingReportItem } from "@/lib/api/reports";
-import { formatDeliveredDateTime } from "@/lib/utils";
+import { formatDeliveredDateTime, formatMobileByRole } from "@/lib/utils";
 import type { ColumnDef } from "@/lib/types/common";
 
 
@@ -234,6 +234,7 @@ export default function ParcelDeliveryReportPage() {
       sortable: true,
       width: "w-20",
       sortValue: (row) => row.trackingStatus?.delivered ?? row.parcel ?? 0,
+      exportValue: (row) => `${row.trackingStatus?.delivered ?? 0}/${row.trackingStatus?.total ?? row.parcel ?? 0}`,
       render: (_, row) => {
         const delivered = row.trackingStatus?.delivered ?? 0;
         const total = row.trackingStatus?.total ?? row.parcel ?? 0;
@@ -249,6 +250,12 @@ export default function ParcelDeliveryReportPage() {
       label: "From Branch",
       sortable: true,
       sortValue: (row) => row.fromBranch?.branchName || "",
+      exportValue: (row) => {
+        const bName = row.fromBranch?.branchName;
+        const bCode = row.fromBranch?.branchCode;
+        if (!bName && !bCode) return "—";
+        return bCode ? `${bName || ""} [${bCode}]` : (bName || "—");
+      },
       render: (_, row) => {
         const bName = row.fromBranch?.branchName;
         const bCode = row.fromBranch?.branchCode;
@@ -268,6 +275,12 @@ export default function ParcelDeliveryReportPage() {
       label: "To Branch",
       sortable: true,
       sortValue: (row) => row.toBranch?.branchName || "",
+      exportValue: (row) => {
+        const bName = row.toBranch?.branchName;
+        const bCode = row.toBranch?.branchCode;
+        if (!bName && !bCode) return "—";
+        return bCode ? `${bName || ""} [${bCode}]` : (bName || "—");
+      },
       render: (_, row) => {
         const bName = row.toBranch?.branchName;
         const bCode = row.toBranch?.branchCode;
@@ -286,6 +299,12 @@ export default function ParcelDeliveryReportPage() {
       key: "sender",
       label: "Sender",
       sortable: false,
+      exportValue: (row) => {
+        const name = row.sender?.name || "—";
+        const mob = row.sender?.mobile || row.sender?.contact_no;
+        if (!mob) return name;
+        return `${name}\n${formatMobileByRole(mob, userRole)}`;
+      },
       render: (_, row) => (
         <div className="text-xs space-y-0.5 max-w-[130px]">
           <p className="text-slate-900 font-semibold uppercase leading-tight truncate">
@@ -301,6 +320,12 @@ export default function ParcelDeliveryReportPage() {
       key: "receiver",
       label: "Receiver",
       sortable: false,
+      exportValue: (row) => {
+        const name = row.receiver?.name || "—";
+        const mob = row.receiver?.mobile || row.receiver?.contact_no;
+        if (!mob) return name;
+        return `${name}\n${formatMobileByRole(mob, userRole)}`;
+      },
       render: (_, row) => (
         <div className="text-xs space-y-0.5 max-w-[130px]">
           <p className="text-slate-900 font-semibold uppercase leading-tight truncate">
@@ -449,6 +474,12 @@ export default function ParcelDeliveryReportPage() {
       sortable: true,
       width: "w-36",
       sortValue: (row) => row.deliveryInfo?.receiverName || "",
+      exportValue: (row) => {
+        const rName = row.deliveryInfo?.receiverName || "—";
+        const rMobile = row.deliveryInfo?.receiverMobile;
+        if (!rMobile) return rName;
+        return `${rName}\n${formatMobileByRole(rMobile, userRole)}`;
+      },
       render: (_, row) => {
         const rName = row.deliveryInfo?.receiverName;
         const rMobile = row.deliveryInfo?.receiverMobile;
@@ -473,6 +504,11 @@ export default function ParcelDeliveryReportPage() {
       sortable: true,
       width: "w-32",
       sortValue: (row) => row.deliveryInfo?.deliveredAt || "",
+      exportValue: (row) => {
+        const formatted = formatDeliveredDateTime(row.deliveryInfo?.deliveredAt);
+        if (!formatted) return "—";
+        return `${formatted.datePart} ${formatted.timePart || ""}`.trim();
+      },
       render: (_, row) => {
         const formatted = formatDeliveredDateTime(row.deliveryInfo?.deliveredAt);
         if (!formatted) return <span className="text-slate-400 text-xs">—</span>;
@@ -627,6 +663,26 @@ export default function ParcelDeliveryReportPage() {
         }}
         searchValue={search}
         clientSide={false}
+        exportFooterRow={[
+          "Total",
+          "—",
+          "—",
+          `${totals.totalConfirmedQty}/${totals.totalParcelsQty}`,
+          "—",
+          "—",
+          "—",
+          "—",
+          totals.totalTopay > 0 ? totals.totalTopay.toFixed(2) : "—",
+          totals.totalPaid > 0 ? totals.totalPaid.toFixed(2) : "—",
+          totals.totalGpay > 0 ? totals.totalGpay.toFixed(2) : "—",
+          totals.totalCredit > 0 ? totals.totalCredit.toFixed(2) : "—",
+          totals.totalDiscount > 0 ? totals.totalDiscount.toFixed(2) : "—",
+          "—",
+          "—",
+          "—",
+          "—",
+          `Grand: ₹${totals.grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
+        ]}
         pagination={{
           page,
           pageSize: limit,

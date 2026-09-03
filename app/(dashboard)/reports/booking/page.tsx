@@ -26,7 +26,7 @@ import { printBookingSlip } from "@/components/booking/BookingPrintSlip";
 import { printBookingBarcode } from "@/components/booking/BookingBarcodeSticker";
 import type { BranchDropdownItem } from "@/lib/api/branch";
 import type { ParcelBookingReportItem } from "@/lib/api/reports";
-import { getCurrentDateTime } from "@/lib/utils";
+import { getCurrentDateTime, formatMobileByRole } from "@/lib/utils";
 import type { ColumnDef } from "@/lib/types/common";
 
 const HAS_BILL_OPTIONS = [
@@ -438,6 +438,12 @@ export default function ManageParcelBookingReportsPage() {
       label: "From Branch",
       sortable: true,
       sortValue: (row) => row.fromBranch?.branchName || "",
+      exportValue: (row) => {
+        const bName = row.fromBranch?.branchName;
+        const bCode = row.fromBranch?.branchCode;
+        if (!bName && !bCode) return "—";
+        return bCode ? `${bName || ""} [${bCode}]` : (bName || "—");
+      },
       render: (_, row) => {
         const bName = row.fromBranch?.branchName;
         const bCode = row.fromBranch?.branchCode;
@@ -457,6 +463,12 @@ export default function ManageParcelBookingReportsPage() {
       label: "To Branch",
       sortable: true,
       sortValue: (row) => row.toBranch?.branchName || "",
+      exportValue: (row) => {
+        const bName = row.toBranch?.branchName;
+        const bCode = row.toBranch?.branchCode;
+        if (!bName && !bCode) return "—";
+        return bCode ? `${bName || ""} [${bCode}]` : (bName || "—");
+      },
       render: (_, row) => {
         const bName = row.toBranch?.branchName;
         const bCode = row.toBranch?.branchCode;
@@ -475,6 +487,12 @@ export default function ManageParcelBookingReportsPage() {
       key: "sender",
       label: "Sender",
       sortable: false,
+      exportValue: (row) => {
+        const name = row.sender?.name || "—";
+        const mob = row.sender?.mobile || row.sender?.contact_no;
+        if (!mob) return name;
+        return `${name}\n${formatMobileByRole(mob, userRole)}`;
+      },
       render: (_, row) => (
         <div className="text-xs space-y-0.5 max-w-[130px]">
           <p className="text-slate-900 font-semibold uppercase leading-tight truncate">
@@ -490,6 +508,12 @@ export default function ManageParcelBookingReportsPage() {
       key: "receiver",
       label: "Receiver",
       sortable: false,
+      exportValue: (row) => {
+        const name = row.receiver?.name || "—";
+        const mob = row.receiver?.mobile || row.receiver?.contact_no;
+        if (!mob) return name;
+        return `${name}\n${formatMobileByRole(mob, userRole)}`;
+      },
       render: (_, row) => (
         <div className="text-xs space-y-0.5 max-w-[130px]">
           <p className="text-slate-900 font-semibold uppercase leading-tight truncate">
@@ -633,6 +657,7 @@ export default function ManageParcelBookingReportsPage() {
       sortable: true,
       width: "w-32",
       sortValue: (row) => `${row.bookingDate || ""} ${row.bookingTime || ""}`,
+      exportValue: (row) => `${row.bookingDate || "—"} ${row.bookingTime || ""}`.trim(),
       render: (_, row) => (
         <div className="text-[11px] leading-tight whitespace-nowrap">
           <p className="font-medium text-slate-900">{row.bookingDate || "—"}</p>
@@ -867,6 +892,25 @@ export default function ManageParcelBookingReportsPage() {
         }}
         searchValue={search}
         clientSide={false}
+        exportFooterRow={[
+          "Total",
+          "—",
+          "—",
+          totals.totalParcels,
+          "—",
+          "—",
+          "—",
+          "—",
+          totals.totalTopay > 0 ? totals.totalTopay.toFixed(2) : "—",
+          totals.totalPaid > 0 ? totals.totalPaid.toFixed(2) : "—",
+          totals.totalGpay > 0 ? totals.totalGpay.toFixed(2) : "—",
+          totals.totalCredit > 0 ? totals.totalCredit.toFixed(2) : "—",
+          "—",
+          "—",
+          "—",
+          "—",
+          `Grand: ₹${totals.grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
+        ]}
         pagination={{
           page,
           pageSize: limit,

@@ -307,7 +307,7 @@ export default function CustomerBookingPage() {
             {row.sender?.name || "—"}
           </p>
           <p className="text-[11px] text-slate-500 font-mono">
-            {formatMobileByRole(row.sender?.mobile || row.sender?.contact_no || "", userRole)}
+            {row.sender?.mobile || row.sender?.contact_no || "—"}
           </p>
         </div>
       ),
@@ -328,7 +328,7 @@ export default function CustomerBookingPage() {
             {row.receiver?.name || "—"}
           </p>
           <p className="text-[11px] text-slate-500 font-mono">
-            {formatMobileByRole(row.receiver?.mobile || row.receiver?.contact_no || "", userRole)}
+            {row.receiver?.mobile || row.receiver?.contact_no || "—"}
           </p>
         </div>
       ),
