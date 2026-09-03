@@ -47,8 +47,48 @@ export function getServerTime(): Date {
   return new Date(Date.now() + serverTimeOffset);
 }
 
+// ─── Auto Logout & Redirect Helper ───────────────────────────────────────────
+export function performLogoutAndRedirect() {
+  // 1. Remove all auth cookies
+  Cookies.remove(AUTH_TOKEN_KEY, { path: "/" });
+  Cookies.remove(AUTH_USER_KEY, { path: "/" });
+  Cookies.remove(AUTH_PERMISSIONS_KEY, { path: "/" });
+  Cookies.remove(AUTH_ROLE_KEY, { path: "/" });
+
+  // 2. Remove all existing cookies
+  try {
+    const allCookies = Cookies.get();
+    if (allCookies) {
+      Object.keys(allCookies).forEach((cName) => {
+        Cookies.remove(cName, { path: "/" });
+        Cookies.remove(cName);
+      });
+    }
+  } catch {
+    // Ignore
+  }
+
+  // 3. Clear localStorage, sessionStorage and redirect to login
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+      localStorage.removeItem(AUTH_USER_KEY);
+      localStorage.removeItem(AUTH_PERMISSIONS_KEY);
+      localStorage.removeItem(AUTH_ROLE_KEY);
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch {
+      // Ignore
+    }
+
+    if (!window.location.pathname.includes("/login")) {
+      window.location.href = "/login";
+    }
+  }
+}
+
 // ─── Response Interceptor & Error Handling ────────────────────────────────────
-// Formats errors and handles authentication expiration (401)
+// Formats errors and handles authentication expiration (401/400)
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
     if (response.headers && response.headers["date"]) {
@@ -57,14 +97,21 @@ apiClient.interceptors.response.use(
         serverTimeOffset = serverTime - Date.now();
       }
     }
+
+    // Check if 200 OK body contains error status 400/401
+    const bodyStatus = response.data?.status ?? response.data?.statusCode ?? response.data?.code;
+    if (bodyStatus === 400 || bodyStatus === 401 || bodyStatus === "400" || bodyStatus === "401") {
+      performLogoutAndRedirect();
+    }
+
     return response;
   },
-  (error: AxiosError<{ message?: string; error?: string; errors?: Record<string, string[]> | string[] }>) => {
+  (error: AxiosError<{ message?: string; error?: string; status?: number | string; statusCode?: number | string; errors?: Record<string, string[]> | string[] }>) => {
     let errorMessage = "Something went wrong. Please try again.";
 
     if (error.response) {
       const status = error.response.status;
-      const data = error.response.data;
+      const data = error.response.data as any;
 
       // Extract error message from API response
       if (data?.message) {
@@ -81,32 +128,25 @@ apiClient.interceptors.response.use(
         errorMessage = "Bad request. Please verify your data.";
       } else if (status === 401) {
         errorMessage = "Unauthorized. Please login again.";
-        // Auto logout on 401
-        Cookies.remove(AUTH_TOKEN_KEY, { path: "/" });
-        Cookies.remove(AUTH_USER_KEY, { path: "/" });
-        Cookies.remove(AUTH_PERMISSIONS_KEY, { path: "/" });
-        Cookies.remove(AUTH_ROLE_KEY, { path: "/" });
-
-        if (typeof window !== "undefined") {
-          try {
-            localStorage.removeItem(AUTH_TOKEN_KEY);
-            localStorage.removeItem(AUTH_USER_KEY);
-            localStorage.removeItem(AUTH_PERMISSIONS_KEY);
-            localStorage.removeItem(AUTH_ROLE_KEY);
-            sessionStorage.clear();
-          } catch {
-            // Ignore
-          }
-          if (!window.location.pathname.includes("/login")) {
-            window.location.href = "/login";
-          }
-        }
       } else if (status === 403) {
         errorMessage = "You do not have permission to perform this action.";
       } else if (status === 404) {
         errorMessage = "The requested resource was not found.";
       } else if (status >= 500) {
         errorMessage = "Server error. Please try again later.";
+      }
+
+      // Check HTTP status 400/401 OR body status 400/401 -> Logout & Clear Storage
+      const bodyStatus = data?.status ?? data?.statusCode ?? data?.code;
+      if (
+        status === 400 ||
+        status === 401 ||
+        bodyStatus === 400 ||
+        bodyStatus === 401 ||
+        bodyStatus === "400" ||
+        bodyStatus === "401"
+      ) {
+        performLogoutAndRedirect();
       }
     } else if (error.request) {
       // Network error or server not reachable
