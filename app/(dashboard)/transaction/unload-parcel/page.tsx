@@ -21,7 +21,7 @@ import { FormSelect, type FormSelectOption } from "@/components/ui/form-select";
 import { Checkbox } from "@/components/ui/checkbox";
 import SimpleDataTable from "@/components/DataTable/SimpleDataTable";
 import BarcodeScannerModal from "@/components/scanner/BarcodeScannerModal";
-import { printTruckLoadReport } from "@/components/load-parcel/TruckLoadReport";
+import { printLoadParcelReport } from "@/components/load-parcel/LoadParcelReport";
 import { showToast } from "@/lib/toast";
 import { getStoredUser } from "@/lib/api/auth";
 import { useUnloadableTrucks, useOnlyBranchList, useUnloadParcelsMutation } from "@/lib/hooks";
@@ -569,7 +569,7 @@ export default function UnloadParcelPage() {
           );
           const unloadBranchName = unloadBranchObj?.label || selectedUnloadBranch;
 
-          printTruckLoadReport({
+          printLoadParcelReport({
             data: res.data,
             userName: currentUserName,
             branchName: currentBranchName,

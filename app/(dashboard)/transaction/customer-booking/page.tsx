@@ -21,6 +21,7 @@ import { CUSTOMER_BOOKING_REPORTS_QUERY_KEY, BOOKING_REPORTS_QUERY_KEY } from "@
 import { getStoredUserRole, getStoredUser } from "@/lib/api/auth";
 import { updateBookingStatus } from "@/lib/api/booking";
 import { showToast } from "@/lib/toast";
+import { formatMobileByRole } from "@/lib/utils";
 import type { BranchDropdownItem } from "@/lib/api/branch";
 import type { ParcelBookingReportItem } from "@/lib/api/reports";
 import type { ColumnDef } from "@/lib/types/common";
@@ -156,14 +157,14 @@ export default function CustomerBookingPage() {
     setCancelReasonError("");
     setIsCancelling(true);
     try {
-      await updateBookingStatus(selectedBookingForCancel._id, "cancelled", {
+      const res = await updateBookingStatus(selectedBookingForCancel._id, "cancelled", {
         cancelReason: cancelReason.trim(),
         cancelRemark: cancelRemark.trim(),
       });
       showToast(
         "success",
-        "Success",
-        `Booking "${selectedBookingForCancel.docketNo1 || selectedBookingForCancel.docketNo2 || "docket"}" cancelled successfully.`
+        res.message ||
+          `Booking "${selectedBookingForCancel.docketNo1 || selectedBookingForCancel.docketNo2 || "docket"}" cancelled successfully.`
       );
       queryClient.invalidateQueries({ queryKey: CUSTOMER_BOOKING_REPORTS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: BOOKING_REPORTS_QUERY_KEY });
@@ -171,9 +172,8 @@ export default function CustomerBookingPage() {
       setSelectedBookingForCancel(null);
       setCancelReason("");
       setCancelRemark("");
-    } catch (err: unknown) {
-      const msg = err && typeof err === "object" && "message" in err ? String(err.message) : "Failed to cancel booking.";
-      showToast("error", "Error", msg);
+    } catch (err: any) {
+      showToast("error", err.message || "Failed to cancel booking.");
     } finally {
       setIsCancelling(false);
     }
@@ -230,6 +230,7 @@ export default function CustomerBookingPage() {
       sortable: true,
       width: "w-20",
       sortValue: (row) => row.trackingStatus?.draft ?? row.parcel ?? 0,
+      exportValue: (row) => `${row.trackingStatus?.draft ?? 0}/${row.trackingStatus?.total ?? row.parcel ?? 0}`,
       render: (_, row) => {
         const draft = row.trackingStatus?.draft ?? 0;
         const total = row.trackingStatus?.total ?? row.parcel ?? 0;
@@ -245,6 +246,12 @@ export default function CustomerBookingPage() {
       label: "From Branch",
       sortable: true,
       sortValue: (row) => row.fromBranch?.branchName || "",
+      exportValue: (row) => {
+        const bName = row.fromBranch?.branchName;
+        const bCode = row.fromBranch?.branchCode;
+        if (!bName && !bCode) return "—";
+        return bCode ? `${bName || ""} [${bCode}]` : (bName || "—");
+      },
       render: (_, row) => {
         const bName = row.fromBranch?.branchName;
         const bCode = row.fromBranch?.branchCode;
@@ -264,6 +271,12 @@ export default function CustomerBookingPage() {
       label: "To Branch",
       sortable: true,
       sortValue: (row) => row.toBranch?.branchName || "",
+      exportValue: (row) => {
+        const bName = row.toBranch?.branchName;
+        const bCode = row.toBranch?.branchCode;
+        if (!bName && !bCode) return "—";
+        return bCode ? `${bName || ""} [${bCode}]` : (bName || "—");
+      },
       render: (_, row) => {
         const bName = row.toBranch?.branchName;
         const bCode = row.toBranch?.branchCode;
@@ -282,13 +295,19 @@ export default function CustomerBookingPage() {
       key: "sender",
       label: "Sender",
       sortable: false,
+      exportValue: (row) => {
+        const name = row.sender?.name || "—";
+        const mob = row.sender?.mobile || row.sender?.contact_no;
+        if (!mob) return name;
+        return `${name}\n${formatMobileByRole(mob, userRole)}`;
+      },
       render: (_, row) => (
         <div className="text-xs space-y-0.5 max-w-[130px]">
           <p className="text-slate-900 font-semibold uppercase leading-tight truncate">
             {row.sender?.name || "—"}
           </p>
           <p className="text-[11px] text-slate-500 font-mono">
-            {row.sender?.mobile || row.sender?.contact_no || "—"}
+            {formatMobileByRole(row.sender?.mobile || row.sender?.contact_no || "", userRole)}
           </p>
         </div>
       ),
@@ -297,13 +316,19 @@ export default function CustomerBookingPage() {
       key: "receiver",
       label: "Receiver",
       sortable: false,
+      exportValue: (row) => {
+        const name = row.receiver?.name || "—";
+        const mob = row.receiver?.mobile || row.receiver?.contact_no;
+        if (!mob) return name;
+        return `${name}\n${formatMobileByRole(mob, userRole)}`;
+      },
       render: (_, row) => (
         <div className="text-xs space-y-0.5 max-w-[130px]">
           <p className="text-slate-900 font-semibold uppercase leading-tight truncate">
             {row.receiver?.name || "—"}
           </p>
           <p className="text-[11px] text-slate-500 font-mono">
-            {row.receiver?.mobile || row.receiver?.contact_no || "—"}
+            {formatMobileByRole(row.receiver?.mobile || row.receiver?.contact_no || "", userRole)}
           </p>
         </div>
       ),
@@ -331,6 +356,7 @@ export default function CustomerBookingPage() {
       sortable: true,
       width: "w-32",
       sortValue: (row) => `${row.bookingDate || ""} ${row.bookingTime || ""}`,
+      exportValue: (row) => `${row.bookingDate || "—"} ${row.bookingTime || ""}`.trim(),
       render: (_, row) => (
         <div className="text-[11px] leading-tight whitespace-nowrap">
           <p className="font-medium text-slate-800">{row.bookingDate || "—"}</p>
@@ -496,6 +522,19 @@ export default function CustomerBookingPage() {
         }}
         searchValue={search}
         clientSide={false}
+        exportFooterRow={[
+          "Total",
+          "—",
+          "—",
+          `${totals.totalConfirmedQty}/${totals.totalParcelsQty}`,
+          "—",
+          "—",
+          "—",
+          "—",
+          `₹${totals.grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
+          "—",
+          "—",
+        ]}
         pagination={{
           page,
           pageSize: limit,

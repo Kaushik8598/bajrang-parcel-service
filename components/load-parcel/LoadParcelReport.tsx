@@ -1,0 +1,273 @@
+"use client";
+
+import React from "react";
+import moment from "moment";
+import { EXPORT_COMPANY_NAME, getExportDateTime } from "@/lib/exportUtils";
+
+export interface LoadParcelReportProps {
+  data: any;
+  userName?: string;
+  branchName?: string;
+  unloadBranchName?: string;
+  message?: string;
+  reportTitle?: string;
+}
+
+/**
+ * Returns clean Black & White HTML string for printing official Truck Loading / Unloading Manifest Report.
+ */
+export function getLoadParcelReportHtml(props: LoadParcelReportProps): string {
+  const {
+    data,
+    userName = "Admin",
+    branchName = "",
+    unloadBranchName = "",
+    reportTitle = "LOAD PARCEL REPORT",
+  } = props;
+  const truckInfo = data?.truckInfo || { truckNumber: "—", driverName: "—" };
+  const pieceDetails = Array.isArray(data?.pieceDetails) ? data.pieceDetails : [];
+
+  const totalDockets = pieceDetails.length;
+  const totalPieces = pieceDetails.reduce(
+    (sum: number, item: any) => sum + (Array.isArray(item.pieceNumber) ? item.pieceNumber.length : 1),
+    0
+  );
+
+  const { formattedDateTime } = getExportDateTime();
+
+  const rowsHtml = pieceDetails
+    .map((item: any, idx: number) => {
+      const pcsCount = Array.isArray(item.pieceNumber) ? item.pieceNumber.length : 1;
+      const pieceCodesStr = Array.isArray(item.pieceNumber) ? item.pieceNumber.join(", ") : "—";
+      const loadedTimeStr = item.loadedAt
+        ? moment(item.loadedAt).format("DD/MM/YYYY hh:mm A")
+        : formattedDateTime;
+
+      return `
+        <tr>
+          <td style="text-align: center;">${idx + 1}</td>
+          <td>${item.docketNo1 || "—"}</td>
+          <td>${item.docketNo2 || "—"}</td>
+          <td style="text-align: center; font-weight: bold;">${pcsCount}</td>
+          <td style="word-break: break-all;">${pieceCodesStr}</td>
+          <td style="text-align: center;">${loadedTimeStr}</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${reportTitle} - ${EXPORT_COMPANY_NAME}</title>
+  <style>
+    @page {
+      size: landscape;
+      margin: 7mm;
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    html, body {
+      font-family: Arial, Helvetica, sans-serif;
+      color: #000000;
+      background: #ffffff;
+      margin: 0;
+      padding: 0;
+    }
+    .header-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-bottom: 1.5px solid #000000;
+      padding-bottom: 6px;
+      margin-bottom: 8px;
+    }
+    .company-name {
+      font-size: 28px;
+      font-weight: bold;
+      color: #000000;
+      letter-spacing: 0.5px;
+      line-height: 1.1;
+    }
+    .report-meta {
+      text-align: right;
+    }
+    .report-title {
+      font-size: 24px;
+      font-weight: bold;
+      color: #000000;
+      line-height: 1.1;
+    }
+    .report-time {
+      font-size: 20px;
+      font-weight: normal;
+      color: #000000;
+      margin-top: 3px;
+      line-height: 1.1;
+    }
+    .meta-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border: 1px solid #000000;
+      padding: 6px 10px;
+      margin-bottom: 8px;
+      background: #ffffff;
+      gap: 16px;
+    }
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      color: #000000;
+    }
+    .meta-label {
+      font-size: 10px;
+      font-weight: bold;
+      text-transform: uppercase;
+      color: #000000;
+    }
+    .meta-value {
+      font-size: 11px;
+      font-weight: normal;
+      color: #000000;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #000000;
+      background: #ffffff;
+      margin-top: 4px;
+    }
+    th, td {
+      border: 1px solid #000000;
+      padding: 5px 6px;
+      font-size: 10px;
+      color: #000000;
+      text-align: left;
+    }
+    th {
+      font-weight: bold;
+      background-color: #ffffff;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    td {
+      font-weight: normal;
+      background-color: #ffffff;
+    }
+    tfoot td {
+      font-weight: bold !important;
+      background-color: #f8fafc !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="header-container">
+    <div class="company-name">${EXPORT_COMPANY_NAME}</div>
+    <div class="report-meta">
+      <div class="report-title">${reportTitle}</div>
+      <div class="report-time">${formattedDateTime}</div>
+    </div>
+  </div>
+
+  <div class="meta-bar">
+    <div class="meta-item">
+      <span class="meta-label">TRUCK / DRIVER</span>
+      <span class="meta-value">${truckInfo.truckNumber}${truckInfo.driverName && truckInfo.driverName !== "—" ? ` (${truckInfo.driverName})` : ""}</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">GENERATED BY</span>
+      <span class="meta-value">${userName}${branchName ? ` (${branchName})` : ""}</span>
+    </div>
+    ${unloadBranchName
+      ? `
+    <div class="meta-item">
+      <span class="meta-label">UNLOAD BRANCH</span>
+      <span class="meta-value">${unloadBranchName}</span>
+    </div>
+    `
+      : ""
+    }
+    <div class="meta-item">
+      <span class="meta-label">TOTAL DOCKETS</span>
+      <span class="meta-value">${totalDockets} Dockets</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">TOTAL PIECES</span>
+      <span class="meta-value">${totalPieces} Pieces</span>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="text-align: center; width: 40px;">#</th>
+        <th style="width: 130px;">DOCKET NO</th>
+        <th style="width: 140px;">TRACKING NO</th>
+        <th style="text-align: center; width: 60px;">PCS</th>
+        <th>PIECE BARCODES</th>
+        <th style="text-align: center; width: 150px;">DATE TIME</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rowsHtml}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3" style="text-align: right; font-weight: bold;">GRAND TOTAL:</td>
+        <td style="text-align: center; font-weight: bold;">${totalPieces}</td>
+        <td colspan="2"></td>
+      </tr>
+    </tfoot>
+  </table>
+</body>
+</html>`;
+}
+
+/**
+ * Triggers the browser print dialog for the Load / Unload Parcel Report.
+ */
+export function printLoadParcelReport(props: LoadParcelReportProps): void {
+  const html = getLoadParcelReportHtml(props);
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    alert("Please allow popups to print the report.");
+    return;
+  }
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
+
+  // Print automatically once fully loaded
+  printWindow.onload = () => {
+    printWindow.print();
+    printWindow.close();
+  };
+
+  // Fallback trigger if onload already occurred
+  setTimeout(() => {
+    try {
+      printWindow.print();
+      printWindow.close();
+    } catch {
+      // Window might already be closed
+    }
+  }, 600);
+}
+
+// Backward-compatible alias
+export const printTruckLoadReport = printLoadParcelReport;
+
+export default function LoadParcelReport(props: LoadParcelReportProps) {
+  return (
+    <div
+      className="w-full overflow-auto bg-slate-100 p-4 flex justify-center"
+      dangerouslySetInnerHTML={{ __html: getLoadParcelReportHtml(props) }}
+    />
+  );
+}

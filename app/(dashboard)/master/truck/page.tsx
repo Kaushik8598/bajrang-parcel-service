@@ -169,24 +169,6 @@ export default function ManageTruckPage() {
   // ─── Table Columns ─────────────────────────────────────────────────────────
   const columns: ColumnDef<TruckUser>[] = [
     {
-      key: "truckImage",
-      label: "Photo",
-      sortable: false,
-      width: "w-16",
-      render: (_, row) => {
-        const image = row.truckInfo?.truckImage;
-        const displayName = row.truckInfo?.truckNumber || row.name;
-        return (
-          <Avatar className="w-8 h-8 rounded-full border border-slate-200 bg-slate-50">
-            <AvatarImage src={image} alt={displayName} />
-            <AvatarFallback className="bg-[#2980b9] text-white text-xs font-bold rounded-full">
-              {getInitials(displayName) || <TruckIcon className="w-3.5 h-3.5" />}
-            </AvatarFallback>
-          </Avatar>
-        );
-      },
-    },
-    {
       key: "truck_number",
       label: "Truck Number",
       sortable: true,
@@ -194,10 +176,21 @@ export default function ManageTruckPage() {
       sortValue: (row) => row.truckInfo?.truckNumber || row.name || "",
       render: (_, row) => {
         const num = row.truckInfo?.truckNumber || row.name;
+        const image = row.truckInfo?.truckImage;
+        const displayName = row.truckInfo?.truckNumber || row.name;
         return (
-          <span className="font-mono text-xs font-semibold text-slate-900">
-            {num || "-"}
-          </span>
+          <div className="flex items-center gap-2">
+            <Avatar className="w-8 h-8 rounded-full border border-slate-200 bg-slate-50">
+              <AvatarImage src={image} alt={displayName} />
+              <AvatarFallback className="bg-[#2980b9] text-white text-xs font-bold rounded-full">
+                {getInitials(displayName) || <TruckIcon className="w-3.5 h-3.5" />}
+              </AvatarFallback>
+            </Avatar>
+            <span className="font-semibold text-slate-900">
+              {num || "-"}
+            </span>
+          </div>
+
         );
       },
 

@@ -97,3 +97,28 @@ export function getCurrentDateTime(): string {
   return formatDateTime(new Date());
 }
 
+/**
+ * Mask a mobile number showing only first 2 and last 2 digits
+ * Example: 9825100001 -> 98******01
+ */
+export function maskMobileNumber(mobile?: string | number | null): string {
+  if (!mobile) return "—";
+  const str = String(mobile).trim();
+  if (str.length <= 4) return str;
+  const first2 = str.slice(0, 2);
+  const last2 = str.slice(-2);
+  const stars = "*".repeat(str.length - 4);
+  return `${first2}${stars}${last2}`;
+}
+
+/**
+ * Returns full mobile number for admin/superadmin, and masked (first 2 & last 2 digits) for all other roles
+ */
+export function formatMobileByRole(mobile?: string | number | null, role?: string | null): string {
+  if (!mobile) return "—";
+  const userRole = (role || "").toLowerCase();
+  const isAdminOrSuperAdmin = userRole === "admin" || userRole === "superadmin";
+  if (isAdminOrSuperAdmin) return String(mobile).trim();
+  return maskMobileNumber(mobile);
+}
+

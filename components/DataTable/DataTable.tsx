@@ -57,6 +57,10 @@ function SortIcon({ direction }: { direction: SortDirection }) {
 export interface DataTableProps<T extends Record<string, unknown>> {
   title: string;
   columns: ColumnDef<T>[];
+  /** Optional custom columns configuration specifically for Excel / PDF / Print exports */
+  exportColumns?: ColumnDef<T>[];
+  /** Optional custom footer totals row for Excel / PDF / Print exports */
+  exportFooterRow?: (string | number | null | undefined)[];
   data: T[];
   isLoading?: boolean;
   permissions?: TablePermissions;
@@ -82,6 +86,8 @@ export interface DataTableProps<T extends Record<string, unknown>> {
 export default function DataTable<T extends Record<string, unknown>>({
   title,
   columns,
+  exportColumns,
+  exportFooterRow,
   data,
   isLoading = false,
   permissions = {
@@ -183,10 +189,11 @@ export default function DataTable<T extends Record<string, unknown>>({
   };
 
   // ── Export handlers ──
+  const activeExportCols = exportColumns || columns;
   const exportData = clientSide ? (search ? processed : data) : data;
-  const handleExcel = () => exportToExcel(columns, exportData, title);
-  const handlePDF = () => exportToPDF(columns, exportData, title);
-  const handlePrint = () => printTable(columns, exportData, title);
+  const handleExcel = () => exportToExcel(activeExportCols, exportData, title, exportFooterRow);
+  const handlePDF = () => exportToPDF(activeExportCols, exportData, title, exportFooterRow);
+  const handlePrint = () => printTable(activeExportCols, exportData, title, exportFooterRow);
 
   return (
     <div

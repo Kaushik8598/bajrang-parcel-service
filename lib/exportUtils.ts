@@ -1,9 +1,43 @@
 "use client";
 
 import { getServerTime } from "@/lib/api/client";
+import { getStoredUserRole } from "@/lib/api/auth";
+import { formatMobileByRole } from "@/lib/utils";
 import type { ColumnDef } from "@/lib/types/common";
 
 export const EXPORT_COMPANY_NAME = "BAJRANG Parcel Service & Road Lines";
+
+/**
+ * Checks if a column is suitable for tabular export (filters out action & image/photo columns)
+ */
+export function isExportableColumn<T>(col: ColumnDef<T>): boolean {
+  const keyStr = String(col.key).toLowerCase();
+  const labelStr = String(col.label || "").toLowerCase();
+
+  // Exclude action and row number columns
+  if (["action", "actions", "sr", "srno", "#"].includes(keyStr)) return false;
+  if (labelStr.includes("action")) return false;
+
+  // Exclude photo / image / avatar columns
+  if (
+    keyStr.includes("photo") ||
+    keyStr.includes("image") ||
+    keyStr.includes("avatar") ||
+    keyStr.includes("picture")
+  ) {
+    return false;
+  }
+  if (
+    labelStr.includes("photo") ||
+    labelStr.includes("image") ||
+    labelStr.includes("avatar") ||
+    labelStr.includes("picture")
+  ) {
+    return false;
+  }
+
+  return true;
+}
 
 /**
  * Returns formatted date-time string and file timestamp using reliable server time
@@ -29,16 +63,114 @@ export function getExportDateTime(): { formattedDateTime: string; fileTimestamp:
 }
 
 /**
- * Cleanly extracts a cell value for table export without HTML or raw objects
+ * Cleanly extracts a cell value for table export without HTML or raw objects,
+ * applying role-based mobile number masking (admin/superadmin see full, others see 98******01).
  */
 export function extractExportCellValue<T>(row: T, col: ColumnDef<T>): string {
-  const key = col.key as string;
-  const rawVal = (row as Record<string, any>)[key];
+  const userRole = getStoredUserRole();
+  const key = String(col.key);
+  const keyLower = key.toLowerCase();
+  const labelLower = String(col.label || "").toLowerCase();
+  const isMobileColumn =
+    keyLower.includes("mobile") ||
+    keyLower.includes("phone") ||
+    keyLower.includes("contact") ||
+    labelLower.includes("mobile") ||
+    labelLower.includes("phone") ||
+    labelLower.includes("contact");
 
-  if (rawVal === undefined || rawVal === null) return "—";
+  // 1. If column has a custom export accessor
+  if (col.exportValue) {
+    const val = col.exportValue(row);
+    if (val !== undefined && val !== null) {
+      if (isMobileColumn) {
+        return formatMobileByRole(String(val), userRole);
+      }
+      return String(val);
+    }
+  }
+
+  // 2. If column has a custom sort accessor returning a meaningful string
+  if (col.sortValue) {
+    const val = col.sortValue(row);
+    if (val !== undefined && val !== null && typeof val !== "object") {
+      const s = String(val);
+      if (s && s !== "0" && s !== "1") {
+        if (isMobileColumn) {
+          return formatMobileByRole(s, userRole);
+        }
+        return s;
+      }
+    }
+  }
+
+  const rowObj = row as Record<string, any>;
+
+  // 3. Direct property lookup
+  let rawVal = rowObj[key];
+
+  // 4. Nested lookup in branchInfo, truckInfo, driverInfo, staffInfo, customer
+  if (rawVal === undefined || rawVal === null) {
+    if (rowObj.branchInfo && rowObj.branchInfo[key] !== undefined) {
+      rawVal = rowObj.branchInfo[key];
+    } else if (rowObj.truckInfo && rowObj.truckInfo[key] !== undefined) {
+      rawVal = rowObj.truckInfo[key];
+    } else if (rowObj.driverInfo && rowObj.driverInfo[key] !== undefined) {
+      rawVal = rowObj.driverInfo[key];
+    } else if (rowObj.staffInfo && rowObj.staffInfo[key] !== undefined) {
+      rawVal = rowObj.staffInfo[key];
+    }
+  }
+
+  // 5. Special field resolutions for master data
+  if ((rawVal === undefined || rawVal === null) && key === "branchName") {
+    rawVal = rowObj.branchInfo?.branchName || rowObj.name;
+  }
+  if ((rawVal === undefined || rawVal === null) && key === "branchCode") {
+    rawVal = rowObj.branchInfo?.branchCode || rowObj.code;
+  }
+  if ((rawVal === undefined || rawVal === null) && (key === "mobile1" || key === "mobile_no_1")) {
+    rawVal = rowObj.branchInfo?.mobile1 || rowObj.mobile || rowObj.mobile_no_1;
+  }
+  if ((rawVal === undefined || rawVal === null) && (key === "mobile2" || key === "mobile_no_2")) {
+    rawVal = rowObj.branchInfo?.mobile2 || rowObj.mobile_no_2;
+  }
+  if ((rawVal === undefined || rawVal === null) && (key === "truckNo" || key === "truckNumber" || key === "truck_number")) {
+    rawVal = rowObj.truckInfo?.truckNumber || rowObj.name;
+  }
+  if ((rawVal === undefined || rawVal === null) && key === "truckType") {
+    rawVal = rowObj.truckInfo?.truckType;
+  }
+  if ((rawVal === undefined || rawVal === null) && key === "capacity") {
+    rawVal = rowObj.truckInfo?.capacity ? `${rowObj.truckInfo.capacity} kg` : "";
+  }
+  if ((rawVal === undefined || rawVal === null) && key === "driverName") {
+    rawVal = rowObj.truckInfo?.driverName || rowObj.driver?.name;
+  }
+  if ((rawVal === undefined || rawVal === null) && (key === "licenseNo" || key === "licenseNumber")) {
+    rawVal = rowObj.driverInfo?.licenseNumber || rowObj.driverInfo?.licenseNo;
+  }
+  if ((rawVal === undefined || rawVal === null) && key === "address") {
+    const info = rowObj.branchInfo || rowObj.address;
+    if (info && typeof info === "object") {
+      const parts = [info.address1, info.address2, info.city, info.state, info.pincode].filter(Boolean);
+      rawVal = parts.length > 0 ? parts.join(", ") : "-";
+    }
+  }
+  if ((rawVal === undefined || rawVal === null) && (key === "branch" || key === "branchId")) {
+    rawVal = rowObj.branch?.name || rowObj.staffInfo?.branchId?.name || rowObj.fromBranch?.name;
+  }
+
+  if (rawVal === undefined || rawVal === null || rawVal === "") return "—";
+
+  // Role-based mobile number masking
+  if (isMobileColumn) {
+    return formatMobileByRole(String(rawVal), userRole);
+  }
 
   if (typeof rawVal === "object") {
     if (rawVal.name && rawVal.code) return `${rawVal.name} (${rawVal.code})`;
+    if (rawVal.branchName && rawVal.branchCode) return `${rawVal.branchName} (${rawVal.branchCode})`;
     if (rawVal.name) return String(rawVal.name);
     if (rawVal.branchName) return String(rawVal.branchName);
     if (rawVal.branchCode) return String(rawVal.branchCode);
@@ -50,7 +182,7 @@ export function extractExportCellValue<T>(row: T, col: ColumnDef<T>): string {
     return rawVal ? "Yes" : "No";
   }
 
-  if (key.toLowerCase() === "status") {
+  if (keyLower === "status") {
     const str = String(rawVal);
     return str.charAt(0).toUpperCase() + str.slice(1);
   }
@@ -73,15 +205,14 @@ export function generateExportFileName(title: string, extension: "xlsx" | "pdf")
 export async function exportToExcel<T>(
   columns: ColumnDef<T>[],
   data: T[],
-  title: string
+  title: string,
+  footerRow?: (string | number | null | undefined)[]
 ) {
   const { utils, writeFile } = await import("xlsx");
   const { formattedDateTime } = getExportDateTime();
   const fileName = generateExportFileName(title, "xlsx");
 
-  const exportableCols = columns.filter(
-    (c) => !["action", "actions", "sr", "srno", "#"].includes(String(c.key).toLowerCase())
-  );
+  const exportableCols = columns.filter(isExportableColumn);
 
   const headerRow = ["#", ...exportableCols.map((c) => c.label)];
 
@@ -90,13 +221,23 @@ export async function exportToExcel<T>(
     ...exportableCols.map((c) => extractExportCellValue(row, c)),
   ]);
 
-  const sheetData = [
+  const sheetData: (string | number)[][] = [
     [EXPORT_COMPANY_NAME],
     [`Report: ${title}`, "", `Generated Date & Time: ${formattedDateTime}`],
     [], // Blank separator row
     headerRow,
     ...dataRows,
   ];
+
+  if (footerRow && footerRow.length > 0) {
+    let finalFooter = [...footerRow];
+    if (finalFooter.length === exportableCols.length) {
+      finalFooter = ["Total", ...finalFooter.slice(1)];
+    }
+    sheetData.push(
+      finalFooter.map((cell) => (cell === undefined || cell === null ? "—" : cell)) as (string | number)[]
+    );
+  }
 
   const ws = utils.aoa_to_sheet(sheetData);
 
@@ -115,16 +256,15 @@ export async function exportToExcel<T>(
 export async function exportToPDF<T>(
   columns: ColumnDef<T>[],
   data: T[],
-  title: string
+  title: string,
+  footerRow?: (string | number | null | undefined)[]
 ) {
   const jsPDF = (await import("jspdf")).default;
   const autoTable = (await import("jspdf-autotable")).default;
   const { formattedDateTime } = getExportDateTime();
   const fileName = generateExportFileName(title, "pdf");
 
-  const exportableCols = columns.filter(
-    (c) => !["action", "actions"].includes(String(c.key).toLowerCase())
-  );
+  const exportableCols = columns.filter(isExportableColumn);
 
   // All PDF exports in landscape layout
   const doc = new jsPDF({
@@ -167,10 +307,20 @@ export async function exportToPDF<T>(
     ...exportableCols.map((c) => extractExportCellValue(row, c)),
   ]);
 
+  let pdfFoot: (string | number)[][] | undefined = undefined;
+  if (footerRow && footerRow.length > 0) {
+    let finalFooter = [...footerRow];
+    if (finalFooter.length === exportableCols.length) {
+      finalFooter = ["Total", ...finalFooter.slice(1)];
+    }
+    pdfFoot = [finalFooter.map((cell) => (cell === undefined || cell === null ? "—" : cell)) as (string | number)[]];
+  }
+
   autoTable(doc, {
     startY: 20,
     head: [tableHeaders],
     body: tableRows,
+    foot: pdfFoot,
     theme: "grid",
     styles: {
       fontSize: 8,
@@ -185,6 +335,13 @@ export async function exportToPDF<T>(
       fontStyle: "bold",
       textColor: [0, 0, 0], // Pure Black
       fillColor: [255, 255, 255], // Pure White, no gray!
+      lineColor: [0, 0, 0],
+      lineWidth: 0.25,
+    },
+    footStyles: {
+      fontStyle: "bold",
+      textColor: [0, 0, 0],
+      fillColor: [245, 245, 245],
       lineColor: [0, 0, 0],
       lineWidth: 0.25,
     },
@@ -207,23 +364,42 @@ export async function exportToPDF<T>(
 export function printTable<T>(
   columns: ColumnDef<T>[],
   data: T[],
-  title: string
+  title: string,
+  footerRow?: (string | number | null | undefined)[]
 ) {
   const { formattedDateTime } = getExportDateTime();
 
-  const exportableCols = columns.filter(
-    (c) => !["action", "actions"].includes(String(c.key).toLowerCase())
-  );
+  const exportableCols = columns.filter(isExportableColumn);
 
   const headers = `<th>#</th>` + exportableCols.map((c) => `<th>${c.label}</th>`).join("");
   const rows = data
     .map(
       (row, idx) =>
         `<tr><td>${idx + 1}</td>${exportableCols
-          .map((c) => `<td>${extractExportCellValue(row, c)}</td>`)
+          .map((c) => {
+            const cellVal = extractExportCellValue(row, c);
+            const htmlVal = String(cellVal ?? "—").replace(/\n/g, "<br/>");
+            return `<td>${htmlVal}</td>`;
+          })
           .join("")}</tr>`
     )
     .join("");
+
+  let footerHtml = "";
+  if (footerRow && footerRow.length > 0) {
+    let finalFooter = [...footerRow];
+    if (finalFooter.length === exportableCols.length) {
+      finalFooter = ["Total", ...finalFooter.slice(1)];
+    }
+    footerHtml = `<tfoot><tr>${finalFooter
+      .map(
+        (c) =>
+          `<td style="font-weight: bold; background-color: #f8fafc;">${
+            c === undefined || c === null ? "—" : c
+          }</td>`
+      )
+      .join("")}</tr></tfoot>`;
+  }
 
   const html = `<!DOCTYPE html>
 <html>
@@ -302,6 +478,10 @@ export function printTable<T>(
       font-weight: normal;
       background-color: #ffffff;
     }
+    tfoot td {
+      font-weight: bold !important;
+      background-color: #f8fafc !important;
+    }
   </style>
 </head>
 <body>
@@ -320,18 +500,34 @@ export function printTable<T>(
     <tbody>
       ${rows}
     </tbody>
+    ${footerHtml}
   </table>
 </body>
 </html>`;
 
-  const w = window.open("", "_blank");
-  if (w) {
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => {
-      w.print();
-      w.close();
-    }, 250);
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    alert("Please allow popups to print.");
+    return;
   }
+
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
+
+  // Print automatically once fully loaded
+  printWindow.onload = () => {
+    printWindow.print();
+    printWindow.close();
+  };
+
+  // Fallback trigger if onload already occurred
+  setTimeout(() => {
+    try {
+      printWindow.print();
+      printWindow.close();
+    } catch {
+      // Window might already be closed
+    }
+  }, 600);
 }

@@ -145,7 +145,7 @@ function getItemBadgeCount(item: MenuItem, badges?: UserBadgesData): number | nu
     case "unload-parcel":
       return rawBadges.unloadableParcelCount ?? 0;
     case "delivery":
-      return rawBadges.pendingPayment ?? 0;
+      return rawBadges.pendingDeliveryReport ?? 0;
 
     // ─── Master / Users ──────────────────
     case "manage-admin":

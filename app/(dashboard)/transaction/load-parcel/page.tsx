@@ -20,7 +20,7 @@ import { FormSelect, type FormSelectOption } from "@/components/ui/form-select";
 import { Checkbox } from "@/components/ui/checkbox";
 import SimpleDataTable from "@/components/DataTable/SimpleDataTable";
 import BarcodeScannerModal from "@/components/scanner/BarcodeScannerModal";
-import { printTruckLoadReport } from "@/components/load-parcel/TruckLoadReport";
+import { printLoadParcelReport } from "@/components/load-parcel/LoadParcelReport";
 import { showToast } from "@/lib/toast";
 import { getStoredUser } from "@/lib/api/auth";
 import { useOnlyTruckList, useLoadableParcels, useLoadParcelsMutation } from "@/lib/hooks";
@@ -472,7 +472,7 @@ export default function LoadParcelPage() {
 
         // Directly open print view with the loaded manifest report
         if (res.data) {
-          printTruckLoadReport({
+          printLoadParcelReport({
             data: res.data,
             userName: currentUserName,
             branchName: currentBranchName,
