@@ -161,7 +161,7 @@ export default function ParcelBookingForm({
   const router = useRouter();
   const queryClient = useQueryClient();
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [billType, setBillType] = useState<"with_bill" | "without_bill">("with_bill");
+  const [billType, setBillType] = useState<"with_bill" | "without_bill">("without_bill");
   const [billFile, setBillFile] = useState<File | null>(null);
   const [billFileUrl, setBillFileUrl] = useState<string>("");
   const [showAdditionalCharges, setShowAdditionalCharges] = useState(false);
@@ -190,15 +190,15 @@ export default function ParcelBookingForm({
   // ─── Dynamic Bill Type Options based on bookingPreferences ────────────────
   const billTypeOptions = useMemo<FormSelectOption[]>(() => {
     const list: FormSelectOption[] = [];
-    if (bookingPreferences.bookWithBill !== false) {
-      list.push({ value: "with_bill", label: "With Bill" });
-    }
     if (bookingPreferences.bookWithoutBill !== false) {
       list.push({ value: "without_bill", label: "Without Bill" });
     }
-    if (list.length === 0) {
+    if (bookingPreferences.bookWithBill !== false) {
       list.push({ value: "with_bill", label: "With Bill" });
+    }
+    if (list.length === 0) {
       list.push({ value: "without_bill", label: "Without Bill" });
+      list.push({ value: "with_bill", label: "With Bill" });
     }
     return list;
   }, [bookingPreferences]);
@@ -213,11 +213,11 @@ export default function ParcelBookingForm({
   // ─── Dynamic Payment Method Options based on bookingPreferences ───────────
   const paymentMethodOptions = useMemo<FormSelectOption[]>(() => {
     const list: FormSelectOption[] = [];
-    if (bookingPreferences.allowToPayBooking !== false) {
-      list.push({ value: "To Pay", label: "To Pay" });
-    }
     if (bookingPreferences.allowPaidBooking !== false) {
       list.push({ value: "Paid", label: "Paid" });
+    }
+    if (bookingPreferences.allowToPayBooking !== false) {
+      list.push({ value: "To Pay", label: "To Pay" });
     }
     if (bookingPreferences.allowGPayBooking === true) {
       list.push({ value: "GPay", label: "GPay" });
@@ -235,8 +235,8 @@ export default function ParcelBookingForm({
     }
 
     if (list.length === 0) {
-      list.push({ value: "To Pay", label: "To Pay" });
       list.push({ value: "Paid", label: "Paid" });
+      list.push({ value: "To Pay", label: "To Pay" });
     }
     return list;
   }, [bookingPreferences]);
@@ -348,14 +348,14 @@ export default function ParcelBookingForm({
     packages: [
       {
         id: "pkg-1",
-        qty: 0,
+        qty: "" as any,
         material: "",
         packing: "",
         payment_type: "Direct",
         price: "",
       },
     ],
-    payment_method: "To Pay",
+    payment_method: "Paid",
     delivery_type: "office",
     bilty_charge: Number((currentUser as any)?.bookingPreferences?.biltyCharge ?? 20),
     hamali_cost: Number((currentUser as any)?.bookingPreferences?.hamaliCost ?? 0),
@@ -879,7 +879,7 @@ export default function ParcelBookingForm({
         ...prev.packages,
         {
           id: `pkg-${Date.now()}`,
-          qty: 0,
+          qty: "" as any,
           material: "",
           packing: "",
           payment_type: "Direct",
@@ -1125,6 +1125,8 @@ export default function ParcelBookingForm({
       queryClient.invalidateQueries({ queryKey: ["booking-reports-list"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       queryClient.invalidateQueries({ queryKey: ["last-docket"] });
+      queryClient.invalidateQueries({ queryKey: ["sender-suggestions"] });
+      queryClient.invalidateQueries({ queryKey: ["receiver-suggestions"] });
 
       const fullBookingData = result?.data || result;
       const docketNo1 = fullBookingData?.docketNo1 || fullBookingData?.docketNo || "";
@@ -1193,7 +1195,7 @@ export default function ParcelBookingForm({
         packages: [
           {
             id: `pkg-${Date.now()}`,
-            qty: 0,
+            qty: "" as any,
             material: "",
             packing: "",
             payment_type: "Direct",
@@ -1201,9 +1203,11 @@ export default function ParcelBookingForm({
           },
         ],
         payment_method:
-          paymentMethodOptions.length > 0
-            ? (paymentMethodOptions[0].value as PaymentMethod)
-            : "To Pay",
+          paymentMethodOptions.some((o) => o.value === "Paid")
+            ? "Paid"
+            : paymentMethodOptions.length > 0
+              ? (paymentMethodOptions[0].value as PaymentMethod)
+              : "Paid",
         delivery_type: "office",
         bilty_charge: Number((currentUser as any)?.bookingPreferences?.biltyCharge ?? 20),
         hamali_cost: Number((currentUser as any)?.bookingPreferences?.hamaliCost ?? 0),
@@ -1225,6 +1229,7 @@ export default function ParcelBookingForm({
         },
       });
       setFormErrors({});
+      setBillType("without_bill");
       setBillFile(null);
       setBillFileUrl("");
       setShowAdditionalCharges(false);
@@ -1232,6 +1237,8 @@ export default function ParcelBookingForm({
       setReceiverSearch("");
       setLastBookingsList([]);
       queryClient.invalidateQueries({ queryKey: ["last-docket"] });
+      queryClient.invalidateQueries({ queryKey: ["sender-suggestions"] });
+      queryClient.invalidateQueries({ queryKey: ["receiver-suggestions"] });
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
@@ -1846,12 +1853,12 @@ export default function ParcelBookingForm({
                       min="0"
                       step="1"
                       placeholder="Qty"
-                      value={pkg.qty === 0 ? "0" : pkg.qty}
+                      value={pkg.qty === "" || pkg.qty === 0 || pkg.qty === undefined || pkg.qty === null ? "" : pkg.qty}
                       disabled={isView || isNonAdminEdit}
                       onChange={(e) => {
                         const raw = e.target.value.replace(/\D/g, "");
-                        const val = raw === "" ? 0 : Math.max(0, parseInt(raw, 10));
-                        updatePackageField(idx, "qty", val);
+                        const val = raw === "" ? "" : Math.max(0, parseInt(raw, 10));
+                        updatePackageField(idx, "qty", val as any);
                       }}
                       error={formErrors[`pkg_qty_${idx}`]}
                     />
