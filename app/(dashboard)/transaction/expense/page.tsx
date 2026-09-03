@@ -40,16 +40,35 @@ import { ExpenseType } from "@/lib/api/expense";
 import SimpleDataTable from "@/components/DataTable/SimpleDataTable";
 import type { ColumnDef } from "@/lib/types/common";
 
-// ─── Main Expense Type Options ────────────────────────────────────────────────
-const EXPENSE_TYPE_OPTIONS: FormSelectOption[] = [
+// ─── Branch & Staff Expense Type Options ──────────────────────────────────────
+const BRANCH_STAFF_EXPENSE_OPTIONS: FormSelectOption[] = [
     { value: "Stationary", label: "Stationary" },
+    { value: "Rent", label: "Rent" },
+    { value: "Salary", label: "Salary" },
+    { value: "Labour", label: "Labour" },
+];
+
+// ─── Truck & Driver Expense Type Options ──────────────────────────────────────
+const TRUCK_DRIVER_EXPENSE_OPTIONS: FormSelectOption[] = [
+    { value: "Stationary", label: "Stationary" },
+    { value: "Salary", label: "Salary" },
     { value: "Petrol", label: "Petrol" },
     { value: "Diesel", label: "Diesel" },
     { value: "CNG", label: "CNG" },
     { value: "Other Truck", label: "Other Truck" },
+    { value: "Truck EMI", label: "Truck EMI" },
+];
+
+// ─── All Expense Type Options (Fallback) ──────────────────────────────────────
+const ALL_EXPENSE_TYPE_OPTIONS: FormSelectOption[] = [
+    { value: "Stationary", label: "Stationary" },
     { value: "Rent", label: "Rent" },
     { value: "Salary", label: "Salary" },
     { value: "Labour", label: "Labour" },
+    { value: "Petrol", label: "Petrol" },
+    { value: "Diesel", label: "Diesel" },
+    { value: "CNG", label: "CNG" },
+    { value: "Other Truck", label: "Other Truck" },
     { value: "Truck EMI", label: "Truck EMI" },
 ];
 
@@ -248,6 +267,44 @@ export default function AddExpensePage() {
             }
         }
     }, [isAdminOrSuperAdmin, ownBranchId, branchOptions, branchId]);
+
+    // ─── Resolve Role of Selected Entity (Branch / Staff / Truck / Driver) ──────
+    const selectedEntity = useMemo(() => {
+        return branchDropdownList.find((b: any) => String(b._id) === String(branchId));
+    }, [branchDropdownList, branchId]);
+
+    const selectedRole = useMemo(() => {
+        if (selectedEntity?.role) {
+            return String(selectedEntity.role).toLowerCase();
+        }
+        if (!isAdminOrSuperAdmin && currentRole) {
+            return currentRole.toLowerCase();
+        }
+        return "";
+    }, [selectedEntity, isAdminOrSuperAdmin, currentRole]);
+
+    // ─── Dynamic Expense Type Options ──────────────────────────────────────────
+    // Branch & Staff => Stationary, Rent, Salary, Labour
+    // Truck & Driver => Stationary, Salary, Petrol, Diesel, CNG, Other Truck, Truck EMI
+    const dynamicExpenseTypeOptions = useMemo<FormSelectOption[]>(() => {
+        if (selectedRole === "truck" || selectedRole === "driver") {
+            return TRUCK_DRIVER_EXPENSE_OPTIONS;
+        }
+        if (selectedRole === "branch" || selectedRole === "staff") {
+            return BRANCH_STAFF_EXPENSE_OPTIONS;
+        }
+        return ALL_EXPENSE_TYPE_OPTIONS;
+    }, [selectedRole]);
+
+    // Auto-clear selected expenseType if it's not valid for the newly selected role/branch
+    useEffect(() => {
+        if (expenseType && dynamicExpenseTypeOptions.length > 0) {
+            const isValid = dynamicExpenseTypeOptions.some((opt) => opt.value === expenseType);
+            if (!isValid) {
+                setExpenseType("");
+            }
+        }
+    }, [dynamicExpenseTypeOptions, expenseType]);
 
     // ─── History Queries by Expense Type (passing branchId in body payload) ───────
     const isFuel = ["Petrol", "Diesel", "CNG"].includes(expenseType);
@@ -760,7 +817,7 @@ export default function AddExpensePage() {
                                 label="Expense Type"
                                 required
                                 searchable
-                                options={EXPENSE_TYPE_OPTIONS}
+                                options={dynamicExpenseTypeOptions}
                                 value={expenseType}
                                 onChange={(val) => {
                                     setExpenseType(val as ExpenseType);
