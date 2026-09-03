@@ -126,38 +126,39 @@ export async function exportToPDF<T>(
     (c) => !["action", "actions"].includes(String(c.key).toLowerCase())
   );
 
-  const isLandscape = exportableCols.length > 6;
+  // All PDF exports in landscape layout
   const doc = new jsPDF({
-    orientation: isLandscape ? "landscape" : "portrait",
+    orientation: "landscape",
     unit: "mm",
     format: "a4",
   });
 
   const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
+  // 7 mm margin on all sides
+  const marginMm = 7;
 
   const drawPageHeader = () => {
-    // Left: Company Name
+    // Left: Company Name (Double Size: 20pt)
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
+    doc.setFontSize(20);
     doc.setTextColor(0, 0, 0);
-    doc.text(EXPORT_COMPANY_NAME, 14, 14);
+    doc.text(EXPORT_COMPANY_NAME, marginMm, 12);
 
-    // Right: Report Name & Timestamp
+    // Right: Report Name & Timestamp (Double Size: 18pt & 14pt)
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
+    doc.setFontSize(18);
     doc.setTextColor(0, 0, 0);
-    doc.text(title, pageWidth - 14, 12, { align: "right" });
+    doc.text(title, pageWidth - marginMm, 10, { align: "right" });
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
+    doc.setFontSize(14);
     doc.setTextColor(0, 0, 0);
-    doc.text(`Date & Time: ${formattedDateTime}`, pageWidth - 14, 17, { align: "right" });
+    doc.text(`Date & Time: ${formattedDateTime}`, pageWidth - marginMm, 16, { align: "right" });
 
     // Clean Black Divider Line
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.3);
-    doc.line(14, 21, pageWidth - 14, 21);
+    doc.line(marginMm, 18, pageWidth - marginMm, 18);
   };
 
   const tableHeaders = ["#", ...exportableCols.map((c) => c.label)];
@@ -167,12 +168,12 @@ export async function exportToPDF<T>(
   ]);
 
   autoTable(doc, {
-    startY: 25,
+    startY: 20,
     head: [tableHeaders],
     body: tableRows,
     theme: "grid",
     styles: {
-      fontSize: 8.5,
+      fontSize: 8,
       textColor: [0, 0, 0],
       lineColor: [0, 0, 0],
       lineWidth: 0.15,
@@ -190,18 +191,10 @@ export async function exportToPDF<T>(
     alternateRowStyles: {
       fillColor: [255, 255, 255], // Pure White
     },
-    margin: { left: 14, right: 14, top: 25, bottom: 16 },
-    didDrawPage: (hookData) => {
+    margin: { left: marginMm, right: marginMm, top: 20, bottom: marginMm },
+    didDrawPage: () => {
       // Draw header on each page
       drawPageHeader();
-
-      // Footer: Page Number (Right) & Company (Left)
-      const pageStr = `Page ${hookData.pageNumber}`;
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(0, 0, 0);
-      doc.text(EXPORT_COMPANY_NAME, 14, pageHeight - 8);
-      doc.text(pageStr, pageWidth - 14, pageHeight - 8, { align: "right" });
     },
   });
 
@@ -239,59 +232,63 @@ export function printTable<T>(
   <title>${title} - ${EXPORT_COMPANY_NAME}</title>
   <style>
     @page {
-      size: auto;
-      margin: 12mm 15mm;
+      size: landscape;
+      margin: 7mm;
     }
     * {
       box-sizing: border-box;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
-    body {
+    html, body {
       font-family: Arial, Helvetica, sans-serif;
       color: #000000;
       background: #ffffff;
       margin: 0;
-      padding: 10px;
+      padding: 0;
     }
     .header-container {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
+      align-items: flex-end;
       border-bottom: 1.5px solid #000000;
-      padding-bottom: 8px;
-      margin-bottom: 12px;
+      padding-bottom: 6px;
+      margin-bottom: 8px;
     }
     .company-name {
-      font-size: 15px;
+      font-size: 28px;
       font-weight: bold;
-      text-transform: uppercase;
       color: #000000;
       letter-spacing: 0.5px;
+      line-height: 1.1;
     }
     .report-meta {
       text-align: right;
     }
     .report-title {
-      font-size: 13px;
+      font-size: 24px;
       font-weight: bold;
       color: #000000;
+      line-height: 1.1;
     }
     .report-time {
-      font-size: 10.5px;
+      font-size: 20px;
       font-weight: normal;
       color: #000000;
-      margin-top: 2px;
+      margin-top: 3px;
+      line-height: 1.1;
     }
     table {
       width: 100%;
       border-collapse: collapse;
       border: 1px solid #000000;
       background: #ffffff;
-      margin-top: 5px;
+      margin-top: 4px;
     }
     th, td {
       border: 1px solid #000000;
-      padding: 6px 8px;
-      font-size: 10.5px;
+      padding: 5px 6px;
+      font-size: 10px;
       color: #000000;
       text-align: left;
     }
@@ -305,15 +302,6 @@ export function printTable<T>(
       font-weight: normal;
       background-color: #ffffff;
     }
-    .footer-note {
-      margin-top: 14px;
-      font-size: 9.5px;
-      display: flex;
-      justify-content: space-between;
-      color: #000000;
-      border-top: 1px solid #000000;
-      padding-top: 6px;
-    }
   </style>
 </head>
 <body>
@@ -321,7 +309,7 @@ export function printTable<T>(
     <div class="company-name">${EXPORT_COMPANY_NAME}</div>
     <div class="report-meta">
       <div class="report-title">${title}</div>
-      <div class="report-time">Date &amp; Time: ${formattedDateTime}</div>
+      <div class="report-time">${formattedDateTime}</div>
     </div>
   </div>
 
@@ -333,11 +321,6 @@ export function printTable<T>(
       ${rows}
     </tbody>
   </table>
-
-  <div class="footer-note">
-    <span>${EXPORT_COMPANY_NAME}</span>
-    <span>Generated Date &amp; Time: ${formattedDateTime}</span>
-  </div>
 </body>
 </html>`;
 
@@ -346,7 +329,9 @@ export function printTable<T>(
     w.document.write(html);
     w.document.close();
     w.focus();
-    w.print();
-    w.close();
+    setTimeout(() => {
+      w.print();
+      w.close();
+    }, 250);
   }
 }
