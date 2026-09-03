@@ -39,7 +39,6 @@ export function useCreateExpenseMutation() {
       queryClient.invalidateQueries({ queryKey: ["salary-history"] });
       queryClient.invalidateQueries({ queryKey: ["labour-history"] });
       queryClient.invalidateQueries({ queryKey: ["emi-history"] });
-      queryClient.invalidateQueries({ queryKey: ["user-balance"] });
     },
   });
 }

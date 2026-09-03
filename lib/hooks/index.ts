@@ -15,3 +15,5 @@ export * from "./useLoadParcel";
 export * from "./useUnloadParcel";
 export * from "./useExpense";
 export * from "./useMemo";
+export { refreshBadgesAndBalance } from "@/lib/refreshBadgesAndBalance";
+

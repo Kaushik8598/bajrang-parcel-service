@@ -49,7 +49,6 @@ export function useCreateMemoMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: MEMO_LIST_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: DATA_FOR_ADD_MEMO_QUERY_KEY });
-      queryClient.invalidateQueries({ queryKey: ["user-balance"] });
     },
   });
 }

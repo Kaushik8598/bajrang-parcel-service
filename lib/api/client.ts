@@ -1,5 +1,6 @@
 import axios, { AxiosError, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from "axios";
 import Cookies from "js-cookie";
+import { refreshBadgesAndBalance } from "@/lib/refreshBadgesAndBalance";
 
 // Base API configuration (Connecting to Node.js backend)
 export const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
@@ -102,6 +103,22 @@ apiClient.interceptors.response.use(
     const bodyStatus = response.data?.status ?? response.data?.statusCode ?? response.data?.code;
     if (bodyStatus === 400 || bodyStatus === 401 || bodyStatus === "400" || bodyStatus === "401") {
       performLogoutAndRedirect();
+    } else {
+      // Trigger debounced badges & balance update on successful mutating requests (POST, PUT, PATCH, DELETE)
+      const method = (response.config.method || "").toLowerCase();
+      const url = response.config.url || "";
+      const isMutation = ["post", "put", "patch", "delete"].includes(method);
+      const isExcluded =
+        url.includes("/auth/login") ||
+        url.includes("/auth/logout") ||
+        url.includes("/auth/forgot-password") ||
+        url.includes("/auth/verify-otp") ||
+        url.includes("/user/badges") ||
+        url.includes("/user/balance");
+
+      if (isMutation && !isExcluded) {
+        refreshBadgesAndBalance();
+      }
     }
 
     return response;

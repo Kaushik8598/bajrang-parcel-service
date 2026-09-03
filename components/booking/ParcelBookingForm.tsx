@@ -36,7 +36,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useOnlyBranchList, useDrivers, useDebounce, useUpload } from "@/lib/hooks";
-import { USER_BALANCE_QUERY_KEY } from "@/lib/hooks/useUserBalance";
 import {
   BOOKING_REPORTS_QUERY_KEY,
   PARCEL_PENDING_REPORTS_QUERY_KEY,
@@ -51,7 +50,7 @@ import {
   getReceiverCustomerSuggestions,
 } from "@/lib/api/booking";
 import { cn } from "@/lib/utils";
-import { getStoredUser, getStoredUserRole, getUserBalance } from "@/lib/api/auth";
+import { getStoredUser, getStoredUserRole } from "@/lib/api/auth";
 import { showToast } from "@/lib/toast";
 import { FileUploadPreview } from "@/components/ui/file-upload-preview";
 import { printBookingSlip } from "@/components/booking/BookingPrintSlip";
@@ -1119,10 +1118,7 @@ export default function ParcelBookingForm({
       }
       setFormErrors({});
 
-      // 1. Invalidate user balance query
-      queryClient.invalidateQueries({ queryKey: USER_BALANCE_QUERY_KEY });
-
-      // 2. Invalidate all booking reports & list queries
+      // Invalidate all booking reports & list queries
       queryClient.invalidateQueries({ queryKey: BOOKING_REPORTS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: PARCEL_PENDING_REPORTS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: CUSTOMER_BOOKING_REPORTS_QUERY_KEY });
@@ -1382,7 +1378,6 @@ export default function ParcelBookingForm({
             type="button"
             onClick={() => {
               queryClient.invalidateQueries({ queryKey: BOOKING_REPORTS_QUERY_KEY });
-              queryClient.invalidateQueries({ queryKey: USER_BALANCE_QUERY_KEY });
               router.push("/reports/booking");
             }}
             className="bg-[#2980b9] hover:bg-[#2471a3] text-white h-7 px-3 text-xs font-semibold shadow-xs transition-colors"
