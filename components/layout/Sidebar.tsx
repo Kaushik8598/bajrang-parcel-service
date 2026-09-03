@@ -73,6 +73,8 @@ const DEFAULT_MENU: MenuItem[] = [
       { id: "manage-truck", label: "Manage Truck", path: "/master/truck", permission_module: "truck" },
       { id: "manage-driver", label: "Manage Driver", path: "/master/driver", permission_module: "driver" },
       { id: "manage-customer", label: "Manage Customer", path: "/master/customer", permission_module: "customer" },
+      { id: "tracking", label: "Tracking", path: "/tracking", permission_module: "manageTracking" },
+      { id: "manage-user-rights", label: "Permissions", path: "/permissions", permission_module: "manageRights" },
     ],
   },
   {
@@ -107,9 +109,7 @@ const DEFAULT_MENU: MenuItem[] = [
       { id: "branch-expense-report", label: "Branch Expense Report", path: "/reports/branch-expense", permission_module: "expense" },
     ],
   },
-  { id: "tracking", label: "Tracking", path: "/tracking", icon: "tracking", permission_module: "manageTracking" },
   { id: "marketing-tools", label: "Marketing Tools", path: "/marketing-tools", icon: "marketing-tools", permission_module: "marketing" },
-  { id: "manage-user-rights", label: "Permissions", path: "/permissions", icon: "manage-user-rights", permission_module: "manageRights" },
   { id: "website-settings", label: "Website Settings", path: "/website-settings", icon: "website-settings", permission_module: "profile" },
 ];
 
