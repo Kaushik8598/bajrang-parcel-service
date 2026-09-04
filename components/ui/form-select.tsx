@@ -6,6 +6,8 @@ import { Check, ChevronsUpDown, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 export interface FormSelectOption {
   value: string;
   label: string;
@@ -34,38 +36,38 @@ export interface FormSelectProps {
   id?: string;
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 /**
- * Finds and focuses the next/previous focusable element in the DOM
+ * Moves DOM focus to the next (or previous) focusable element outside the
+ * dropdown portal so Tab navigation flows naturally through the form.
  */
-function focusNextElement(currentElement: HTMLElement, reverse: boolean = false) {
-  const focusableSelectors = [
-    'a[href]',
-    'button:not([disabled])',
+function focusNextElement(from: HTMLElement, reverse = false) {
+  const FOCUSABLE = [
+    "a[href]",
+    "button:not([disabled])",
     'input:not([disabled]):not([type="hidden"])',
-    'select:not([disabled])',
-    'textarea:not([disabled])',
+    "select:not([disabled])",
+    "textarea:not([disabled])",
     '[tabindex]:not([tabindex="-1"])',
   ].join(", ");
 
-  const allFocusable = Array.from(
-    document.querySelectorAll<HTMLElement>(focusableSelectors)
-  ).filter((el) => {
-    return (
+  const candidates = Array.from(
+    document.querySelectorAll<HTMLElement>(FOCUSABLE)
+  ).filter(
+    (el) =>
       el.offsetParent !== null &&
       !el.closest(".form-select-dropdown") &&
       getComputedStyle(el).visibility !== "hidden" &&
       getComputedStyle(el).display !== "none"
-    );
-  });
+  );
 
-  const currentIndex = allFocusable.indexOf(currentElement);
-  if (currentIndex !== -1) {
-    const nextIndex = reverse ? currentIndex - 1 : currentIndex + 1;
-    if (nextIndex >= 0 && nextIndex < allFocusable.length) {
-      allFocusable[nextIndex]?.focus();
-    }
-  }
+  const idx = candidates.indexOf(from);
+  if (idx === -1) return;
+  candidates[reverse ? idx - 1 : idx + 1]?.focus();
 }
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function FormSelect({
   label,
@@ -88,6 +90,7 @@ export function FormSelect({
   containerClassName,
   id,
 }: FormSelectProps) {
+  // ── State ───────────────────────────────────────────────────────────────────
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -99,31 +102,42 @@ export function FormSelect({
     openUpwards: boolean;
   } | null>(null);
 
+  // ── Refs ────────────────────────────────────────────────────────────────────
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerButtonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const optionsListRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Set on mousedown of the trigger so that the onFocus handler (which fires
+   * before onClick) does NOT open the dropdown — toggle is handled by onClick.
+   */
   const isClickingRef = useRef(false);
 
+  /**
+   * Set immediately after a selection so that when focus is programmatically
+   * returned to the trigger the onFocus handler does NOT re-open the dropdown.
+   */
+  const justSelectedRef = useRef(false);
+
+  // ── Derived values ──────────────────────────────────────────────────────────
   const hasError = Boolean(error);
   const errorMessage = typeof error === "string" ? error : undefined;
-  const inputId = id || (label ? `select-${label.toLowerCase().replace(/\s+/g, "-")}` : undefined);
+  const inputId =
+    id ||
+    (label ? `select-${label.toLowerCase().replace(/\s+/g, "-")}` : undefined);
 
-  // Normalize options
   const normalizedOptions: FormSelectOption[] = options.map((opt) => {
-    if (typeof opt === "object" && opt !== null && "value" in opt) {
+    if (typeof opt === "object" && opt !== null && "value" in opt)
       return opt as FormSelectOption;
-    }
-    return {
-      value: String(opt),
-      label: String(opt),
-    };
+    return { value: String(opt), label: String(opt) };
   });
 
-  const selectedOption = normalizedOptions.find((opt) => String(opt.value) === String(value));
+  const selectedOption = normalizedOptions.find(
+    (opt) => String(opt.value) === String(value)
+  );
 
-  // Filter options based on search query
   const filteredOptions = normalizedOptions.filter((opt) => {
     if (!searchable || !searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
@@ -133,7 +147,54 @@ export function FormSelect({
     );
   });
 
-  // Calculate dropdown viewport position (Portal fixed positioning)
+  // ── Actions ─────────────────────────────────────────────────────────────────
+
+  const openDropdown = () => setIsOpen(true);
+
+  const closeDropdown = () => {
+    setIsOpen(false);
+    setSearchQuery("");
+  };
+
+  /** Select a value, close the dropdown and return focus to the trigger. */
+  const handleSelect = (val: string) => {
+    onChange(val);
+    closeDropdown();
+    justSelectedRef.current = true;
+    setTimeout(() => {
+      triggerButtonRef.current?.focus();
+      setTimeout(() => {
+        justSelectedRef.current = false;
+      }, 50);
+    }, 10);
+  };
+
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onChange("");
+  };
+
+  const moveHighlight = (direction: "up" | "down") => {
+    if (filteredOptions.length === 0) return;
+    setHighlightedIndex((prev) =>
+      direction === "down"
+        ? (prev + 1) % filteredOptions.length
+        : prev <= 0
+        ? filteredOptions.length - 1
+        : prev - 1
+    );
+  };
+
+  const selectHighlighted = () => {
+    const opt =
+      highlightedIndex >= 0 && highlightedIndex < filteredOptions.length
+        ? filteredOptions[highlightedIndex]
+        : filteredOptions[0];
+    if (opt) handleSelect(opt.value);
+  };
+
+  // ── Dropdown position (portal uses fixed coords) ─────────────────────────────
+
   const updatePosition = useCallback(() => {
     if (!triggerButtonRef.current) return;
     const rect = triggerButtonRef.current.getBoundingClientRect();
@@ -155,92 +216,138 @@ export function FormSelect({
     });
   }, []);
 
-  // Update position on open, window resize, and scroll (including inside modals)
+  // ── Effects ──────────────────────────────────────────────────────────────────
+
+  // Recalculate position on open, resize, or scroll
   useEffect(() => {
-    if (isOpen) {
-      updatePosition();
-      window.addEventListener("resize", updatePosition);
-      window.addEventListener("scroll", updatePosition, true);
-    }
+    if (!isOpen) return;
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
     return () => {
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
   }, [isOpen, updatePosition, filteredOptions.length]);
 
-  // Highlight currently selected item when dropdown opens or when search query changes
+  // Keep highlighted index in sync with value / search query
   useEffect(() => {
-    if (isOpen) {
-      if (!searchQuery.trim()) {
-        const selectedIdx = filteredOptions.findIndex(
-          (opt) => String(opt.value) === String(value)
-        );
-        setHighlightedIndex(selectedIdx >= 0 ? selectedIdx : 0);
-      } else {
-        setHighlightedIndex(0);
-      }
+    if (!isOpen) return;
+    if (searchQuery.trim()) {
+      setHighlightedIndex(0);
+    } else {
+      const idx = filteredOptions.findIndex(
+        (opt) => String(opt.value) === String(value)
+      );
+      setHighlightedIndex(idx >= 0 ? idx : 0);
     }
-  }, [isOpen, searchQuery, value]);
+  }, [isOpen, searchQuery, value]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Scroll highlighted item into view
+  // Scroll highlighted option into view
   useEffect(() => {
-    if (isOpen && optionsListRef.current) {
-      const optionElements = optionsListRef.current.querySelectorAll<HTMLElement>("[data-option-item]");
-      const targetEl = optionElements[highlightedIndex];
-      if (targetEl && typeof targetEl.scrollIntoView === "function") {
-        targetEl.scrollIntoView({ block: "nearest" });
-      }
-    }
+    if (!isOpen || !optionsListRef.current) return;
+    const items =
+      optionsListRef.current.querySelectorAll<HTMLElement>("[data-option-item]");
+    items[highlightedIndex]?.scrollIntoView({ block: "nearest" });
   }, [highlightedIndex, isOpen]);
 
-  // Close on outside click
+  // Close on outside click (portal-aware)
   useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
+    if (!isOpen) return;
+    const onMouseDown = (e: MouseEvent) => {
       const target = e.target as Node;
       if (
-        containerRef.current &&
-        !containerRef.current.contains(target) &&
-        dropdownRef.current &&
-        !dropdownRef.current.contains(target)
+        !containerRef.current?.contains(target) &&
+        !dropdownRef.current?.contains(target)
       ) {
-        setIsOpen(false);
+        closeDropdown();
       }
     };
-    if (isOpen) {
-      document.addEventListener("mousedown", handleOutsideClick);
-    }
-    return () => {
-      document.removeEventListener("mousedown", handleOutsideClick);
-    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => document.removeEventListener("mousedown", onMouseDown);
   }, [isOpen]);
 
-  // Focus search input when opened
+  // Auto-focus search input when opened
   useEffect(() => {
     if (isOpen && searchable) {
-      setTimeout(() => {
-        searchInputRef.current?.focus();
-      }, 50);
-    } else if (!isOpen) {
-      setSearchQuery("");
+      setTimeout(() => searchInputRef.current?.focus(), 50);
     }
   }, [isOpen, searchable]);
 
-  const handleSelect = (val: string) => {
-    onChange(val);
-    setIsOpen(false);
-    // Return focus to trigger button so subsequent Tab moves to next form field
-    setTimeout(() => {
-      triggerButtonRef.current?.focus();
-    }, 10);
+  // ── Keyboard handlers ────────────────────────────────────────────────────────
+
+  const handleTriggerKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+    switch (e.key) {
+      case "ArrowDown":
+      case "ArrowUp":
+        e.preventDefault();
+        if (!isOpen) openDropdown();
+        else moveHighlight(e.key === "ArrowDown" ? "down" : "up");
+        break;
+      case "Enter":
+        e.preventDefault();
+        e.stopPropagation();
+        if (!isOpen) openDropdown();
+        else selectHighlighted();
+        break;
+      case " ":
+        if (!isOpen) {
+          e.preventDefault();
+          openDropdown();
+        }
+        break;
+      case "Tab":
+        if (isOpen) closeDropdown();
+        break;
+      case "Escape":
+        if (isOpen) {
+          e.preventDefault();
+          closeDropdown();
+        }
+        break;
+    }
   };
 
-  const handleClear = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onChange("");
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        moveHighlight("down");
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        moveHighlight("up");
+        break;
+      case "Enter":
+        e.preventDefault();
+        e.stopPropagation();
+        if (filteredOptions.length > 0) {
+          selectHighlighted();
+        } else if (allowCustom && searchQuery.trim()) {
+          handleSelect(searchQuery.trim());
+        }
+        break;
+      case "Tab":
+        e.preventDefault();
+        closeDropdown();
+        if (triggerButtonRef.current) {
+          focusNextElement(triggerButtonRef.current, e.shiftKey);
+        }
+        break;
+      case "Escape":
+        e.preventDefault();
+        closeDropdown();
+        triggerButtonRef.current?.focus();
+        break;
+    }
   };
+
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <div ref={containerRef} className={cn("space-y-1 relative", containerClassName)}>
+      {/* Label */}
       {label && (
         <Label
           htmlFor={inputId}
@@ -261,8 +368,8 @@ export function FormSelect({
           isClickingRef.current = true;
         }}
         onFocus={() => {
-          if (!disabled && !isClickingRef.current) {
-            setIsOpen(true);
+          if (!disabled && !isClickingRef.current && !justSelectedRef.current) {
+            openDropdown();
           }
         }}
         onClick={() => {
@@ -271,54 +378,29 @@ export function FormSelect({
             isClickingRef.current = false;
           }
         }}
-        onKeyDown={(e) => {
-          if (disabled) return;
-          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-            e.preventDefault();
-            if (!isOpen) {
-              setIsOpen(true);
-            } else if (filteredOptions.length > 0) {
-              if (e.key === "ArrowDown") {
-                setHighlightedIndex((prev) => (prev + 1) % filteredOptions.length);
-              } else {
-                setHighlightedIndex((prev) => (prev <= 0 ? filteredOptions.length - 1 : prev - 1));
-              }
-            }
-          } else if (e.key === "Enter" || (e.key === " " && !isOpen)) {
-            e.preventDefault();
-            e.stopPropagation();
-            if (!isOpen) {
-              setIsOpen(true);
-            } else if (filteredOptions.length > 0) {
-              const targetOpt =
-                highlightedIndex >= 0 && highlightedIndex < filteredOptions.length
-                  ? filteredOptions[highlightedIndex]
-                  : filteredOptions[0];
-              handleSelect(targetOpt.value);
-            }
-          } else if (e.key === "Tab") {
-            if (isOpen) {
-              setIsOpen(false);
-            }
-          } else if (e.key === "Escape") {
-            if (isOpen) {
-              e.preventDefault();
-              setIsOpen(false);
-            }
-          }
-        }}
+        onKeyDown={handleTriggerKeyDown}
         className={cn(
           "w-full h-8 px-2.5 flex items-center justify-between rounded border border-black bg-white text-xs text-left transition-colors outline-none cursor-pointer",
           hasError
             ? "border-red-500 focus:ring-2 focus:ring-red-400/20"
             : "hover:border-black focus:border-black focus:ring-2 focus:ring-black/20",
           "disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-slate-100 disabled:border-slate-300 disabled:text-slate-700 disabled:opacity-100",
-          disabled && "pointer-events-none cursor-not-allowed bg-slate-100 border-slate-300 text-slate-700 opacity-100",
+          disabled &&
+            "pointer-events-none cursor-not-allowed bg-slate-100 border-slate-300 text-slate-700 opacity-100",
           isOpen && "border-black ring-2 ring-black/20",
           className
         )}
       >
-        <span className={cn("truncate", selectedOption ? (disabled ? "text-slate-700 font-medium" : "text-black font-medium") : "text-slate-400")}>
+        <span
+          className={cn(
+            "truncate",
+            selectedOption
+              ? disabled
+                ? "text-slate-700 font-medium"
+                : "text-black font-medium"
+              : "text-slate-400"
+          )}
+        >
           {selectedOption ? selectedOption.label : placeholder}
         </span>
 
@@ -336,153 +418,136 @@ export function FormSelect({
         </div>
       </button>
 
-      {/* Floating Dropdown Portal (Floats freely without causing modal/form layout shifts or getting clipped) */}
-      {isOpen && dropdownPos && typeof document !== "undefined" && createPortal(
-        <div
-          ref={dropdownRef}
-          style={{
-            position: "fixed",
-            top: dropdownPos.openUpwards ? "auto" : `${dropdownPos.top}px`,
-            bottom: dropdownPos.openUpwards ? `${window.innerHeight - dropdownPos.top}px` : "auto",
-            left: `${dropdownPos.left}px`,
-            width: `${dropdownPos.width}px`,
-            maxHeight: `${dropdownPos.maxHeight}px`,
-            zIndex: 999999,
-          }}
-          className="form-select-dropdown rounded border border-black bg-white shadow-2xl text-xs overflow-hidden flex flex-col animate-in fade-in-0 zoom-in-95 duration-100"
-        >
-          {/* Optional search bar when searchable=true */}
-          {searchable && (
-            <div className="p-2 border-b border-slate-200 bg-slate-50/70 shrink-0">
-              <div className="relative flex items-center">
-                <Search className="absolute left-2.5 w-3.5 h-3.5 text-slate-400" />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchQuery}
-                  maxLength={searchMaxLength}
-                  inputMode={searchNumericOnly ? "numeric" : undefined}
-                  onChange={(e) => {
-                    let val = e.target.value;
-                    if (searchNumericOnly) {
-                      val = val.replace(/\D/g, "");
-                    }
-                    if (searchMaxLength && searchMaxLength > 0) {
-                      val = val.slice(0, searchMaxLength);
-                    }
-                    setSearchQuery(val);
-                    onSearchChange?.(val);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "ArrowDown") {
-                      e.preventDefault();
-                      if (filteredOptions.length > 0) {
-                        setHighlightedIndex((prev) => (prev + 1) % filteredOptions.length);
-                      }
-                    } else if (e.key === "ArrowUp") {
-                      e.preventDefault();
-                      if (filteredOptions.length > 0) {
-                        setHighlightedIndex((prev) =>
-                          prev <= 0 ? filteredOptions.length - 1 : prev - 1
-                        );
-                      }
-                    } else if (e.key === "Enter") {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      if (filteredOptions.length > 0) {
-                        const targetOpt =
-                          highlightedIndex >= 0 && highlightedIndex < filteredOptions.length
-                            ? filteredOptions[highlightedIndex]
-                            : filteredOptions[0];
-                        handleSelect(targetOpt.value);
-                      } else if (allowCustom && searchQuery.trim()) {
-                        handleSelect(searchQuery.trim());
-                      }
-                    } else if (e.key === "Tab") {
-                      e.preventDefault();
-                      setIsOpen(false);
-                      if (triggerButtonRef.current) {
-                        focusNextElement(triggerButtonRef.current, e.shiftKey);
-                      }
-                    } else if (e.key === "Escape") {
-                      e.preventDefault();
-                      setIsOpen(false);
-                      triggerButtonRef.current?.focus();
-                    }
-                  }}
-                  placeholder={searchPlaceholder}
-                  className="w-full h-7 pl-8 pr-2.5 bg-white border border-black rounded text-xs text-black outline-none focus:border-black transition-colors"
-                />
+      {/* Floating dropdown portal — rendered in document.body so it is never
+          clipped by overflow:hidden on parent modals or scrollable containers. */}
+      {isOpen &&
+        dropdownPos &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            style={{
+              position: "fixed",
+              top: dropdownPos.openUpwards ? "auto" : `${dropdownPos.top}px`,
+              bottom: dropdownPos.openUpwards
+                ? `${window.innerHeight - dropdownPos.top}px`
+                : "auto",
+              left: `${dropdownPos.left}px`,
+              width: `${dropdownPos.width}px`,
+              maxHeight: `${dropdownPos.maxHeight}px`,
+              zIndex: 999999,
+            }}
+            className="form-select-dropdown rounded border border-black bg-white shadow-2xl text-xs overflow-hidden flex flex-col animate-in fade-in-0 zoom-in-95 duration-100"
+          >
+            {/* Search bar (only when searchable=true) */}
+            {searchable && (
+              <div className="p-2 border-b border-slate-200 bg-slate-50/70 shrink-0">
+                <div className="relative flex items-center">
+                  <Search className="absolute left-2.5 w-3.5 h-3.5 text-slate-400" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    maxLength={searchMaxLength}
+                    inputMode={searchNumericOnly ? "numeric" : undefined}
+                    onChange={(e) => {
+                      let val = e.target.value;
+                      if (searchNumericOnly) val = val.replace(/\D/g, "");
+                      if (searchMaxLength && searchMaxLength > 0)
+                        val = val.slice(0, searchMaxLength);
+                      setSearchQuery(val);
+                      onSearchChange?.(val);
+                    }}
+                    onKeyDown={handleSearchKeyDown}
+                    placeholder={searchPlaceholder}
+                    className="w-full h-7 pl-8 pr-2.5 bg-white border border-black rounded text-xs text-black outline-none focus:border-black transition-colors"
+                  />
+                </div>
               </div>
-            </div>
-          )}
-
-          {/* Options list */}
-          <div ref={optionsListRef} className="overflow-y-auto py-1 flex-1">
-            {allowCustom && searchQuery.trim() && !normalizedOptions.some((o) => o.value.toLowerCase() === searchQuery.trim().toLowerCase()) && (
-              <button
-                type="button"
-                tabIndex={-1}
-                onClick={() => handleSelect(searchQuery.trim())}
-                className="w-full px-3 py-1.5 flex items-center justify-between text-left hover:bg-blue-50 text-[#2980b9] font-semibold text-xs border-b border-slate-100 cursor-pointer"
-              >
-                <span>Use: &quot;{searchQuery.trim()}&quot;</span>
-                <span className="text-[10px] bg-blue-100 text-[#2980b9] px-1.5 py-0.5 rounded">Custom</span>
-              </button>
             )}
 
-            {filteredOptions.length === 0 && (!allowCustom || !searchQuery.trim()) ? (
-              <div className="py-3 text-center text-slate-400 text-xs">
-                No options found
-              </div>
-            ) : (
-              filteredOptions.map((opt, optIdx) => {
-                const isSelected = String(opt.value) === String(value);
-                const isHighlighted = optIdx === highlightedIndex;
-                return (
+            {/* Options list */}
+            <div ref={optionsListRef} className="overflow-y-auto py-1 flex-1">
+              {/* "Use custom value" row */}
+              {allowCustom &&
+                searchQuery.trim() &&
+                !normalizedOptions.some(
+                  (o) =>
+                    o.value.toLowerCase() === searchQuery.trim().toLowerCase()
+                ) && (
                   <button
-                    key={opt.value}
                     type="button"
                     tabIndex={-1}
-                    data-option-item
-                    onMouseEnter={() => setHighlightedIndex(optIdx)}
-                    onClick={() => handleSelect(opt.value)}
-                    className={cn(
-                      "w-full px-3 py-2 flex items-center justify-between text-left transition-colors cursor-pointer",
-                      (isSelected || isHighlighted)
-                        ? "bg-slate-100 font-semibold"
-                        : "hover:bg-slate-50"
-                    )}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleSelect(searchQuery.trim())}
+                    className="w-full px-3 py-1.5 flex items-center justify-between text-left hover:bg-blue-50 text-[#2980b9] font-semibold text-xs border-b border-slate-100 cursor-pointer"
                   >
-                    <div>
-                      <div className="text-black font-medium">{opt.label}</div>
-                      {opt.subLabel && (
-                        <div className="text-[10px] text-slate-500">{opt.subLabel}</div>
-                      )}
-                    </div>
-                    {isSelected && <Check className="w-3.5 h-3.5 text-black flex-shrink-0 ml-2" />}
+                    <span>Use: &quot;{searchQuery.trim()}&quot;</span>
+                    <span className="text-[10px] bg-blue-100 text-[#2980b9] px-1.5 py-0.5 rounded">
+                      Custom
+                    </span>
                   </button>
-                );
-              })
-            )}
-          </div>
-        </div>,
-        document.body
-      )}
+                )}
 
+              {/* Empty state */}
+              {filteredOptions.length === 0 && (!allowCustom || !searchQuery.trim()) ? (
+                <div className="py-3 text-center text-slate-400 text-xs">
+                  No options found
+                </div>
+              ) : (
+                filteredOptions.map((opt, optIdx) => {
+                  const isSelected = String(opt.value) === String(value);
+                  const isHighlighted = optIdx === highlightedIndex;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      tabIndex={-1}
+                      data-option-item
+                      onMouseEnter={() => setHighlightedIndex(optIdx)}
+                      onMouseDown={(e) => {
+                        // Prevent trigger from losing focus before click fires
+                        e.preventDefault();
+                      }}
+                      onClick={() => handleSelect(opt.value)}
+                      className={cn(
+                        "w-full px-3 py-2 flex items-center justify-between text-left transition-colors cursor-pointer",
+                        isSelected || isHighlighted
+                          ? "bg-slate-100 font-semibold"
+                          : "hover:bg-slate-50"
+                      )}
+                    >
+                      <div>
+                        <div className="text-black font-medium">{opt.label}</div>
+                        {opt.subLabel && (
+                          <div className="text-[10px] text-slate-500">
+                            {opt.subLabel}
+                          </div>
+                        )}
+                      </div>
+                      {isSelected && (
+                        <Check className="w-3.5 h-3.5 text-black flex-shrink-0 ml-2" />
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Error message */}
       {hasError && errorMessage && (
         <p className="text-[10px] text-red-500 font-medium leading-tight">
           {errorMessage}
         </p>
       )}
 
+      {/* Helper text */}
       {!hasError && helperText && (
-        <p className="text-[10px] text-slate-400 leading-tight">
-          {helperText}
-        </p>
+        <p className="text-[10px] text-slate-400 leading-tight">{helperText}</p>
       )}
     </div>
   );
 }
-
-export default FormSelect;
