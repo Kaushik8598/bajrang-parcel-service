@@ -16,6 +16,7 @@ import {
   useUpdateTruck,
   useUpdateUserStatus,
   useModulePermissions,
+  TRUCKS_QUERY_KEY,
 } from "@/lib/hooks";
 import type { TruckUser, TruckPayload } from "@/lib/api/truck";
 import type { ColumnDef } from "@/lib/types/common";
@@ -34,7 +35,7 @@ export default function ManageTruckPage() {
   // Mutations
   const createTruckMutation = useCreateTruck();
   const updateTruckMutation = useUpdateTruck();
-  const statusMutation = useUpdateUserStatus();
+  const statusMutation = useUpdateUserStatus(TRUCKS_QUERY_KEY);
 
   const isFormSubmitting = createTruckMutation.isPending || updateTruckMutation.isPending;
 

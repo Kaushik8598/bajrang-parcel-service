@@ -16,6 +16,7 @@ import {
   useUpdateStaff,
   useUpdateUserStatus,
   useModulePermissions,
+  STAFF_QUERY_KEY,
 } from "@/lib/hooks";
 import type { StaffUser, StaffPayload } from "@/lib/api/staff";
 import type { ColumnDef } from "@/lib/types/common";
@@ -34,7 +35,7 @@ export default function ManageStaffPage() {
   // Mutations
   const createStaffMutation = useCreateStaff();
   const updateStaffMutation = useUpdateStaff();
-  const statusMutation = useUpdateUserStatus();
+  const statusMutation = useUpdateUserStatus(STAFF_QUERY_KEY);
 
   const isFormSubmitting = createStaffMutation.isPending || updateStaffMutation.isPending;
 

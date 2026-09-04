@@ -13,6 +13,7 @@ import {
   useUpdateAdmin,
   useUpdateUserStatus,
   useModulePermissions,
+  ADMINS_QUERY_KEY,
 } from "@/lib/hooks";
 import { showToast } from "@/lib/toast";
 import type { ColumnDef } from "@/lib/types/common";
@@ -40,7 +41,7 @@ export default function ManageAdminPage() {
   const { data: response, isLoading } = useAdmins({ page, limit, search });
   const createAdminMutation = useCreateAdmin();
   const updateAdminMutation = useUpdateAdmin();
-  const statusMutation = useUpdateUserStatus();
+  const statusMutation = useUpdateUserStatus(ADMINS_QUERY_KEY);
 
   const isFormSubmitting = createAdminMutation.isPending || updateAdminMutation.isPending;
 

@@ -16,6 +16,7 @@ import {
   useUpdateDriver,
   useUpdateUserStatus,
   useModulePermissions,
+  DRIVERS_QUERY_KEY,
 } from "@/lib/hooks";
 import type { DriverUser, DriverPayload } from "@/lib/api/driver";
 import type { ColumnDef } from "@/lib/types/common";
@@ -34,7 +35,7 @@ export default function ManageDriverPage() {
   // Mutations
   const createDriverMutation = useCreateDriver();
   const updateDriverMutation = useUpdateDriver();
-  const statusMutation = useUpdateUserStatus();
+  const statusMutation = useUpdateUserStatus(DRIVERS_QUERY_KEY);
 
   const isFormSubmitting = createDriverMutation.isPending || updateDriverMutation.isPending;
 

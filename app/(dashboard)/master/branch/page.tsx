@@ -13,6 +13,7 @@ import {
   useUpdateBranch,
   useUpdateUserStatus,
   useModulePermissions,
+  BRANCHES_QUERY_KEY,
 } from "@/lib/hooks";
 import { showToast } from "@/lib/toast";
 import type { ColumnDef } from "@/lib/types/common";
@@ -40,7 +41,7 @@ export default function ManageBranchPage() {
   const { data: response, isLoading } = useBranches({ page, limit, search });
   const createBranchMutation = useCreateBranch();
   const updateBranchMutation = useUpdateBranch();
-  const statusMutation = useUpdateUserStatus();
+  const statusMutation = useUpdateUserStatus(BRANCHES_QUERY_KEY);
 
   const isFormSubmitting = createBranchMutation.isPending || updateBranchMutation.isPending;
 
