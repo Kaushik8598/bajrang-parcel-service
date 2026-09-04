@@ -308,7 +308,7 @@ export function FormSelect({
           }
         }}
         className={cn(
-          "w-full h-8 px-2.5 flex items-center justify-between rounded border border-black bg-white text-xs text-left transition-colors outline-none",
+          "w-full h-8 px-2.5 flex items-center justify-between rounded border border-black bg-white text-xs text-left transition-colors outline-none cursor-pointer",
           hasError
             ? "border-red-500 focus:ring-2 focus:ring-red-400/20"
             : "hover:border-black focus:border-black focus:ring-2 focus:ring-black/20",
