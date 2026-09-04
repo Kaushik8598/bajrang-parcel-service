@@ -575,9 +575,10 @@ export default function ParcelDeliveryReportPage() {
       <div className="bg-white rounded-lg border border-slate-300 p-4 shadow-xs">
         <div className="space-y-3">
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-              <Filter className="w-3.5 h-3.5 text-[#2980b9]" />
-              <span>Filter Parcel Delivery Reports</span>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">
+                Parcel Delivery Reports
+              </h1>
             </div>
 
             {/* Reset link only shown in header when filters are active */}
@@ -590,7 +591,7 @@ export default function ParcelDeliveryReportPage() {
                   className="group inline-flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 underline underline-offset-4 cursor-pointer transition-colors disabled:opacity-50"
                   title="Clear all active filters"
                 >
-                  <RotateCcw className="w-3 h-3 text-rose-600 group-hover:text-rose-700 transition-colors" />
+                  <RotateCcw className="w-3.5 h-3.5 text-rose-600 group-hover:text-rose-700 transition-colors" />
                   <span>Reset</span>
                 </button>
               </div>
@@ -675,7 +676,7 @@ export default function ParcelDeliveryReportPage() {
 
       {/* ─── Reports Data Table ─── */}
       <DataTable<ParcelBookingReportItem>
-        title="Parcel Delivery Reports"
+        title=""
         columns={columns}
         data={bookingRecords}
         isLoading={isLoading || isFetching}

@@ -182,32 +182,32 @@ export default function BranchExpenseReportPage() {
       },
       ...(isAdminOrSuperAdmin
         ? [
-            {
-              key: "fromBranch",
-              label: "Branch",
-              sortable: true,
-              exportValue: (row: ExpenseReportItem) =>
-                row.fromBranch?.code
-                  ? `${row.fromBranch?.name || ""} [${row.fromBranch.code}]`
-                  : row.fromBranch?.name || "—",
-              render: (_val: unknown, row: ExpenseReportItem) => {
-                const name = row.fromBranch?.name || "";
-                const code = row.fromBranch?.code || "";
-                return (
-                  <div className="text-xs text-black whitespace-nowrap">
-                    <span className="font-semibold">{name}</span>
-                    {code ? (
-                      <span className="font-mono text-slate-500 font-normal ml-1">
-                        ({code})
-                      </span>
-                    ) : (
-                      ""
-                    )}
-                  </div>
-                );
-              },
+          {
+            key: "fromBranch",
+            label: "Branch",
+            sortable: true,
+            exportValue: (row: ExpenseReportItem) =>
+              row.fromBranch?.code
+                ? `${row.fromBranch?.name || ""} [${row.fromBranch.code}]`
+                : row.fromBranch?.name || "—",
+            render: (_val: unknown, row: ExpenseReportItem) => {
+              const name = row.fromBranch?.name || "";
+              const code = row.fromBranch?.code || "";
+              return (
+                <div className="text-xs text-black whitespace-nowrap">
+                  <span className="font-semibold">{name}</span>
+                  {code ? (
+                    <span className="font-mono text-slate-500 font-normal ml-1">
+                      ({code})
+                    </span>
+                  ) : (
+                    ""
+                  )}
+                </div>
+              );
             },
-          ]
+          },
+        ]
         : []),
       {
         key: "expenseType",
@@ -302,9 +302,8 @@ export default function BranchExpenseReportPage() {
       {/* ─── Top Filter Card (Live OnChange Filters) ───────────────────────── */}
       <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-3.5 space-y-3">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-          <h1 className="text-base font-bold text-black tracking-tight flex items-center gap-2">
-            <FileText className="w-4 h-4 text-black" />
-            <span>Branch Expense Report</span>
+          <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">
+            Branch Expense Report
           </h1>
 
           {(fromDateInput || toDateInput || branchInput || expenseTypeInput) && (
@@ -316,7 +315,7 @@ export default function BranchExpenseReportPage() {
               className="h-7 px-2.5 text-xs text-slate-600 border border-slate-300 hover:bg-slate-50 cursor-pointer shadow-none"
             >
               <RotateCcw className="w-3 h-3 mr-1" />
-              Reset Filters
+              Reset
             </Button>
           )}
         </div>
@@ -366,7 +365,7 @@ export default function BranchExpenseReportPage() {
 
       {/* ─── Expense Report Data Table (Clean Black & White) ──────────────── */}
       <DataTable<ExpenseReportItem>
-        title="Branch Expense Report"
+        title=""
         columns={columns}
         data={expenseRecords}
         permissions={PERMISSIONS}

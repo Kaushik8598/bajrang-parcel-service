@@ -72,21 +72,25 @@ export default function TableToolbar({
 
   return (
     <div className="space-y-4">
-      {/* Top row: Title + Add button */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-1 border-b border-slate-100">
-        <h2 className="text-xl sm:text-2xl font-bold text-black tracking-tight">{title}</h2>
-        {permissions.canAdd && onAdd && (
-          <Button
-            id="table-add-btn"
-            onClick={onAdd}
-            size="sm"
-            className="bg-[#2980b9] hover:bg-[#2471a3] text-white h-8 px-3.5 text-xs font-semibold shadow-sm transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5 mr-1.5" />
-            Add {title.replace("Manage ", "")}
-          </Button>
-        )}
-      </div>
+      {/* Top row: Title + Add button (only render if title or onAdd exists) */}
+      {(Boolean(title) || Boolean(permissions.canAdd && onAdd)) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-1 border-b border-slate-100">
+          {title ? (
+            <h2 className="text-xl sm:text-2xl font-bold text-black tracking-tight">{title}</h2>
+          ) : null}
+          {permissions.canAdd && onAdd && (
+            <Button
+              id="table-add-btn"
+              onClick={onAdd}
+              size="sm"
+              className="bg-[#2980b9] hover:bg-[#2471a3] text-white h-8 px-3.5 text-xs font-semibold shadow-sm transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
+              Add {title ? title.replace("Manage ", "") : "New"}
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Second row: Export buttons + Page size selector + Search */}
       <div className="flex flex-wrap items-center justify-between gap-3">

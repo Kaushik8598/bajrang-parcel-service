@@ -251,32 +251,32 @@ export default function VerifyReportPage() {
     },
     ...(isAdminOrSuperAdmin
       ? [
-          {
-            key: "fromBranch",
-            label: "From Branch",
-            sortable: true,
-            sortValue: (row: ParcelBookingReportItem) => row.fromBranch?.branchName || "",
-            exportValue: (row: ParcelBookingReportItem) => {
-              const bName = row.fromBranch?.branchName;
-              const bCode = row.fromBranch?.branchCode;
-              if (!bName && !bCode) return "—";
-              return bCode ? `${bName || ""} [${bCode}]` : (bName || "—");
-            },
-            render: (_: unknown, row: ParcelBookingReportItem) => {
-              const bName = row.fromBranch?.branchName;
-              const bCode = row.fromBranch?.branchCode;
-              if (!bName && !bCode) return <span className="text-slate-400 text-xs">—</span>;
-              return (
-                <div className="text-xs">
-                  <span className="font-semibold text-slate-900">{bName || "—"}</span>
-                  {bCode && (
-                    <span className="text-[10px] text-slate-500 block font-mono">({bCode})</span>
-                  )}
-                </div>
-              );
-            },
+        {
+          key: "fromBranch",
+          label: "From Branch",
+          sortable: true,
+          sortValue: (row: ParcelBookingReportItem) => row.fromBranch?.branchName || "",
+          exportValue: (row: ParcelBookingReportItem) => {
+            const bName = row.fromBranch?.branchName;
+            const bCode = row.fromBranch?.branchCode;
+            if (!bName && !bCode) return "—";
+            return bCode ? `${bName || ""} [${bCode}]` : (bName || "—");
           },
-        ]
+          render: (_: unknown, row: ParcelBookingReportItem) => {
+            const bName = row.fromBranch?.branchName;
+            const bCode = row.fromBranch?.branchCode;
+            if (!bName && !bCode) return <span className="text-slate-400 text-xs">—</span>;
+            return (
+              <div className="text-xs">
+                <span className="font-semibold text-slate-900">{bName || "—"}</span>
+                {bCode && (
+                  <span className="text-[10px] text-slate-500 block font-mono">({bCode})</span>
+                )}
+              </div>
+            );
+          },
+        },
+      ]
       : []),
     {
       key: "toBranch",
@@ -529,24 +529,20 @@ export default function VerifyReportPage() {
       <div className="bg-white rounded-lg border border-slate-300 p-4 shadow-xs">
         <div className="space-y-3">
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-              <Filter className="w-3.5 h-3.5 text-[#2980b9]" />
-              <span>Filter Verify Reports</span>
-              {!isAdminOrSuperAdmin && (
-                <span className="text-[10px] text-slate-400 font-normal ml-1">
-                  (Branch filtered to your current branch)
-                </span>
-              )}
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">
+                Verify Reports
+              </h1>
             </div>
 
             {hasActiveFilters && (
               <button
                 type="button"
                 onClick={handleResetFilter}
-                className="flex items-center gap-1 text-[11px] text-red-600 hover:text-red-700 font-medium transition-colors cursor-pointer"
+                className="flex items-center gap-1 text-xs text-red-600 hover:text-red-700 font-medium transition-colors cursor-pointer"
               >
-                <RotateCcw className="w-3 h-3" />
-                Reset Filters
+                <RotateCcw className="w-3.5 h-3.5" />
+                Reset
               </button>
             )}
           </div>
@@ -622,7 +618,7 @@ export default function VerifyReportPage() {
 
       {/* ─── Reports Data Table ─── */}
       <DataTable<ParcelBookingReportItem>
-        title="Verify Reports"
+        title=""
         columns={columns}
         data={bookingRecords}
         isLoading={isLoading || isFetching}

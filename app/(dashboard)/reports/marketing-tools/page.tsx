@@ -133,7 +133,7 @@ export default function MarketingToolsReportPage() {
       {/* ─── Top Filter & Campaign Card ─────────────────────────────────────── */}
       <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-3 space-y-3">
         <div className="flex flex-wrap items-center justify-between pb-2 border-b border-slate-100 gap-2">
-          <h1 className="text-base font-bold text-black tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">
             Marketing Tools
           </h1>
 
@@ -201,7 +201,7 @@ export default function MarketingToolsReportPage() {
 
       {/* ─── Report Data Table ──────────────────────────────────────────────── */}
       <DataTable<MarketingCustomerItem>
-        title="Marketing Tools"
+        title=""
         columns={columns}
         data={data}
         permissions={PERMISSIONS}

@@ -804,14 +804,10 @@ export default function ManageParcelBookingReportsPage() {
       <div className="bg-white rounded-lg border border-slate-300 p-4 shadow-xs">
         <div className="space-y-3">
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-              <Filter className="w-3.5 h-3.5 text-[#2980b9]" />
-              <span>Filter Parcel Booking Reports</span>
-              {!isAdminOrSuperAdmin && (
-                <span className="text-[10px] text-slate-400 font-normal ml-1">
-                  (Branch View: Destination Filter)
-                </span>
-              )}
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">
+                Parcel Booking Reports
+              </h1>
             </div>
 
             {/* Reset link only shown in header when filters are active */}
@@ -824,7 +820,7 @@ export default function ManageParcelBookingReportsPage() {
                   className="group inline-flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 underline underline-offset-4 cursor-pointer transition-colors disabled:opacity-50"
                   title="Clear all active filters"
                 >
-                  <RotateCcw className="w-3 h-3 text-rose-600 group-hover:text-rose-700 transition-colors" />
+                  <RotateCcw className="w-3.5 h-3.5 text-rose-600 group-hover:text-rose-700 transition-colors" />
                   <span>Reset</span>
                 </button>
               </div>
@@ -859,7 +855,7 @@ export default function ManageParcelBookingReportsPage() {
                   searchable
                   label="From Branch"
                   placeholder="All From Branches"
-                  searchPlaceholder="Search branch..."
+                  searchPlaceholder="Search origin branch..."
                   options={fromBranchOptions}
                   value={fromBranchInput}
                   onChange={(val) => {
@@ -904,7 +900,7 @@ export default function ManageParcelBookingReportsPage() {
 
       {/* ─── Reports Data Table ─── */}
       <DataTable<ParcelBookingReportItem>
-        title="Parcel Booking Reports"
+        title=""
         columns={columns}
         data={bookingRecords}
         isLoading={isLoading || isFetching}

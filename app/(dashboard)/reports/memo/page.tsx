@@ -7,7 +7,6 @@ import {
   Eye,
   CheckCircle,
   XCircle,
-  FileText,
 } from "lucide-react";
 import DataTable from "@/components/DataTable/DataTable";
 import DeleteConfirmDialog from "@/components/DataTable/DeleteConfirmDialog";
@@ -203,32 +202,32 @@ export default function MemoReportPage() {
       },
       ...(isAdminOrSuperAdmin
         ? [
-            {
-              key: "fromBranch",
-              label: "From Branch",
-              sortable: true,
-              exportValue: (row: MemoReportItem) =>
-                row.fromBranch?.code
-                  ? `${row.fromBranch?.name || ""} [${row.fromBranch.code}]`
-                  : row.fromBranch?.name || "—",
-              render: (_val: unknown, row: MemoReportItem) => {
-                const name = row.fromBranch?.name || "";
-                const code = row.fromBranch?.code || "";
-                return (
-                  <div className="text-xs text-black whitespace-nowrap">
-                    <span className="font-semibold">{name}</span>
-                    {code ? (
-                      <span className="font-mono text-slate-500 font-normal ml-1">
-                        ({code})
-                      </span>
-                    ) : (
-                      ""
-                    )}
-                  </div>
-                );
-              },
+          {
+            key: "fromBranch",
+            label: "From Branch",
+            sortable: true,
+            exportValue: (row: MemoReportItem) =>
+              row.fromBranch?.code
+                ? `${row.fromBranch?.name || ""} [${row.fromBranch.code}]`
+                : row.fromBranch?.name || "—",
+            render: (_val: unknown, row: MemoReportItem) => {
+              const name = row.fromBranch?.name || "";
+              const code = row.fromBranch?.code || "";
+              return (
+                <div className="text-xs text-black whitespace-nowrap">
+                  <span className="font-semibold">{name}</span>
+                  {code ? (
+                    <span className="font-mono text-slate-500 font-normal ml-1">
+                      ({code})
+                    </span>
+                  ) : (
+                    ""
+                  )}
+                </div>
+              );
             },
-          ]
+          },
+        ]
         : []),
       {
         key: "cashAmount",
@@ -355,9 +354,8 @@ export default function MemoReportPage() {
       {/* ─── Top Filter Card (3 Standard Filters, Live OnChange) ───────────── */}
       <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-3.5 space-y-3">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-          <h1 className="text-base font-bold text-black tracking-tight flex items-center gap-2">
-            <FileText className="w-4 h-4 text-black" />
-            <span>Memo Report</span>
+          <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">
+            Memo Report
           </h1>
 
           {(fromDateInput || toDateInput || branchInput) && (
@@ -369,7 +367,7 @@ export default function MemoReportPage() {
               className="h-7 px-2.5 text-xs text-slate-600 border border-slate-300 hover:bg-slate-50 cursor-pointer shadow-none"
             >
               <RotateCcw className="w-3 h-3 mr-1" />
-              Reset Filters
+              Reset
             </Button>
           )}
         </div>
@@ -409,7 +407,7 @@ export default function MemoReportPage() {
 
       {/* ─── Memo Report Data Table (Clean Black & White) ──────────────────── */}
       <DataTable<MemoReportItem>
-        title="Memo Report"
+        title=""
         columns={columns}
         data={memoRecords}
         permissions={permissions}
