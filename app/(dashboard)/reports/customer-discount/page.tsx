@@ -59,8 +59,11 @@ export default function CustomerDiscountReportPage() {
 
   // Determine current user role for filter authorization
   const [userRole, setUserRole] = useState<string>("");
+  const [currentUser, setCurrentUser] = useState<any>(null);
   useEffect(() => {
-    const role = getStoredUserRole() || getStoredUser()?.role || "";
+    const user = getStoredUser();
+    setCurrentUser(user);
+    const role = getStoredUserRole() || user?.role || "";
     setUserRole(role.toLowerCase());
   }, []);
 
@@ -69,6 +72,16 @@ export default function CustomerDiscountReportPage() {
     userRole === "superadmin" ||
     userRole === "super_admin" ||
     userRole === "super-admin";
+
+  const ownBranchId = useMemo(() => {
+    return String(
+      (currentUser as any)?.staffProfile?.branchId?._id ||
+      (currentUser as any)?.staffProfile?.branchId ||
+      currentUser?._id ||
+      currentUser?.id ||
+      ""
+    );
+  }, [currentUser]);
 
   // Filter input states (filters trigger directly on change)
   const [fromDateInput, setFromDateInput] = useState("");
@@ -87,10 +100,10 @@ export default function CustomerDiscountReportPage() {
     page,
     limit,
     search,
-    startDate: fromDateInput || undefined,
-    endDate: toDateInput || undefined,
-    fromBranchId: (isAdminOrSuperAdmin ? fromBranchInput : undefined) || undefined,
-    toBranchId: toBranchInput || undefined,
+    startDate: (isAdminOrSuperAdmin ? fromDateInput : undefined) || undefined,
+    endDate: (isAdminOrSuperAdmin ? toDateInput : undefined) || undefined,
+    fromBranchId: fromBranchInput || undefined,
+    toBranchId: (isAdminOrSuperAdmin ? toBranchInput : undefined) || undefined,
     hasBill: hasBillInput || undefined,
   });
 
@@ -99,7 +112,7 @@ export default function CustomerDiscountReportPage() {
     fromDateInput ||
     toDateInput ||
     fromBranchInput ||
-    toBranchInput ||
+    (isAdminOrSuperAdmin && toBranchInput) ||
     hasBillInput
   );
 
@@ -129,6 +142,18 @@ export default function CustomerDiscountReportPage() {
       }),
     [branchDropdownList]
   );
+
+  // To Branch options exclude the logged-in user's branch
+  const toBranchOptions = useMemo(() => {
+    if (!ownBranchId) return branchOptions;
+    return branchOptions.filter((b) => b.value !== ownBranchId);
+  }, [branchOptions, ownBranchId]);
+
+  // From Branch options: exclude logged-in user's branch for non-admin/superadmin
+  const fromBranchOptions = useMemo(() => {
+    if (isAdminOrSuperAdmin || !ownBranchId) return branchOptions;
+    return branchOptions.filter((b) => b.value !== ownBranchId);
+  }, [branchOptions, ownBranchId, isAdminOrSuperAdmin]);
 
   // Extract bookings list from response
   const bookingRecords: ParcelBookingReportItem[] = useMemo(() => {
@@ -267,31 +292,35 @@ export default function CustomerDiscountReportPage() {
         );
       },
     },
-    {
-      key: "toBranch",
-      label: "To Branch",
-      sortable: true,
-      sortValue: (row) => row.toBranch?.branchName || "",
-      exportValue: (row) => {
-        const bName = row.toBranch?.branchName;
-        const bCode = row.toBranch?.branchCode;
-        if (!bName && !bCode) return "—";
-        return bCode ? `${bName || ""} [${bCode}]` : (bName || "—");
-      },
-      render: (_, row) => {
-        const bName = row.toBranch?.branchName;
-        const bCode = row.toBranch?.branchCode;
-        if (!bName && !bCode) return <span className="text-slate-400 text-xs">—</span>;
-        return (
-          <div className="text-xs">
-            <span className="font-semibold text-slate-900">{bName || "—"}</span>
-            {bCode && (
-              <span className="text-[10px] text-slate-500 block font-mono">({bCode})</span>
-            )}
-          </div>
-        );
-      },
-    },
+    ...(isAdminOrSuperAdmin
+      ? [
+        {
+          key: "toBranch",
+          label: "To Branch",
+          sortable: true,
+          sortValue: (row: ParcelBookingReportItem) => row.toBranch?.branchName || "",
+          exportValue: (row: ParcelBookingReportItem) => {
+            const bName = row.toBranch?.branchName;
+            const bCode = row.toBranch?.branchCode;
+            if (!bName && !bCode) return "—";
+            return bCode ? `${bName || ""} [${bCode}]` : (bName || "—");
+          },
+          render: (_: unknown, row: ParcelBookingReportItem) => {
+            const bName = row.toBranch?.branchName;
+            const bCode = row.toBranch?.branchCode;
+            if (!bName && !bCode) return <span className="text-slate-400 text-xs">—</span>;
+            return (
+              <div className="text-xs">
+                <span className="font-semibold text-slate-900">{bName || "—"}</span>
+                {bCode && (
+                  <span className="text-[10px] text-slate-500 block font-mono">({bCode})</span>
+                )}
+              </div>
+            );
+          },
+        },
+      ]
+      : []),
     {
       key: "sender",
       label: "Sender",
@@ -605,13 +634,10 @@ export default function CustomerDiscountReportPage() {
           </div>
 
           <div
-            className={
-              isAdminOrSuperAdmin
-                ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3"
-                : "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3"
-            }
+            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3"
+
           >
-            {/* Admin and SuperAdmin get From Date, To Date, From Branch */}
+            {/* Admin and SuperAdmin get From Date, To Date */}
             {isAdminOrSuperAdmin && (
               <>
                 <FormInput
@@ -633,37 +659,39 @@ export default function CustomerDiscountReportPage() {
                     setPage(1);
                   }}
                 />
-
-                <FormSelect
-                  searchable
-                  label="From Branch"
-                  placeholder="All From Branches"
-                  searchPlaceholder="Search branch..."
-                  options={branchOptions}
-                  value={fromBranchInput}
-                  onChange={(val) => {
-                    setFromBranchInput(val || "");
-                    setPage(1);
-                  }}
-                  clearable
-                />
               </>
             )}
 
-            {/* All roles (including staff/branch) get To Branch filter */}
             <FormSelect
               searchable
-              label="To Branch"
-              placeholder="All To Branches"
-              searchPlaceholder="Search destination branch..."
-              options={branchOptions}
-              value={toBranchInput}
+              label="From Branch"
+              placeholder="All From Branches"
+              searchPlaceholder="Search branch..."
+              options={fromBranchOptions}
+              value={fromBranchInput}
               onChange={(val) => {
-                setToBranchInput(val || "");
+                setFromBranchInput(val || "");
                 setPage(1);
               }}
               clearable
             />
+
+            {/* Admin and SuperAdmin get To Branch filter */}
+            {isAdminOrSuperAdmin && (
+              <FormSelect
+                searchable
+                label="To Branch"
+                placeholder="All To Branches"
+                searchPlaceholder="Search destination branch..."
+                options={toBranchOptions}
+                value={toBranchInput}
+                onChange={(val) => {
+                  setToBranchInput(val || "");
+                  setPage(1);
+                }}
+                clearable
+              />
+            )}
 
             {/* Has Bill filter */}
             <FormSelect

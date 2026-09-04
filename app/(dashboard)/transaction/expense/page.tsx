@@ -284,9 +284,13 @@ export default function AddExpensePage() {
     }, [selectedEntity, isAdminOrSuperAdmin, currentRole]);
 
     // ─── Dynamic Expense Type Options ──────────────────────────────────────────
+    // Admin & Superadmin => All Options
     // Branch & Staff => Stationary, Rent, Salary, Labour
     // Truck & Driver => Stationary, Salary, Petrol, Diesel, CNG, Other Truck, Truck EMI
     const dynamicExpenseTypeOptions = useMemo<FormSelectOption[]>(() => {
+        if (["superadmin", "admin", "super_admin", "super-admin"].includes(selectedRole)) {
+            return ALL_EXPENSE_TYPE_OPTIONS;
+        }
         if (selectedRole === "truck" || selectedRole === "driver") {
             return TRUCK_DRIVER_EXPENSE_OPTIONS;
         }

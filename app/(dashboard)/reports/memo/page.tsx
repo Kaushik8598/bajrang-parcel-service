@@ -201,22 +201,35 @@ export default function MemoReportPage() {
           </span>
         ),
       },
-      {
-        key: "fromBranch",
-        label: "From Branch",
-        sortable: true,
-        exportValue: (row) => row.fromBranch?.code ? `${row.fromBranch?.name || ""} [${row.fromBranch.code}]` : (row.fromBranch?.name || "—"),
-        render: (_val, row) => {
-          const name = row.fromBranch?.name || "";
-          const code = row.fromBranch?.code || "";
-          return (
-            <div className="text-xs text-black whitespace-nowrap">
-              <span className="font-semibold">{name}</span>
-              {code ? <span className="font-mono text-slate-500 font-normal ml-1">({code})</span> : ""}
-            </div>
-          );
-        },
-      },
+      ...(isAdminOrSuperAdmin
+        ? [
+            {
+              key: "fromBranch",
+              label: "From Branch",
+              sortable: true,
+              exportValue: (row: MemoReportItem) =>
+                row.fromBranch?.code
+                  ? `${row.fromBranch?.name || ""} [${row.fromBranch.code}]`
+                  : row.fromBranch?.name || "—",
+              render: (_val: unknown, row: MemoReportItem) => {
+                const name = row.fromBranch?.name || "";
+                const code = row.fromBranch?.code || "";
+                return (
+                  <div className="text-xs text-black whitespace-nowrap">
+                    <span className="font-semibold">{name}</span>
+                    {code ? (
+                      <span className="font-mono text-slate-500 font-normal ml-1">
+                        ({code})
+                      </span>
+                    ) : (
+                      ""
+                    )}
+                  </div>
+                );
+              },
+            },
+          ]
+        : []),
       {
         key: "cashAmount",
         label: "Cash Amount",
