@@ -100,7 +100,8 @@ apiClient.interceptors.response.use(
     }
 
     // Check if 200 OK body contains error status 400/401
-    const bodyStatus = response.data?.status ?? response.data?.statusCode ?? response.data?.code;
+    const data = response.data;
+    const bodyStatus = data?.status ?? data?.statusCode ?? data?.code;
     if (bodyStatus === 400 || bodyStatus === 401 || bodyStatus === "400" || bodyStatus === "401") {
       performLogoutAndRedirect();
     } else {
@@ -119,6 +120,12 @@ apiClient.interceptors.response.use(
       if (isMutation && !isExcluded) {
         refreshBadgesAndBalance();
       }
+    }
+
+    // If API responded with HTTP 200 but success is false, treat it as an error so callers hit catch/onError
+    if (data && typeof data === "object" && (data.success === false || data.success === "false")) {
+      const errorMsg = data.message || data.error || "Request failed";
+      return Promise.reject(new Error(errorMsg));
     }
 
     return response;
