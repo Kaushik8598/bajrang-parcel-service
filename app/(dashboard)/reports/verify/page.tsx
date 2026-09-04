@@ -49,8 +49,11 @@ export default function VerifyReportPage() {
 
   // Determine current user role for branch filter authorization
   const [userRole, setUserRole] = useState<string>("");
+  const [currentUser, setCurrentUser] = useState<any>(null);
   useEffect(() => {
-    const role = getStoredUserRole() || getStoredUser()?.role || "";
+    const user = getStoredUser();
+    setCurrentUser(user);
+    const role = getStoredUserRole() || user?.role || "";
     setUserRole(role.toLowerCase());
   }, []);
 
@@ -59,6 +62,16 @@ export default function VerifyReportPage() {
     userRole === "superadmin" ||
     userRole === "super_admin" ||
     userRole === "super-admin";
+
+  const ownBranchId = useMemo(() => {
+    return String(
+      (currentUser as any)?.staffProfile?.branchId?._id ||
+      (currentUser as any)?.staffProfile?.branchId ||
+      currentUser?._id ||
+      currentUser?.id ||
+      ""
+    );
+  }, [currentUser]);
 
   // Filter state
   const [fromDateInput, setFromDateInput] = useState("");
@@ -80,8 +93,8 @@ export default function VerifyReportPage() {
     page,
     limit,
     search,
-    startDate: fromDateInput || undefined,
-    endDate: toDateInput || undefined,
+    startDate: (isAdminOrSuperAdmin ? fromDateInput : undefined) || undefined,
+    endDate: (isAdminOrSuperAdmin ? toDateInput : undefined) || undefined,
     fromBranchId: (isAdminOrSuperAdmin ? fromBranchInput : undefined) || undefined,
     toBranchId: toBranchInput || undefined,
     hasBill: hasBillInput || undefined,
@@ -122,6 +135,18 @@ export default function VerifyReportPage() {
       }),
     [branchDropdownList]
   );
+
+  // To Branch options exclude the logged-in user's branch
+  const toBranchOptions = useMemo(() => {
+    if (!ownBranchId) return branchOptions;
+    return branchOptions.filter((b) => b.value !== ownBranchId);
+  }, [branchOptions, ownBranchId]);
+
+  // From Branch options: exclude logged-in user's branch for non-admin/superadmin
+  const fromBranchOptions = useMemo(() => {
+    if (isAdminOrSuperAdmin || !ownBranchId) return branchOptions;
+    return branchOptions.filter((b) => b.value !== ownBranchId);
+  }, [branchOptions, ownBranchId, isAdminOrSuperAdmin]);
 
   // Extract bookings list from response
   const bookingRecords: ParcelBookingReportItem[] = useMemo(() => {
@@ -224,31 +249,35 @@ export default function VerifyReportPage() {
         </span>
       ),
     },
-    {
-      key: "fromBranch",
-      label: "From Branch",
-      sortable: true,
-      sortValue: (row) => row.fromBranch?.branchName || "",
-      exportValue: (row) => {
-        const bName = row.fromBranch?.branchName;
-        const bCode = row.fromBranch?.branchCode;
-        if (!bName && !bCode) return "—";
-        return bCode ? `${bName || ""} [${bCode}]` : (bName || "—");
-      },
-      render: (_, row) => {
-        const bName = row.fromBranch?.branchName;
-        const bCode = row.fromBranch?.branchCode;
-        if (!bName && !bCode) return <span className="text-slate-400 text-xs">—</span>;
-        return (
-          <div className="text-xs">
-            <span className="font-semibold text-slate-900">{bName || "—"}</span>
-            {bCode && (
-              <span className="text-[10px] text-slate-500 block font-mono">({bCode})</span>
-            )}
-          </div>
-        );
-      },
-    },
+    ...(isAdminOrSuperAdmin
+      ? [
+          {
+            key: "fromBranch",
+            label: "From Branch",
+            sortable: true,
+            sortValue: (row: ParcelBookingReportItem) => row.fromBranch?.branchName || "",
+            exportValue: (row: ParcelBookingReportItem) => {
+              const bName = row.fromBranch?.branchName;
+              const bCode = row.fromBranch?.branchCode;
+              if (!bName && !bCode) return "—";
+              return bCode ? `${bName || ""} [${bCode}]` : (bName || "—");
+            },
+            render: (_: unknown, row: ParcelBookingReportItem) => {
+              const bName = row.fromBranch?.branchName;
+              const bCode = row.fromBranch?.branchCode;
+              if (!bName && !bCode) return <span className="text-slate-400 text-xs">—</span>;
+              return (
+                <div className="text-xs">
+                  <span className="font-semibold text-slate-900">{bName || "—"}</span>
+                  {bCode && (
+                    <span className="text-[10px] text-slate-500 block font-mono">({bCode})</span>
+                  )}
+                </div>
+              );
+            },
+          },
+        ]
+      : []),
     {
       key: "toBranch",
       label: "To Branch",
@@ -522,52 +551,52 @@ export default function VerifyReportPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-            <FormInput
-              type="date"
-              label="From Date"
-              value={fromDateInput}
-              onChange={(e) => {
-                setFromDateInput(e.target.value);
-                setPage(1);
-              }}
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+            {/* Admin and SuperAdmin get From Date, To Date, From Branch */}
+            {isAdminOrSuperAdmin && (
+              <>
+                <FormInput
+                  type="date"
+                  label="From Date"
+                  value={fromDateInput}
+                  onChange={(e) => {
+                    setFromDateInput(e.target.value);
+                    setPage(1);
+                  }}
+                />
 
-            <FormInput
-              type="date"
-              label="To Date"
-              value={toDateInput}
-              onChange={(e) => {
-                setToDateInput(e.target.value);
-                setPage(1);
-              }}
-            />
+                <FormInput
+                  type="date"
+                  label="To Date"
+                  value={toDateInput}
+                  onChange={(e) => {
+                    setToDateInput(e.target.value);
+                    setPage(1);
+                  }}
+                />
 
-            {isAdminOrSuperAdmin ? (
-              <FormSelect
-                label="From Branch"
-                options={branchOptions}
-                value={fromBranchInput}
-                onChange={(val) => {
-                  setFromBranchInput(val || "");
-                  setPage(1);
-                }}
-                clearable
-              />
-            ) : (
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold uppercase text-slate-600 block">
-                  From Branch
-                </label>
-                <div className="h-8.5 px-2.5 flex items-center rounded-md border border-slate-200 bg-slate-50 text-xs text-slate-700 font-medium">
-                  Current Branch
-                </div>
-              </div>
+                <FormSelect
+                  searchable
+                  label="From Branch"
+                  placeholder="All From Branches"
+                  searchPlaceholder="Search branch..."
+                  options={fromBranchOptions}
+                  value={fromBranchInput}
+                  onChange={(val) => {
+                    setFromBranchInput(val || "");
+                    setPage(1);
+                  }}
+                  clearable
+                />
+              </>
             )}
 
             <FormSelect
+              searchable
               label="To Branch"
-              options={branchOptions}
+              placeholder="All To Branches"
+              searchPlaceholder="Search destination branch..."
+              options={toBranchOptions}
               value={toBranchInput}
               onChange={(val) => {
                 setToBranchInput(val || "");
@@ -578,6 +607,7 @@ export default function VerifyReportPage() {
 
             <FormSelect
               label="Has Bill"
+              placeholder="All (With / Without Bill)"
               options={HAS_BILL_OPTIONS}
               value={hasBillInput}
               onChange={(val) => {

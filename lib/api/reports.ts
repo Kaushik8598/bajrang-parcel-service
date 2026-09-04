@@ -687,7 +687,7 @@ export interface GetCustomerReportsParams {
   search?: string;
   customerAs?: string;
   docketNo?: string;
-  inactive?: boolean | string;
+  inactive?: string;
   fromDate?: string;
   toDate?: string;
   sortBy?: string;
@@ -735,9 +735,7 @@ export async function getCustomerReports(
   if (search) queryParams.search = search;
   if (customerAs) queryParams.customerAs = customerAs;
   if (docketNo) queryParams.docketNo = docketNo;
-  if (inactive !== undefined && inactive !== "") {
-    queryParams.inactive = inactive === "true" || inactive === true ? true : false;
-  }
+  if (inactive) queryParams.inactive = inactive;
   if (fromDate) queryParams.fromDate = fromDate;
   if (toDate) queryParams.toDate = toDate;
 

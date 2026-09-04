@@ -1,126 +1,597 @@
 "use client";
 
-import { useState } from "react";
-import { Pencil } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import {
+  Users,
+  UserCheck,
+  UserMinus,
+  RotateCcw,
+  Filter,
+  Package,
+  Copy,
+  Check,
+} from "lucide-react";
 import DataTable from "@/components/DataTable/DataTable";
 import { Button } from "@/components/ui/button";
+import { FormInput } from "@/components/ui/form-input";
+import { FormSelect } from "@/components/ui/form-select";
+import AppModal from "@/components/ui/AppModal";
 import { showToast } from "@/lib/toast";
-import type { ColumnDef, TablePermissions } from "@/lib/types/common";
+import { useCustomerReports, useModulePermissions } from "@/lib/hooks";
+import type { CustomerReportItem } from "@/lib/api/reports";
+import type { ColumnDef } from "@/lib/types/common";
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
-export interface Customer {
-  id: number | string;
-  customer_name: string;
-  email_id: string;
-  mobile_no_1: string;
-  mobile_no_2: string;
-  city: string;
-  [key: string]: unknown;
-}
-
-// ─── Mock Data ─────────────────────────────────────────────────────────────────
-const MOCK_CUSTOMERS: Customer[] = [
-  {
-    id: 1,
-    customer_name: "Radhe Krishna Textiles",
-    email_id: "radhe.textiles@gmail.com",
-    mobile_no_1: "9825100001",
-    mobile_no_2: "9825100002",
-    city: "Surat",
-  },
-  {
-    id: 2,
-    customer_name: "Shreeji Enterprise",
-    email_id: "shreeji.ent@gmail.com",
-    mobile_no_1: "9825200001",
-    mobile_no_2: "9825200002",
-    city: "Ahmedabad",
-  },
-  {
-    id: 3,
-    customer_name: "Bhavani Steel & Hardware",
-    email_id: "bhavani.steel@yahoo.com",
-    mobile_no_1: "9825300001",
-    mobile_no_2: "9825300002",
-    city: "Rajkot",
-  },
-  {
-    id: 4,
-    customer_name: "Mahavir Sarees & Dress",
-    email_id: "mahavir.sarees@gmail.com",
-    mobile_no_1: "9825400001",
-    mobile_no_2: "9825400002",
-    city: "Surat",
-  },
-  {
-    id: 5,
-    customer_name: "Balaji Electronics Hub",
-    email_id: "balaji.hub@gmail.com",
-    mobile_no_1: "9825500001",
-    mobile_no_2: "9825500002",
-    city: "Vadodara",
-  },
+const CUSTOMER_AS_OPTIONS = [
+  { value: "sender", label: "Sender" },
+  { value: "receiver", label: "Receiver" },
 ];
 
-// ─── Table Permissions ─────────────────────────────────────────────────────────
-const PERMISSIONS: TablePermissions = {
-  canExcel: true,
-  canPDF: true,
-  canPrint: true,
-  canAdd: true,
-  canEdit: true,
-  canDelete: false,
-  canStatus: false,
-};
+const INACTIVE_PERIOD_OPTIONS = [
+  { value: "7", label: "Last 7 Days" },
+  { value: "15", label: "Last 15 Days" },
+  { value: "30", label: "Last 30 Days (1 Month)" },
+  { value: "90", label: "Last 3 Months" },
+  { value: "180", label: "Last 6 Months" },
+  { value: "365", label: "Last 1 Year" },
+  { value: "custom", label: "Custom Date" },
+];
+
+/**
+ * Calculates a past date in YYYY-MM-DD format based on number of days from today
+ */
+function getPastDate(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 export default function ManageCustomerPage() {
-  const [data] = useState<Customer[]>(MOCK_CUSTOMERS);
+  const permissions = useModulePermissions("customer");
 
-  const handleAdd = () => {
-    showToast("info", "Add Customer clicked", "Customer registration form modal can be opened here.");
+  // Filters State
+  const [fromDateInput, setFromDateInput] = useState("");
+  const [toDateInput, setToDateInput] = useState("");
+  const [customerAsInput, setCustomerAsInput] = useState("");
+  const [docketNoInput, setDocketNoInput] = useState("");
+  const [inactivePeriod, setInactivePeriod] = useState("");
+  const [customInactiveDate, setCustomInactiveDate] = useState("");
+
+  // Table pagination & search state
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
+  const [search, setSearch] = useState("");
+
+  // Associated Dockets Modal State
+  const [selectedCustomerForDockets, setSelectedCustomerForDockets] = useState<CustomerReportItem | null>(null);
+  const [copiedDocket, setCopiedDocket] = useState<string | null>(null);
+
+  // Computed inactive date query value (single date passed in inactive param)
+  const computedInactiveDate = useMemo(() => {
+    if (!inactivePeriod) return undefined;
+    if (inactivePeriod === "custom") return customInactiveDate || undefined;
+    const days = Number(inactivePeriod);
+    if (!isNaN(days) && days > 0) {
+      return getPastDate(days);
+    }
+    return undefined;
+  }, [inactivePeriod, customInactiveDate]);
+
+  // Live data fetching hook via GET /user/customer
+  const { data: apiResponse, isLoading, isFetching } = useCustomerReports({
+    page,
+    limit,
+    search,
+    customerAs: customerAsInput || undefined,
+    docketNo: docketNoInput || undefined,
+    inactive: computedInactiveDate,
+    fromDate: fromDateInput || undefined,
+    toDate: toDateInput || undefined,
+  });
+
+  // Check if any filter is active
+  const hasActiveFilters = Boolean(
+    fromDateInput ||
+    toDateInput ||
+    customerAsInput ||
+    docketNoInput ||
+    inactivePeriod ||
+    customInactiveDate
+  );
+
+  // Extract customers list
+  const customersList: CustomerReportItem[] = useMemo(() => {
+    const rawData = apiResponse?.data;
+    if (Array.isArray(rawData)) return rawData;
+    if (rawData && typeof rawData === "object" && Array.isArray(rawData.customers)) {
+      return rawData.customers;
+    }
+    return [];
+  }, [apiResponse]);
+
+  // Extract summary metrics
+  const summary = apiResponse?.data?.summary || {
+    totalCustomers: customersList.length,
+    senderCount: 0,
+    receiverCount: 0,
   };
 
-  const handleEdit = (row: Customer) => {
-    showToast("info", `Editing Customer: ${row.customer_name}`, `City: ${row.city}`);
+  const paginationMeta = apiResponse?.pagination || {
+    total: customersList.length,
+    page,
+    limit,
+    totalPages: 1,
+    hasNextPage: false,
+    hasPrevPage: false,
   };
 
-  // ─── Columns ─────────────────────────────────────────────────────────────────
-  const columns: ColumnDef<Customer>[] = [
-    { key: "customer_name", label: "Customer Name", sortable: true },
-    { key: "email_id", label: "Email Id", sortable: true },
-    { key: "mobile_no_1", label: "Mobile No1", sortable: true, width: "w-36" },
-    { key: "mobile_no_2", label: "Mobile No2", sortable: true, width: "w-36" },
-    { key: "city", label: "City", sortable: true, width: "w-32" },
+  // Handle Reset Filter
+  const handleResetFilter = () => {
+    setFromDateInput("");
+    setToDateInput("");
+    setCustomerAsInput("");
+    setDocketNoInput("");
+    setInactivePeriod("");
+    setCustomInactiveDate("");
+    setPage(1);
+    setSearch("");
+    showToast("info", "Filters reset to default");
+  };
+
+  // Handle Copy Docket ID
+  const handleCopyDocket = (docketId: string) => {
+    navigator.clipboard.writeText(docketId);
+    setCopiedDocket(docketId);
+    showToast("success", `Copied "${docketId}" to clipboard`);
+    setTimeout(() => setCopiedDocket(null), 2000);
+  };
+
+  // ─── Table Columns Definition ────────────────────────────────────────────────
+  const columns: ColumnDef<CustomerReportItem>[] = [
     {
-      key: "action",
-      label: "Action",
-      width: "w-28",
+      key: "name",
+      label: "Customer Name",
+      sortable: true,
+      width: "w-40",
+      sortValue: (row) => row.name || "",
       render: (_, row) => (
-        <div className="flex items-center">
-          {PERMISSIONS.canEdit && (
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => handleEdit(row)}
-              className="h-7 px-2.5 text-xs bg-[#2980b9] hover:bg-[#2471a3] text-white shadow-xs transition-colors"
-            >
-              <Pencil className="w-3 h-3 mr-1" />
-              Edit
-            </Button>
-          )}
-        </div>
+        <span className="font-semibold text-xs text-slate-900 uppercase">
+          {row.name || "—"}
+        </span>
       ),
+    },
+    {
+      key: "mobile",
+      label: "Mobile No",
+      sortable: true,
+      width: "w-32",
+      sortValue: (row) => row.mobile || "",
+      render: (_, row) => (
+        <span className="font-mono text-xs text-slate-800">
+          {row.mobile || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "customerAs",
+      label: "Role",
+      sortable: true,
+      width: "w-24",
+      align: "center",
+      sortValue: (row) => row.customerAs || "",
+      render: (_, row) => {
+        const role = (row.customerAs || "").toLowerCase();
+        let badgeClass = "bg-slate-100 text-slate-700 border-slate-300";
+        if (role === "sender") {
+          badgeClass = "bg-blue-50 text-blue-700 border-blue-200";
+        } else if (role === "receiver") {
+          badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+        } else if (role === "both") {
+          badgeClass = "bg-purple-50 text-purple-700 border-purple-200";
+        }
+        return (
+          <span
+            className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold uppercase border ${badgeClass}`}
+          >
+            {row.customerAs || "—"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "city",
+      label: "City / Address",
+      sortable: true,
+      sortValue: (row) => row.city || row.address || "",
+      exportValue: (row) => {
+        const parts = [row.address, row.city, row.pincode].filter(Boolean);
+        return parts.length > 0 ? parts.join(", ") : "—";
+      },
+      render: (_, row) => {
+        if (!row.city && !row.address) {
+          return <span className="text-slate-400 text-xs">—</span>;
+        }
+        return (
+          <div className="text-xs space-y-0.5 max-w-[160px]">
+            {row.city && <p className="font-medium text-slate-900 truncate">{row.city}</p>}
+            {row.address && (
+              <p className="text-[11px] text-slate-500 truncate" title={row.address}>
+                {row.address}
+              </p>
+            )}
+            {row.pincode && (
+              <span className="text-[10px] text-slate-400 font-mono">Pin: {row.pincode}</span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "gst",
+      label: "GST No",
+      sortable: true,
+      width: "w-32",
+      sortValue: (row) => row.gst || "",
+      render: (_, row) => (
+        <span className="font-mono text-xs text-slate-700">
+          {row.gst || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "associatedDocketIds",
+      label: "Dockets",
+      sortable: true,
+      width: "w-28",
+      align: "center",
+      sortValue: (row) => row.associatedDocketIds?.length || 0,
+      exportValue: (row) => {
+        const list = row.associatedDocketIds || [];
+        return list.length > 0 ? `${list.length} (${list.join(", ")})` : "0";
+      },
+      render: (_, row) => {
+        const count = row.associatedDocketIds?.length || 0;
+        if (count === 0) {
+          return <span className="text-slate-400 text-xs">0</span>;
+        }
+        return (
+          <button
+            type="button"
+            onClick={() => setSelectedCustomerForDockets(row)}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 text-xs font-bold font-mono transition-colors cursor-pointer"
+            title="Click to view all associated dockets"
+          >
+            <Package className="w-3 h-3" />
+            <span>{count}</span>
+          </button>
+        );
+      },
+    },
+    {
+      key: "totalDocketBookingAmount",
+      label: "Booking (₹)",
+      sortable: true,
+      align: "right",
+      width: "w-28",
+      sortValue: (row) => Number(row.totalDocketBookingAmount) || 0,
+      render: (_, row) => {
+        const amt = Number(row.totalDocketBookingAmount) || 0;
+        return (
+          <span className="font-mono text-xs font-semibold text-slate-900">
+            {amt > 0 ? amt.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "—"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "totalDocketDeliveryAmount",
+      label: "Delivery (₹)",
+      sortable: true,
+      align: "right",
+      width: "w-28",
+      sortValue: (row) => Number(row.totalDocketDeliveryAmount) || 0,
+      render: (_, row) => {
+        const amt = Number(row.totalDocketDeliveryAmount) || 0;
+        return (
+          <span className="font-mono text-xs font-semibold text-slate-900">
+            {amt > 0 ? amt.toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "—"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "lastBookingDate",
+      label: "Last Booking",
+      sortable: true,
+      width: "w-28",
+      sortValue: (row) => row.lastBookingDate || "",
+      render: (_, row) => (
+        <span className="text-xs text-slate-800 whitespace-nowrap">
+          {row.lastBookingDate || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "lastDeliveryDate",
+      label: "Last Delivery",
+      sortable: true,
+      width: "w-28",
+      sortValue: (row) => row.lastDeliveryDate || "",
+      render: (_, row) => (
+        <span className="text-xs text-slate-800 whitespace-nowrap">
+          {row.lastDeliveryDate || "—"}
+        </span>
+      ),
+    },
+    {
+      key: "daysSinceLastBooking",
+      label: "Inactive Days",
+      sortable: true,
+      width: "w-28",
+      align: "center",
+      sortValue: (row) => Number(row.daysSinceLastBooking) || 0,
+      render: (_, row) => {
+        const days = row.daysSinceLastBooking;
+        if (days === undefined || days === null || days < 0) {
+          return <span className="text-slate-400 text-xs">—</span>;
+        }
+        return (
+          <span
+            className={`text-xs font-semibold px-2 py-0.5 rounded ${days > 30
+                ? "bg-amber-50 text-amber-700 border border-amber-200"
+                : "text-slate-700 font-mono"
+              }`}
+          >
+            {days} {days === 1 ? "day" : "days"}
+          </span>
+        );
+      },
     },
   ];
 
   return (
-    <DataTable<Customer>
-      title="Manage Customer"
-      columns={columns}
-      data={data}
-      permissions={PERMISSIONS}
-      onAdd={handleAdd}
-      clientSide
-    />
+    <div className="space-y-3">
+      {/* ─── Top Stats / Summary Cards (Total Customers, Senders, Receivers) ─── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-white rounded-lg border border-slate-200 p-3 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase text-slate-500">Total Customers</span>
+            <Users className="w-4 h-4 text-[#2980b9]" />
+          </div>
+          <p className="mt-1 text-lg font-black font-mono text-slate-900">
+            {summary.totalCustomers || 0}
+          </p>
+        </div>
+
+        <div className="bg-white rounded-lg border border-slate-200 p-3 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase text-slate-500">Senders</span>
+            <UserCheck className="w-4 h-4 text-blue-600" />
+          </div>
+          <p className="mt-1 text-lg font-black font-mono text-blue-700">
+            {summary.senderCount || 0}
+          </p>
+        </div>
+
+        <div className="bg-white rounded-lg border border-slate-200 p-3 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase text-slate-500">Receivers</span>
+            <UserMinus className="w-4 h-4 text-emerald-600" />
+          </div>
+          <p className="mt-1 text-lg font-black font-mono text-emerald-700">
+            {summary.receiverCount || 0}
+          </p>
+        </div>
+      </div>
+
+      {/* ─── Filter Section ─── */}
+      <div className="bg-white rounded-lg border border-slate-300 p-4 shadow-xs">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+              <Filter className="w-3.5 h-3.5 text-[#2980b9]" />
+              <span>Filter Customers</span>
+            </div>
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={handleResetFilter}
+                className="flex items-center gap-1 text-[11px] text-red-600 hover:text-red-700 font-medium transition-colors cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Reset Filters
+              </button>
+            )}
+          </div>
+
+          <div
+            className={
+              inactivePeriod === "custom"
+                ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3"
+                : "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3"
+            }
+          >
+            <FormInput
+              type="date"
+              label="From Date"
+              value={fromDateInput}
+              onChange={(e) => {
+                setFromDateInput(e.target.value);
+                setPage(1);
+              }}
+            />
+
+            <FormInput
+              type="date"
+              label="To Date"
+              value={toDateInput}
+              onChange={(e) => {
+                setToDateInput(e.target.value);
+                setPage(1);
+              }}
+            />
+
+            <FormSelect
+              label="Customer Role"
+              placeholder="All Roles"
+              options={CUSTOMER_AS_OPTIONS}
+              value={customerAsInput}
+              onChange={(val) => {
+                setCustomerAsInput(val || "");
+                setPage(1);
+              }}
+              clearable
+            />
+
+            <FormInput
+              type="text"
+              label="Docket No"
+              placeholder="Search by Docket ID"
+              value={docketNoInput}
+              onChange={(e) => {
+                setDocketNoInput(e.target.value);
+                setPage(1);
+              }}
+            />
+
+            <FormSelect
+              label="Inactive Since"
+              placeholder="All Inactive Periods"
+              options={INACTIVE_PERIOD_OPTIONS}
+              value={inactivePeriod}
+              onChange={(val) => {
+                setInactivePeriod(val || "");
+                if (val !== "custom") {
+                  setCustomInactiveDate("");
+                }
+                setPage(1);
+              }}
+              clearable
+            />
+
+            {inactivePeriod === "custom" && (
+              <FormInput
+                type="date"
+                label="Custom Inactive Date"
+                value={customInactiveDate}
+                onChange={(e) => {
+                  setCustomInactiveDate(e.target.value);
+                  setPage(1);
+                }}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Customer Report Data Table ─── */}
+      <DataTable<CustomerReportItem>
+        title="Manage Customer"
+        columns={columns}
+        data={customersList}
+        isLoading={isLoading || isFetching}
+        permissions={permissions}
+        onSearch={(query) => {
+          setSearch(query);
+          setPage(1);
+        }}
+        searchValue={search}
+        clientSide={false}
+        pagination={{
+          page,
+          pageSize: limit,
+          total: paginationMeta.total,
+          onPageChange: (newPage) => setPage(newPage),
+          onPageSizeChange: (newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          },
+        }}
+      />
+
+      {/* ─── Associated Dockets Modal ─── */}
+      {selectedCustomerForDockets && (
+        <AppModal
+          open={Boolean(selectedCustomerForDockets)}
+          onOpenChange={(open) => {
+            if (!open) setSelectedCustomerForDockets(null);
+          }}
+          title={`Associated Dockets - ${selectedCustomerForDockets.name || "Customer"}`}
+          maxWidth="sm:max-w-md"
+        >
+          <div className="space-y-3 p-1">
+            <div className="flex items-center justify-between p-2.5 rounded bg-slate-50 border border-slate-200 text-xs">
+              <div>
+                <span className="text-slate-500 font-medium">Customer: </span>
+                <span className="font-bold text-slate-900 uppercase">
+                  {selectedCustomerForDockets.name || "—"}
+                </span>
+              </div>
+              <div className="font-mono text-slate-700">
+                {selectedCustomerForDockets.mobile || "—"}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-700 px-1">
+                <span>Docket Numbers ({selectedCustomerForDockets.associatedDocketIds?.length || 0})</span>
+                <span className="text-[11px] text-slate-400 font-normal">Click to copy</span>
+              </div>
+
+              <div className="max-h-64 overflow-y-auto space-y-1.5 p-1 rounded-md border border-slate-200 bg-slate-50/50">
+                {selectedCustomerForDockets.associatedDocketIds &&
+                  selectedCustomerForDockets.associatedDocketIds.length > 0 ? (
+                  selectedCustomerForDockets.associatedDocketIds.map((docketId, idx) => (
+                    <div
+                      key={docketId + idx}
+                      className="flex items-center justify-between px-3 py-2 rounded bg-white border border-slate-200 hover:border-sky-300 transition-colors"
+                    >
+                      <span className="font-mono text-xs font-bold text-slate-900">
+                        {docketId}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleCopyDocket(docketId)}
+                        className="h-6 px-2 text-xs text-slate-600 hover:text-slate-900"
+                      >
+                        {copiedDocket === docketId ? (
+                          <span className="flex items-center gap-1 text-emerald-600 font-semibold">
+                            <Check className="w-3 h-3" /> Copied
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1">
+                            <Copy className="w-3 h-3" /> Copy
+                          </span>
+                        )}
+                      </Button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 text-center text-xs text-slate-400">
+                    No associated dockets found.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setSelectedCustomerForDockets(null)}
+                className="text-xs"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </AppModal>
+      )}
+    </div>
   );
 }
