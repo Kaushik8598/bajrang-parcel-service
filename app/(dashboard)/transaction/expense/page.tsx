@@ -40,26 +40,7 @@ import { ExpenseType } from "@/lib/api/expense";
 import SimpleDataTable from "@/components/DataTable/SimpleDataTable";
 import type { ColumnDef } from "@/lib/types/common";
 
-// ─── Branch & Staff Expense Type Options ──────────────────────────────────────
-const BRANCH_STAFF_EXPENSE_OPTIONS: FormSelectOption[] = [
-    { value: "Stationary", label: "Stationary" },
-    { value: "Rent", label: "Rent" },
-    { value: "Salary", label: "Salary" },
-    { value: "Labour", label: "Labour" },
-];
-
-// ─── Truck & Driver Expense Type Options ──────────────────────────────────────
-const TRUCK_DRIVER_EXPENSE_OPTIONS: FormSelectOption[] = [
-    { value: "Stationary", label: "Stationary" },
-    { value: "Salary", label: "Salary" },
-    { value: "Petrol", label: "Petrol" },
-    { value: "Diesel", label: "Diesel" },
-    { value: "CNG", label: "CNG" },
-    { value: "Other Truck", label: "Other Truck" },
-    { value: "Truck EMI", label: "Truck EMI" },
-];
-
-// ─── All Expense Type Options (Fallback) ──────────────────────────────────────
+// ─── All Expense Type Options ─────────────────────────────────────────────────
 const ALL_EXPENSE_TYPE_OPTIONS: FormSelectOption[] = [
     { value: "Stationary", label: "Stationary" },
     { value: "Rent", label: "Rent" },
@@ -270,45 +251,60 @@ export default function AddExpensePage() {
 
     // ─── Resolve Role of Selected Entity (Branch / Staff / Truck / Driver) ──────
     const selectedEntity = useMemo(() => {
+        if (!branchId) return null;
         return branchDropdownList.find((b: any) => String(b._id) === String(branchId));
     }, [branchDropdownList, branchId]);
 
     const selectedRole = useMemo(() => {
+        if (!branchId) return "";
         if (selectedEntity?.role) {
-            return String(selectedEntity.role).toLowerCase();
+            return String(selectedEntity.role).toLowerCase().trim();
         }
         if (!isAdminOrSuperAdmin && currentRole) {
-            return currentRole.toLowerCase();
+            return currentRole.toLowerCase().trim();
         }
         return "";
-    }, [selectedEntity, isAdminOrSuperAdmin, currentRole]);
+    }, [selectedEntity, branchId, isAdminOrSuperAdmin, currentRole]);
 
     // ─── Dynamic Expense Type Options ──────────────────────────────────────────
+    // Disabled/empty until branch is selected!
+    // Filtered directly from ALL_EXPENSE_TYPE_OPTIONS based on selected role:
     // Admin & Superadmin => All Options
     // Branch & Staff => Stationary, Rent, Salary, Labour
     // Truck & Driver => Stationary, Salary, Petrol, Diesel, CNG, Other Truck, Truck EMI
     const dynamicExpenseTypeOptions = useMemo<FormSelectOption[]>(() => {
+        if (!branchId) {
+            return [];
+        }
         if (["superadmin", "admin", "super_admin", "super-admin"].includes(selectedRole)) {
             return ALL_EXPENSE_TYPE_OPTIONS;
         }
         if (selectedRole === "truck" || selectedRole === "driver") {
-            return TRUCK_DRIVER_EXPENSE_OPTIONS;
+            return ALL_EXPENSE_TYPE_OPTIONS.filter((opt) =>
+                ["Stationary", "Salary", "Petrol", "Diesel", "CNG", "Other Truck", "Truck EMI"].includes(opt.value)
+            );
         }
         if (selectedRole === "branch" || selectedRole === "staff") {
-            return BRANCH_STAFF_EXPENSE_OPTIONS;
+            return ALL_EXPENSE_TYPE_OPTIONS.filter((opt) =>
+                ["Stationary", "Rent", "Salary", "Labour"].includes(opt.value)
+            );
         }
-        return ALL_EXPENSE_TYPE_OPTIONS;
-    }, [selectedRole]);
+        return [];
+    }, [branchId, selectedRole]);
 
-    // Auto-clear selected expenseType if it's not valid for the newly selected role/branch
+    // Auto-clear selected expenseType if branch is unselected or if expenseType is not valid for the newly selected role/branch
     useEffect(() => {
+        if (!branchId) {
+            if (expenseType) setExpenseType("");
+            return;
+        }
         if (expenseType && dynamicExpenseTypeOptions.length > 0) {
             const isValid = dynamicExpenseTypeOptions.some((opt) => opt.value === expenseType);
             if (!isValid) {
                 setExpenseType("");
             }
         }
-    }, [dynamicExpenseTypeOptions, expenseType]);
+    }, [branchId, dynamicExpenseTypeOptions, expenseType]);
 
     // ─── History Queries by Expense Type (passing branchId in body payload) ───────
     const isFuel = ["Petrol", "Diesel", "CNG"].includes(expenseType);
@@ -318,19 +314,19 @@ export default function AddExpensePage() {
     const isEmi = expenseType === "Truck EMI";
 
     const { data: fuelHistoryRes, isLoading: isFuelHistLoading } = useFuelHistory(
-        isFuel ? branchId : undefined
+        isFuel && branchId ? branchId : undefined
     );
     const { data: rentHistoryRes, isLoading: isRentHistLoading } = useRentHistory(
-        isRent ? branchId : undefined
+        isRent && branchId ? branchId : undefined
     );
     const { data: salaryHistoryRes, isLoading: isSalaryHistLoading } = useSalaryHistory(
-        isSalary ? branchId : undefined
+        isSalary && branchId ? branchId : undefined
     );
     const { data: labourHistoryRes, isLoading: isLabourHistLoading } = useLabourHistory(
-        isLabour ? branchId : undefined
+        isLabour && branchId ? branchId : undefined
     );
     const { data: emiHistoryRes, isLoading: isEmiHistLoading } = useEmiHistory(
-        isEmi ? branchId : undefined
+        isEmi && branchId ? branchId : undefined
     );
 
     const fuelHistory = useMemo(() => extractHistoryList(fuelHistoryRes), [fuelHistoryRes]);
@@ -467,7 +463,9 @@ export default function AddExpensePage() {
             newErrors.branchId = "Please select a branch.";
         }
         if (!expenseType) {
-            newErrors.expenseType = "Please select an expense type.";
+            newErrors.expenseType = !branchId
+                ? "Please select a branch first."
+                : "Please select an expense type.";
         }
         if (!expenseDate) {
             newErrors.expenseDate = "Please enter an expense date.";
@@ -807,7 +805,9 @@ export default function AddExpensePage() {
                                 disabled={!isAdminOrSuperAdmin && Boolean(ownBranchId)}
                                 onChange={(val) => {
                                     setBranchId(val);
+                                    setExpenseType("");
                                     if (errors.branchId) setErrors((p) => ({ ...p, branchId: "" }));
+                                    if (errors.expenseType) setErrors((p) => ({ ...p, expenseType: "" }));
                                 }}
                                 placeholder="Select Branch"
                                 searchPlaceholder="Search branch..."
@@ -823,11 +823,12 @@ export default function AddExpensePage() {
                                 searchable
                                 options={dynamicExpenseTypeOptions}
                                 value={expenseType}
+                                disabled={!branchId}
                                 onChange={(val) => {
                                     setExpenseType(val as ExpenseType);
                                     if (errors.expenseType) setErrors((p) => ({ ...p, expenseType: "" }));
                                 }}
-                                placeholder="Select Expense Type"
+                                placeholder={!branchId ? "Select Branch First" : "Select Expense Type"}
                                 searchPlaceholder="Search expense type..."
                                 error={errors.expenseType}
                             />

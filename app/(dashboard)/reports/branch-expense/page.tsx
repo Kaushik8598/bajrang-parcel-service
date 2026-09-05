@@ -303,7 +303,7 @@ export default function BranchExpenseReportPage() {
       <div className="bg-white rounded border border-slate-200/80 shadow-2xs p-3.5 space-y-3">
         <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
           <h1 className="text-xl sm:text-2xl font-bold text-black tracking-tight">
-            Branch Expense Report
+            Expense Report
           </h1>
 
           {(fromDateInput || toDateInput || branchInput || expenseTypeInput) && (
@@ -348,7 +348,7 @@ export default function BranchExpenseReportPage() {
               setBranchInput(val as string);
               setPage(1);
             }}
-            placeholder="All Branches"
+            placeholder="Branches"
           />
           <FormSelect
             label="Expense Type:"
@@ -358,7 +358,7 @@ export default function BranchExpenseReportPage() {
               setExpenseTypeInput(val as string);
               setPage(1);
             }}
-            placeholder="All Expense Types"
+            placeholder="Expense Types"
           />
         </div>
       </div>

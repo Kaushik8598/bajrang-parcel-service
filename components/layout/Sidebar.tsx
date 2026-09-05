@@ -105,7 +105,7 @@ const DEFAULT_MENU: MenuItem[] = [
       { id: "return-report", label: "Return Report", path: "/reports/return", permission_module: "booking" },
       { id: "verify-report", label: "Verify Report", path: "/reports/verify", permission_module: "booking" },
       { id: "memo-report", label: "Memo Report", path: "/reports/memo", permission_module: "memo" },
-      { id: "branch-expense-report", label: "Branch Expense Report", path: "/reports/branch-expense", permission_module: "expense" },
+      { id: "branch-expense-report", label: "Expense Report", path: "/reports/branch-expense", permission_module: "expense" },
     ],
   },
   { id: "marketing-tools", label: "Marketing Tools", path: "/marketing-tools", icon: "marketing-tools", permission_module: "marketing" },
