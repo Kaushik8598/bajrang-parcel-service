@@ -1243,96 +1243,7 @@ export default function ParcelBookingForm({
     }
   };
 
-  // ─── Enter = Next Field Navigation ──────────────────────────────────────────
-  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
-    if (e.key !== "Enter") return;
 
-    const target = e.target as HTMLElement;
-
-    // 1. If Enter is pressed directly on the submit button, allow normal form submission
-    if (target.tagName === "BUTTON" && (target as HTMLButtonElement).type === "submit") {
-      return;
-    }
-
-    // 2. If Enter is pressed on the cancel button, allow click execution
-    if (
-      target.tagName === "BUTTON" &&
-      (target.getAttribute("data-action") === "cancel" || target.textContent?.trim() === "Cancel")
-    ) {
-      target.click();
-      return;
-    }
-
-    // 3. In textarea, Shift+Enter makes newline; regular Enter advances to next field
-    if (target.tagName === "TEXTAREA" && e.shiftKey) {
-      return;
-    }
-
-    e.preventDefault();
-
-    const form = e.currentTarget;
-
-    // 4. Query all navigable form elements (inputs, textareas, selects, submit, cancel)
-    const allElements = Array.from(
-      form.querySelectorAll<HTMLElement>(
-        'input:not([disabled]):not([readonly]):not([type="hidden"]):not([tabindex="-1"]), ' +
-        'textarea:not([disabled]):not([readonly]):not([tabindex="-1"]), ' +
-        'button:not([disabled]):not([tabindex="-1"])'
-      )
-    );
-
-    // 5. Filter only visible elements and valid form controls/action buttons
-    const focusable = allElements.filter((el) => {
-      // Must be visible and not inside floating dropdown popup
-      if (el.offsetParent === null) return false;
-      if (el.closest(".form-select-dropdown") || el.closest(".z-\\[9999\\]")) return false;
-
-      // Filter buttons: only include FormSelect triggers, Submit button, and Cancel button
-      if (el.tagName === "BUTTON") {
-        const btn = el as HTMLButtonElement;
-        if (btn.type === "submit") return true;
-        if (btn.getAttribute("data-action") === "cancel" || btn.textContent?.trim() === "Cancel") return true;
-        if (btn.id && btn.id.startsWith("select-")) return true;
-        if (btn.parentElement?.classList.contains("relative") && btn.querySelector(".truncate")) return true;
-        return false;
-      }
-
-      return true;
-    });
-
-    // 6. Resolve effective target (if target is search input inside select dropdown)
-    let effectiveTarget: HTMLElement = target;
-    const selectContainer = target.closest(".relative");
-    if (selectContainer && (target.closest(".form-select-dropdown") || target.closest(".z-\\[9999\\]"))) {
-      const selectBtn = selectContainer.querySelector<HTMLButtonElement>("button");
-      if (selectBtn) {
-        effectiveTarget = selectBtn;
-      }
-    }
-
-    const currentIndex = focusable.indexOf(effectiveTarget);
-    if (currentIndex !== -1 && currentIndex < focusable.length - 1) {
-      const nextElement = focusable[currentIndex + 1];
-      setTimeout(() => {
-        nextElement.focus();
-        if (nextElement instanceof HTMLInputElement) {
-          nextElement.select?.();
-        }
-      }, 50);
-    } else if (currentIndex === -1) {
-      // If target was not in focusable directly, find the nearest next one
-      const targetPos = effectiveTarget.compareDocumentPosition.bind(effectiveTarget);
-      const nextElement = focusable.find((el) => (targetPos(el) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0);
-      if (nextElement) {
-        setTimeout(() => {
-          nextElement.focus();
-          if (nextElement instanceof HTMLInputElement) {
-            nextElement.select?.();
-          }
-        }, 50);
-      }
-    }
-  };
 
   if (isEdit && isBookingLoading) {
     return (
@@ -1406,7 +1317,6 @@ export default function ParcelBookingForm({
       <form
         data-booking-form="true"
         onSubmit={handleSubmit}
-        onKeyDown={handleFormKeyDown}
         className="parcel-booking-form space-y-1"
       >
         <fieldset disabled={isView} className={`contents space-y-1 ${isView ? "pointer-events-none select-text" : ""}`}>

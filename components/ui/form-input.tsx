@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { focusNextField } from "@/components/ui/form-navigation";
 
 export interface FormInputProps extends React.ComponentProps<typeof Input> {
   label?: string;
@@ -70,6 +71,15 @@ export const FormInput = forwardRef<HTMLInputElement, FormInputProps>(
               className
             )}
             {...props}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                const handled = focusNextField(e.currentTarget);
+                if (handled) {
+                  e.preventDefault();
+                }
+              }
+              props.onKeyDown?.(e);
+            }}
           />
 
           {endIcon && (
@@ -147,6 +157,15 @@ export const FormTextarea = forwardRef<HTMLTextAreaElement, FormTextareaProps>(
             className
           )}
           {...props}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              const handled = focusNextField(e.currentTarget);
+              if (handled) {
+                e.preventDefault();
+              }
+            }
+            props.onKeyDown?.(e);
+          }}
         />
 
         {hasError && errorMessage && (

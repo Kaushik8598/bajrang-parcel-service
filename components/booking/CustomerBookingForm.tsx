@@ -429,46 +429,13 @@ export default function CustomerBookingForm({
     setFormErrors({});
   };
 
-  // ─── Enter = Next Field Navigation ──────────────────────────────────────────
-  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
-    if (e.key !== "Enter") return;
 
-    const target = e.target as HTMLElement;
-    if (target.tagName === "BUTTON" && (target as HTMLButtonElement).type === "submit") {
-      return;
-    }
-    if (
-      target.tagName === "BUTTON" &&
-      (target.getAttribute("data-action") === "cancel" || target.textContent?.trim() === "Cancel")
-    ) {
-      target.click();
-      return;
-    }
-    if (target.tagName === "TEXTAREA" && e.shiftKey) {
-      return;
-    }
-
-    e.preventDefault();
-
-    const form = e.currentTarget;
-    const allElements = Array.from(
-      form.querySelectorAll<HTMLElement>(
-        'input:not([type="hidden"]):not([disabled]):not([readonly]), select:not([disabled]), textarea:not([disabled]), button[type="submit"]:not([disabled])'
-      )
-    ).filter((el) => el.offsetParent !== null && el.tabIndex !== -1);
-
-    const currentIndex = allElements.indexOf(target);
-    if (currentIndex > -1 && currentIndex < allElements.length - 1) {
-      allElements[currentIndex + 1].focus();
-    }
-  };
 
   return (
     <div className="w-full space-y-1 pb-6">
       <form
         data-booking-form="true"
         onSubmit={handleSubmit}
-        onKeyDown={handleFormKeyDown}
         className="customer-booking-form space-y-1"
       >
         {/* ─── 1. Destination & Transport Section ────────────────────────────── */}

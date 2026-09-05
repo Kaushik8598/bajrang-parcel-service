@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Check, ChevronsUpDown, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
+import { focusNextField } from "@/components/ui/form-navigation";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,37 +35,6 @@ export interface FormSelectProps {
   className?: string;
   containerClassName?: string;
   id?: string;
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Moves DOM focus to the next (or previous) focusable element outside the
- * dropdown portal so Tab navigation flows naturally through the form.
- */
-function focusNextElement(from: HTMLElement, reverse = false) {
-  const FOCUSABLE = [
-    "a[href]",
-    "button:not([disabled])",
-    'input:not([disabled]):not([type="hidden"])',
-    "select:not([disabled])",
-    "textarea:not([disabled])",
-    '[tabindex]:not([tabindex="-1"])',
-  ].join(", ");
-
-  const candidates = Array.from(
-    document.querySelectorAll<HTMLElement>(FOCUSABLE)
-  ).filter(
-    (el) =>
-      el.offsetParent !== null &&
-      !el.closest(".form-select-dropdown") &&
-      getComputedStyle(el).visibility !== "hidden" &&
-      getComputedStyle(el).display !== "none"
-  );
-
-  const idx = candidates.indexOf(from);
-  if (idx === -1) return;
-  candidates[reverse ? idx - 1 : idx + 1]?.focus();
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -109,17 +79,22 @@ export function FormSelect({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const optionsListRef = useRef<HTMLDivElement>(null);
 
-  /**
-   * Set on mousedown of the trigger so that the onFocus handler (which fires
-   * before onClick) does NOT open the dropdown — toggle is handled by onClick.
-   */
-  const isClickingRef = useRef(false);
-
-  /**
-   * Set immediately after a selection so that when focus is programmatically
-   * returned to the trigger the onFocus handler does NOT re-open the dropdown.
-   */
-  const justSelectedRef = useRef(false);
+  // Attach open listener for Enter navigation from preceding form fields
+  useEffect(() => {
+    const el = triggerButtonRef.current;
+    if (!el) return;
+    const handleOpen = () => {
+      if (!disabled) {
+        openDropdown();
+      }
+    };
+    (el as any).__openFormSelect = handleOpen;
+    el.addEventListener("form-select-open", handleOpen);
+    return () => {
+      delete (el as any).__openFormSelect;
+      el.removeEventListener("form-select-open", handleOpen);
+    };
+  }, [disabled]);
 
   // ── Derived values ──────────────────────────────────────────────────────────
   const hasError = Boolean(error);
@@ -156,17 +131,20 @@ export function FormSelect({
     setSearchQuery("");
   };
 
-  /** Select a value, close the dropdown and return focus to the trigger. */
-  const handleSelect = (val: string) => {
+  /** Select a value, close the dropdown.
+   * If advanceFocus=true (e.g. selected via Enter), advance focus to next field.
+   * If advanceFocus=false (e.g. mouse click), return focus to trigger button.
+   */
+  const handleSelect = (val: string, advanceFocus = false) => {
     onChange(val);
     closeDropdown();
-    justSelectedRef.current = true;
-    setTimeout(() => {
-      triggerButtonRef.current?.focus();
+    if (advanceFocus && triggerButtonRef.current) {
+      focusNextField(triggerButtonRef.current);
+    } else {
       setTimeout(() => {
-        justSelectedRef.current = false;
-      }, 50);
-    }, 10);
+        triggerButtonRef.current?.focus();
+      }, 10);
+    }
   };
 
   const handleClear = (e: React.MouseEvent) => {
@@ -185,12 +163,13 @@ export function FormSelect({
     );
   };
 
-  const selectHighlighted = () => {
+  const selectHighlighted = (advanceFocus = false) => {
+    if (filteredOptions.length === 0) return;
     const opt =
       highlightedIndex >= 0 && highlightedIndex < filteredOptions.length
         ? filteredOptions[highlightedIndex]
         : filteredOptions[0];
-    if (opt) handleSelect(opt.value);
+    if (opt) handleSelect(opt.value, advanceFocus);
   };
 
   // ── Dropdown position (portal uses fixed coords) ─────────────────────────────
@@ -288,8 +267,11 @@ export function FormSelect({
       case "Enter":
         e.preventDefault();
         e.stopPropagation();
-        if (!isOpen) openDropdown();
-        else selectHighlighted();
+        if (!isOpen) {
+          openDropdown();
+        } else {
+          selectHighlighted(true);
+        }
         break;
       case " ":
         if (!isOpen) {
@@ -323,17 +305,13 @@ export function FormSelect({
         e.preventDefault();
         e.stopPropagation();
         if (filteredOptions.length > 0) {
-          selectHighlighted();
+          selectHighlighted(true);
         } else if (allowCustom && searchQuery.trim()) {
-          handleSelect(searchQuery.trim());
+          handleSelect(searchQuery.trim(), true);
         }
         break;
       case "Tab":
-        e.preventDefault();
         closeDropdown();
-        if (triggerButtonRef.current) {
-          focusNextElement(triggerButtonRef.current, e.shiftKey);
-        }
         break;
       case "Escape":
         e.preventDefault();
@@ -362,20 +340,12 @@ export function FormSelect({
       <button
         ref={triggerButtonRef}
         id={inputId}
+        data-form-select-trigger="true"
         type="button"
         disabled={disabled}
-        onMouseDown={() => {
-          isClickingRef.current = true;
-        }}
-        onFocus={() => {
-          if (!disabled && !isClickingRef.current && !justSelectedRef.current) {
-            openDropdown();
-          }
-        }}
         onClick={() => {
           if (!disabled) {
             setIsOpen((prev) => !prev);
-            isClickingRef.current = false;
           }
         }}
         onKeyDown={handleTriggerKeyDown}
@@ -426,6 +396,7 @@ export function FormSelect({
         createPortal(
           <div
             ref={dropdownRef}
+            data-trigger-id={inputId}
             style={{
               position: "fixed",
               top: dropdownPos.openUpwards ? "auto" : `${dropdownPos.top}px`,
